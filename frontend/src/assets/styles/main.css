@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap');
+
+:root {
+  --bg: #F5F4EE;
+  --surface: #FFFFFF;
+  --surface-2: #EDEBE0;
+  --sidebar: #14403A;
+  --primary: #1F5D50;
+  --primary-dark: #0F332C;
+  --primary-tint: #E3EEEA;
+  --accent: #C68F2E;
+  --accent-tint: #FAF0DC;
+  --danger: #AE3D46;
+  --danger-tint: #F7E5E4;
+  --success: #3C7A52;
+  --success-tint: #E4EFE6;
+  --amber: #B8863A;
+  --amber-tint: #FBF1DE;
+  --text: #20261F;
+  --text-muted: #5E6B5B;
+  --text-soft: #8A9682;
+  --border: #DEDCCF;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --font: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  margin: 0;
+}
+
+p { margin: 0; }
+button { font-family: var(--font); cursor: pointer; }
+input, select, textarea { font-family: var(--font); font-size: 13.5px; }
