@@ -1,22 +1,27 @@
 package foodbank.webapp.entity;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
+import lombok.*;
+
+@Setter
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Entity
 public class ListingTag {
-    private Integer listingId;
-    private Integer tagId;
 
-    public Integer getListingId() {
-        return listingId;
-    }
+    @Id
+    @GeneratedValue
+    private Integer id;
 
-    public void setListingId(Integer listingId) {
-        this.listingId = listingId;
-    }
+    @ManyToOne
+    private Listing listing;
 
-    public Integer getTagId() {
-        return tagId;
-    }
+    @ManyToOne
+    private Tag tag;
 
-    public void setTagId(Integer tagId) {
-        this.tagId = tagId;
-    }
 }
