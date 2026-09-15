@@ -15,18 +15,18 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class ListingService {
-    private final ListingRepository listingRepostory;
+    private final ListingRepository listingRepository;
     private final ListingTagRepository listingTagRepository;
     private final TimeslotRepository timeslotRepository;
 
     public Page<Listing> findAllListing(Pageable pageable){
-        return listingRepostory.findAll(pageable);
+        return listingRepository.findAll(pageable);
     }
 
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
         return findAllListing(pageable).map(listing -> new ListingResponse(
-                listing.getCategory(),
-                listing.getNotes(),
+                listing.getName(),
+                listing.getDescription(),
                 listing.getCategory(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
                 listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
