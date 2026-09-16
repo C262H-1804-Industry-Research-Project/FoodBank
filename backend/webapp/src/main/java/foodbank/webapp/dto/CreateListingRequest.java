@@ -15,7 +15,6 @@ public record CreateListingRequest(
         String region,
         Integer maxDailyCapacity,
         String photoUrl,
-        String notes,
         List<Integer> tagIds,
         List<CreateTimeslotRequest> timeslots
 ) {

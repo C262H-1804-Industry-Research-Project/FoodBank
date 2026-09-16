@@ -37,5 +37,4 @@ public class Listing {
     private String status;
     private Integer maxDailyCapacity;
     private String photoUrl;
-    private String notes;
 }
