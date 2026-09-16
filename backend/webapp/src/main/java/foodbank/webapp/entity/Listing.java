@@ -31,7 +31,9 @@ public class Listing {
     private Float quantity;
     private LocalDate expiryDate;
     private LocalDate collectionDeadline;
-    private String pickupAddress;
+    private String addressLine;
+    private String suburb;
+    private String region;
     private String status;
     private Integer maxDailyCapacity;
     private String photoUrl;

@@ -77,7 +77,7 @@ public class ListingService {
     @Transactional
     public CreatedListingResponse createListing(Integer donorId, CreateListingRequest request) {
         requireText(request.name(), "name");
-        requireText(request.pickupAddress(), "pickupAddress");
+
         if (request.categoryId() == null) {
             throw new IllegalArgumentException("categoryId is required");
         }
@@ -91,6 +91,18 @@ public class ListingService {
 
         Donor donor = donorRepository.findById(donorId)
                 .orElseThrow(() -> new java.util.NoSuchElementException("Donor not found"));
+
+        String addressLine = request.addressLine();
+        String suburb = request.suburb();
+        String region = request.region();
+
+        // If addressLine is empty, just use the organisation's address
+        if (addressLine == null || addressLine.isBlank()){
+            addressLine = donor.getAddressLine();
+            suburb = donor.getSuburb();
+            region = donor.getRegion();
+        }
+
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
         Listing listing = listingRepository.save(Listing.builder()
@@ -101,7 +113,9 @@ public class ListingService {
                 .quantity(request.quantity())
                 .expiryDate(request.expiryDate())
                 .collectionDeadline(request.collectionDeadline())
-                .pickupAddress(request.pickupAddress().trim())
+                .addressLine(addressLine.trim())
+                .suburb(suburb.trim())
+                .region(region.trim())
                 .status("AVAILABLE")
                 .maxDailyCapacity(request.maxDailyCapacity())
                 .photoUrl(blankToNull(request.photoUrl()))
