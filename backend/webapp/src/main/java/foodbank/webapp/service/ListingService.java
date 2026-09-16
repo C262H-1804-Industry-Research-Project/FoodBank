@@ -22,6 +22,7 @@ import foodbank.webapp.repositories.TimeslotRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +44,42 @@ public class ListingService {
     }
 
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
-        return findAllListing(pageable).map(listing -> new ListingResponse(
+        return findAllListing(pageable).map(this::toListingResponse);
+    }
+
+    public Page<ListingResponse> searchListingResponses(
+            String foodName,
+            Integer categoryId,
+            List<Integer> tagIds,
+            Pageable pageable
+    ) {
+        Specification<Listing> specification = (root, query, builder) -> builder.conjunction();
+        if (foodName != null && !foodName.isBlank()) {
+            String namePattern = "%" + foodName.trim().toLowerCase() + "%";
+            specification = specification.and((root, query, builder) ->
+                    builder.like(builder.lower(root.get("name")), namePattern));
+        }
+        if (categoryId != null) {
+            specification = specification.and((root, query, builder) ->
+                    builder.equal(root.get("category").get("categoryId"), categoryId));
+        }
+        if (tagIds != null && !tagIds.isEmpty()) {
+            specification = specification.and((root, query, builder) -> {
+                var matchingTag = query.subquery(Integer.class);
+                var listingTag = matchingTag.from(ListingTag.class);
+                matchingTag.select(builder.literal(1));
+                matchingTag.where(
+                        builder.equal(listingTag.get("listing"), root),
+                        listingTag.get("tag").get("tagId").in(tagIds)
+                );
+                return builder.exists(matchingTag);
+            });
+        }
+        return listingRepository.findAll(specification, pageable).map(this::toListingResponse);
+    }
+
+    private ListingResponse toListingResponse(Listing listing) {
+        return new ListingResponse(
                 listing.getName(),
                 listing.getDescription(),
                 listing.getCategory() == null ? null : listing.getCategory().getName(),
@@ -59,7 +95,7 @@ public class ListingService {
                                 timeslot.getRemainingSlot()
                         ))
                         .toArray(TimeSlot[]::new)
-        ));
+        );
     }
 
     public List<CatalogueItemResponse> findAvailableCategories() {

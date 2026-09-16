@@ -24,11 +24,14 @@ public class ListingController {
     @GetMapping
     public PagedModel<ListingResponse> getListings(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String foodName,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) List<Integer> tagIds
     ) {
         Pageable pageable = PageRequest.of(page, size);
 
-        return new PagedModel<>(listingService.findAllListingResponse(pageable));
+        return new PagedModel<>(listingService.searchListingResponses(foodName, categoryId, tagIds, pageable));
     }
 
     @GetMapping("/categories")
