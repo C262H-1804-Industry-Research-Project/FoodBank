@@ -28,6 +28,4 @@ public class ListingController {
         return new PagedModel<>(listingService.findAllListingResponse(pageable));
     }
 
-
-
 }

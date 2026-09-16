@@ -17,7 +17,9 @@ public class Donor {
     private Integer id;
     private Integer userId;
     private String orgName;
-    private String location;
+    private String addressLine;
+    private String suburb;
+    private String region;
     private String approvalStatus;
     private Boolean hideContact;
 }
