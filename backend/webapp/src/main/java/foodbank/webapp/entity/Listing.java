@@ -26,7 +26,8 @@ public class Listing {
 
     private String name;
     private String description;
-    private String category;
+    @ManyToOne
+    private Category category;
     private Float quantity;
     private LocalDate expiryDate;
     private LocalDate collectionDeadline;

@@ -6,7 +6,7 @@ import java.util.List;
 public record CreateListingRequest(
         String name,
         String description,
-        String category,
+        Integer categoryId,
         Float quantity,
         LocalDate expiryDate,
         LocalDate collectionDeadline,
@@ -14,7 +14,7 @@ public record CreateListingRequest(
         Integer maxDailyCapacity,
         String photoUrl,
         String notes,
-        List<String> tags,
+        List<Integer> tagIds,
         List<CreateTimeslotRequest> timeslots
 ) {
 }

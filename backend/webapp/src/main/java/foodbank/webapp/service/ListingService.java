@@ -3,15 +3,18 @@ package foodbank.webapp.service;
 
 import foodbank.webapp.dto.ListingResponse;
 import foodbank.webapp.dto.TimeSlot;
+import foodbank.webapp.dto.CatalogueItemResponse;
 import foodbank.webapp.dto.CreateListingRequest;
 import foodbank.webapp.dto.CreateTimeslotRequest;
 import foodbank.webapp.dto.CreatedListingResponse;
 import foodbank.webapp.entity.Donor;
+import foodbank.webapp.entity.Category;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.ListingTag;
 import foodbank.webapp.entity.Tag;
 import foodbank.webapp.entity.Timeslot;
 import foodbank.webapp.repositories.DonorRepository;
+import foodbank.webapp.repositories.CategoryRepository;
 import foodbank.webapp.repositories.ListingTagRepository;
 import foodbank.webapp.repositories.ListingRepository;
 import foodbank.webapp.repositories.TagRepository;
@@ -23,18 +26,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
-import java.util.Set;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ListingService {
-    private static final Set<String> ALLOWED_CATEGORIES = Set.of("bakery", "produce", "pantry");
-    private static final Set<String> ALLOWED_TAGS = Set.of("no pork", "nut free", "vegetarian", "halal");
     private final ListingRepository listingRepository;
     private final ListingTagRepository listingTagRepository;
     private final TimeslotRepository timeslotRepository;
     private final DonorRepository donorRepository;
     private final TagRepository tagRepository;
+    private final CategoryRepository categoryRepository;
 
     public Page<Listing> findAllListing(Pageable pageable){
         return listingRepository.findAll(pageable);
@@ -44,7 +46,7 @@ public class ListingService {
         return findAllListing(pageable).map(listing -> new ListingResponse(
                 listing.getName(),
                 listing.getDescription(),
-                listing.getCategory(),
+                listing.getCategory() == null ? null : listing.getCategory().getName(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
                 listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
                 listingTagRepository.findByListing(listing).stream()
@@ -60,13 +62,24 @@ public class ListingService {
         ));
     }
 
+    public List<CatalogueItemResponse> findAvailableCategories() {
+        return categoryRepository.findAll().stream()
+                .map(category -> new CatalogueItemResponse(category.getCategoryId(), category.getName()))
+                .toList();
+    }
+
+    public List<CatalogueItemResponse> findAvailableTags() {
+        return tagRepository.findAll().stream()
+                .map(tag -> new CatalogueItemResponse(tag.getTagId(), tag.getName()))
+                .toList();
+    }
+
     @Transactional
     public CreatedListingResponse createListing(Integer donorId, CreateListingRequest request) {
         requireText(request.name(), "name");
-        requireText(request.category(), "category");
         requireText(request.pickupAddress(), "pickupAddress");
-        if (!ALLOWED_CATEGORIES.contains(request.category())) {
-            throw new IllegalArgumentException("category must be one of: bakery, produce, pantry");
+        if (request.categoryId() == null) {
+            throw new IllegalArgumentException("categoryId is required");
         }
         if (request.quantity() == null || request.quantity() <= 0) {
             throw new IllegalArgumentException("quantity must be greater than zero");
@@ -78,11 +91,13 @@ public class ListingService {
 
         Donor donor = donorRepository.findById(donorId)
                 .orElseThrow(() -> new java.util.NoSuchElementException("Donor not found"));
+        Category category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
         Listing listing = listingRepository.save(Listing.builder()
                 .donor(donor)
                 .name(request.name().trim())
                 .description(blankToNull(request.description()))
-                .category(request.category().trim())
+                .category(category)
                 .quantity(request.quantity())
                 .expiryDate(request.expiryDate())
                 .collectionDeadline(request.collectionDeadline())
@@ -92,17 +107,17 @@ public class ListingService {
                 .photoUrl(blankToNull(request.photoUrl()))
                 .build());
 
-        for (String tagName : request.tags() == null ? Collections.<String>emptyList() : request.tags()) {
-            if (tagName == null || tagName.isBlank()) {
-                throw new IllegalArgumentException("tags cannot contain blank values");
+        // Add tags to listing
+        for (Integer tagId : request.tagIds() == null ? Collections.<Integer>emptyList() : request.tagIds()) {
+            if (tagId == null) {
+                throw new IllegalArgumentException("tagIds cannot contain null values");
             }
-            if (!ALLOWED_TAGS.contains(tagName)) {
-                throw new IllegalArgumentException("tag must be one of: no pork, nut free, vegetarian, halal");
-            }
-            Tag tag = tagRepository.findByNameIgnoreCase(tagName)
-                    .orElseThrow(() -> new IllegalStateException("Approved tag catalogue has not been initialized"));
+            Tag tag = tagRepository.findById(tagId)
+                    .orElseThrow(() -> new IllegalArgumentException("Selected tag does not exist"));
             listingTagRepository.save(ListingTag.builder().listing(listing).tag(tag).build());
         }
+
+        // Add timeslot to listing
         for (CreateTimeslotRequest timeslotRequest : request.timeslots() == null
                 ? Collections.<CreateTimeslotRequest>emptyList() : request.timeslots()) {
             saveTimeslot(listing, timeslotRequest);
