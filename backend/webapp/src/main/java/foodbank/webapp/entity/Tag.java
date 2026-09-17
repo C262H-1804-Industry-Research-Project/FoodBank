@@ -1,31 +1,27 @@
 package foodbank.webapp.entity;
 
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
+import lombok.*;
+
+import java.util.HashSet;
+import java.util.Set;
+
+@Setter
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Entity
 public class Tag {
+
+    @Id
+    @GeneratedValue
     private Integer tagId;
-    private String tagName;
-    private String tagType;
+    private String name;
+    private String type;
 
-    public Integer getTagId() {
-        return tagId;
-    }
-
-    public void setTagId(Integer tagId) {
-        this.tagId = tagId;
-    }
-
-    public String getTagName() {
-        return tagName;
-    }
-
-    public void setTagName(String tagName) {
-        this.tagName = tagName;
-    }
-
-    public String getTagType() {
-        return tagType;
-    }
-
-    public void setTagType(String tagType) {
-        this.tagType = tagType;
-    }
 }
