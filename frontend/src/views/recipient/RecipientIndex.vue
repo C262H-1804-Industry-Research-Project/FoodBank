@@ -46,12 +46,20 @@
       </main>
     </div>
 
-    <!-- Request Modal -->
+    <!-- Request Modal with Description Box -->
     <div class="modal-backdrop" :class="{ show: showModal }">
       <div class="modal-box" v-if="modalItem">
         <h3>Request: {{ modalItem.name }}</h3>
         <div class="modal-sub">{{ modalItem.donor }}</div>
         
+        <!-- Description block from listing notes -->
+        <div class="field" v-if="modalItem.notes">
+          <label class="field-label">Description</label>
+          <div class="modal-description-box">
+            {{ modalItem.notes }}
+          </div>
+        </div>
+
         <div class="field">
           <label class="field-label">Pickup timeslot</label>
           <select v-model="modalForm.slot">
@@ -66,12 +74,12 @@
         </div>
         
         <div class="field">
-          <label class="field-label">Note <span style="font-weight:500;color:var(--text-soft);">(optional)</span></label>
+          <label class="field-label">Note <span style="font-weight:500;color:var(--text-soft);">(optional — e.g. request extra beyond the limit)</span></label>
           <textarea v-model="modalForm.note" rows="3" placeholder="Add context for the donor…"></textarea>
         </div>
         
         <div class="field-hint" style="margin-bottom:6px;">
-          📍 Exact address ({{ modalItem.addressLine }}, {{ modalItem.suburb }} {{ modalItem.stateRegion }}) will be confirmed after approval.
+          📍 The exact pickup address is shared in <strong>My requests</strong> once the donor approves you — for now you only see the general area.
         </div>
         
         <div class="modal-close-row">
@@ -106,7 +114,7 @@ function handleLogout() {
   router.push('/auth')
 }
 
-// Global available donation listings with structured address and notes
+// Global available donation listings
 const availableListings = ref([
   {
     id: 1,
@@ -122,7 +130,7 @@ const availableListings = ref([
     timeType: 'today',
     tags: ['Contains gluten', 'Vegetarian'],
     donor: 'Green Leaf Café',
-    notes: 'Freshly baked this morning; best consumed within 48h or frozen.'
+    notes: 'Freshly baked this morning; best consumed within 48h or kept refrigerated.'
   },
   {
     id: 2,
@@ -138,7 +146,7 @@ const availableListings = ref([
     timeType: 'tomorrow',
     tags: ['Vegetarian', 'No pork'],
     donor: 'Norwood Fresh Markets',
-    notes: 'Includes potatoes, carrots and broccoli. Keep chilled in cool room.'
+    notes: 'Includes potatoes, carrots, and broccoli. Keep chilled in a cool environment.'
   },
   {
     id: 3,
@@ -170,7 +178,7 @@ const availableListings = ref([
     timeType: 'today',
     tags: ['Vegetarian', 'Nut-free'],
     donor: 'Unley Organic Co',
-    notes: 'Must be transported using an esky / cooler bag.'
+    notes: 'Must be transported using an esky or cooler bag.'
   },
   {
     id: 5,
@@ -186,7 +194,7 @@ const availableListings = ref([
     timeType: 'today',
     tags: ['Contains gluten', 'Vegetarian'],
     donor: 'Torrens Bakehouse',
-    notes: 'Ready to eat or reheat.'
+    notes: 'Baked fresh daily. Ready to eat or reheat.'
   },
   {
     id: 6,
@@ -277,11 +285,22 @@ function confirmRequest() {
 .placeholder-card h3 { font-size: 20px; color: var(--text); margin-bottom: 8px; }
 .placeholder-card p { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 24px; }
 
+/* Modal and Description box styles */
 .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(15,20,17,.45); z-index: 200; align-items: center; justify-content: center; }
 .modal-backdrop.show { display: flex; }
 .modal-box { background: var(--surface); border-radius: var(--r-lg); width: 440px; max-width: 90vw; padding: 26px; max-height: 85vh; overflow-y: auto; }
 .modal-box h3 { font-size: 18px; margin-bottom: 4px; }
-.modal-sub { font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px; }
+.modal-sub { font-size: 12.5px; color: var(--text-muted); margin-bottom: 16px; }
+
+.modal-description-box {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.45;
+}
+
 .modal-close-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .field { margin-bottom: 16px; }
 .field-label { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }

@@ -80,12 +80,6 @@
               🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}
             </div>
 
-            <!-- Additional Storage instructions / Notes region -->
-            <div v-if="item.notes" class="lc-notes">
-              <span class="notes-label">Storage / Notes:</span>
-              <p class="notes-content">{{ item.notes }}</p>
-            </div>
-
             <!-- Dietary tags -->
             <div v-if="item.tags && item.tags.length" class="lc-tags">
               <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
@@ -191,12 +185,10 @@ const hasActiveFilters = computed(() => {
 // Filter matching logic
 const filteredListings = computed(() => {
   return props.listings.filter(item => {
-    // 1. Category match
     if (filterCategory.value && item.category !== filterCategory.value) {
       return false
     }
 
-    // 2. Suburb / State match
     if (filterLocation.value.trim()) {
       const qLoc = filterLocation.value.trim().toLowerCase()
       const suburbMatch = (item.suburb || '').toLowerCase().includes(qLoc)
@@ -206,14 +198,12 @@ const filteredListings = computed(() => {
       }
     }
 
-    // 3. Pickup time matching
     if (filterTime.value) {
       if (filterTime.value === 'today' && item.timeType !== 'today') return false
       if (filterTime.value === 'tomorrow' && item.timeType !== 'tomorrow') return false
       if (filterTime.value === 'weekend' && item.timeType !== 'weekend') return false
     }
 
-    // 4. Keyword search
     if (searchKeyword.value.trim()) {
       const q = searchKeyword.value.trim().toLowerCase()
       const nameMatch = (item.name || '').toLowerCase().includes(q)
@@ -223,7 +213,6 @@ const filteredListings = computed(() => {
       }
     }
 
-    // 5. Dietary tag inclusion
     if (activeTags.value.length > 0) {
       const hasAllTags = activeTags.value.every(tag => (item.tags || []).includes(tag))
       if (!hasAllTags) {
@@ -237,9 +226,8 @@ const filteredListings = computed(() => {
 
 // Pagination logic
 const currentPage = ref(1)
-const pageSize = ref(6) // 6 cards per page
+const pageSize = ref(6)
 
-// Reset to page 1 whenever filters change
 watch([filterCategory, filterLocation, filterTime, searchKeyword, activeTags], () => {
   currentPage.value = 1
 })
@@ -364,26 +352,6 @@ const paginatedListings = computed(() => {
   color: var(--text-muted);
   margin-top: 8px;
   line-height: 1.5;
-}
-
-/* Card Storage instructions region */
-.lc-notes {
-  margin-top: 10px;
-  background: var(--surface-2);
-  border-radius: var(--r-sm);
-  padding: 8px 10px;
-  font-size: 11.5px;
-}
-.notes-label {
-  font-weight: 700;
-  color: var(--primary-dark);
-  display: block;
-  margin-bottom: 2px;
-}
-.notes-content {
-  color: var(--text-muted);
-  line-height: 1.4;
-  margin: 0;
 }
 
 .lc-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
