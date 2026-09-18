@@ -117,6 +117,15 @@ public class ListingService {
         if (request.categoryId() == null) {
             throw new IllegalArgumentException("categoryId is required");
         }
+
+        if (request.isAutoApproved() == null){
+            throw new IllegalArgumentException("isAutoApproved is required");
+        }
+
+        if (request.usePickupCode() == null){
+            throw new IllegalArgumentException("usePickupCode is required");
+        }
+
         if (request.quantity() == null || request.quantity() <= 0) {
             throw new IllegalArgumentException("quantity must be greater than zero");
         }
@@ -155,6 +164,8 @@ public class ListingService {
                 .status("AVAILABLE")
                 .maxDailyCapacity(request.maxDailyCapacity())
                 .photoUrl(blankToNull(request.photoUrl()))
+                .isAutoApproved(request.isAutoApproved())
+                .usePickupCode(request.usePickupCode())
                 .build());
 
         // Add tags to listing

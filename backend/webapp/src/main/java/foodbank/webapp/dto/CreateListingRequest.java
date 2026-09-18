@@ -16,6 +16,8 @@ public record CreateListingRequest(
         Integer maxDailyCapacity,
         String photoUrl,
         List<Integer> tagIds,
-        List<CreateTimeslotRequest> timeslots
+        List<CreateTimeslotRequest> timeslots,
+        Boolean isAutoApproved,
+        Boolean usePickupCode
 ) {
 }
