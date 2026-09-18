@@ -5,6 +5,7 @@ import foodbank.webapp.entity.Listing;
 import java.util.Date;
 
 public record ListingResponse(
+        Integer id,
         String foodName,
         String description,
         String category,
