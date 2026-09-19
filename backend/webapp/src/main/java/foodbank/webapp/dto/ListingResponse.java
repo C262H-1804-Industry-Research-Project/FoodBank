@@ -12,5 +12,9 @@ public record ListingResponse(
         String expiryDate,
         String latestCollectionDate,
         String[] tags,
-        TimeSlot[] timeslots
+        TimeSlot[] timeslots,
+        Integer listingId,
+        String donorName,
+        String suburb,
+        String region
 ){ }

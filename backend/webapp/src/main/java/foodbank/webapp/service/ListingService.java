@@ -95,7 +95,11 @@ public class ListingService {
                                 timeslot.getEndTime().toString(),
                                 timeslot.getRemainingSlot()
                         ))
-                        .toArray(TimeSlot[]::new)
+                        .toArray(TimeSlot[]::new),
+                listing.getListingId(),
+                listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
+                listing.getSuburb(),
+                listing.getRegion()
         );
     }
 
