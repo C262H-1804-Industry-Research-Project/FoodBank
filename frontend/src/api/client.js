@@ -1,11 +1,16 @@
 const baseUrl = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
 
-export async function apiRequest(path, { signal } = {}) {
+export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   const timeout = AbortSignal.timeout(15000)
   let response
   try {
     response = await fetch(`${baseUrl}${path}`, {
-      headers: { Accept: 'application/json' },
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     })
   } catch (error) {
@@ -28,7 +33,7 @@ export async function getAllListings(signal) {
   let page = 0
   let totalPages
   do {
-    const result = await apiRequest(`/listings?page=${page}&size=100`, { signal })
+    const result = await apiRequest(`/listings?page=${page}&size=10`, { signal })
     if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
         || result.page.totalPages < 0) throw new Error('Invalid listings response from the API.')
     items.push(...result.content)
@@ -36,4 +41,23 @@ export async function getAllListings(signal) {
     page++
   } while (page < totalPages)
   return items
+}
+
+export async function getListingCatalogue(signal) {
+  const [categories, tags] = await Promise.all([
+    apiRequest('/listings/categories', { signal }),
+    apiRequest('/listings/tags', { signal }),
+  ])
+  if (!Array.isArray(categories) || !Array.isArray(tags)) {
+    throw new Error('Invalid listing catalogue response from the API.')
+  }
+  return { categories, tags }
+}
+
+export function createDonorListing(donorId, listing, signal) {
+  return apiRequest(`/donors/${donorId}/listings`, {
+    method: 'POST',
+    body: listing,
+    signal,
+  })
 }

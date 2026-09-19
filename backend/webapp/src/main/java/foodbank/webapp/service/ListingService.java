@@ -80,10 +80,12 @@ public class ListingService {
 
     private ListingResponse toListingResponse(Listing listing) {
         return new ListingResponse(
+                listing.getListingId(),
                 listing.getName(),
                 listing.getDescription(),
                 listing.getCategory() == null ? null : listing.getCategory().getName(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
+                listing.getMaxDailyCapacity(),
                 listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
                 listingTagRepository.findByListing(listing).stream()
                         .map(listingTag -> listingTag.getTag().getName())
@@ -95,7 +97,6 @@ public class ListingService {
                                 timeslot.getRemainingSlot()
                         ))
                         .toArray(TimeSlot[]::new),
-                listing.getListingId(),
                 listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
                 listing.getSuburb(),
                 listing.getRegion()
@@ -116,63 +117,86 @@ public class ListingService {
 
     @Transactional
     public CreatedListingResponse createListing(Integer donorId, CreateListingRequest request) {
-        requireText(request.name(), "name");
-
-        if (request.categoryId() == null) {
-            throw new IllegalArgumentException("categoryId is required");
-        }
-
-        if (request.isAutoApproved() == null){
-            throw new IllegalArgumentException("isAutoApproved is required");
-        }
-
-        if (request.usePickupCode() == null){
-            throw new IllegalArgumentException("usePickupCode is required");
-        }
-
-        if (request.quantity() == null || request.quantity() <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than zero");
-        }
-        if (request.expiryDate() != null && request.collectionDeadline() != null
-                && request.collectionDeadline().isAfter(request.expiryDate())) {
-            throw new IllegalArgumentException("collectionDeadline cannot be after expiryDate");
-        }
+        validateListingRequest(request);
 
         Donor donor = donorRepository.findById(donorId)
                 .orElseThrow(() -> new java.util.NoSuchElementException("Donor not found"));
+        Listing listing = Listing.builder()
+                .donor(donor)
+                .status("AVAILABLE")
+                .build();
+        applyListingRequest(listing, donor, request);
+        listing = listingRepository.save(listing);
+
+        replaceListingDetails(listing, request);
+
+        return new CreatedListingResponse(listing.getListingId(), donor.getId(), listing.getStatus());
+    }
+
+    @Transactional
+    public CreatedListingResponse updateListing(Integer donorId, Integer listingId, CreateListingRequest request) {
+        validateListingRequest(request);
+
+        Listing listing = listingRepository.findById(listingId)
+                .orElseThrow(() -> new java.util.NoSuchElementException("Listing not found"));
+        if (!listing.getDonor().getId().equals(donorId)) {
+            throw new java.util.NoSuchElementException("Listing not found for donor");
+        }
+
+        applyListingRequest(listing, listing.getDonor(), request);
+        replaceListingDetails(listing, request);
+
+        return new CreatedListingResponse(listing.getListingId(), donorId, listing.getStatus());
+    }
+
+    @Transactional
+    public void deleteListing(Integer donorId, Integer listingId) {
+        Listing listing = listingRepository.findById(listingId)
+                .orElseThrow(() -> new java.util.NoSuchElementException("Listing not found"));
+        if (!listing.getDonor().getId().equals(donorId)) {
+            throw new java.util.NoSuchElementException("Listing not found for donor");
+        }
+
+        listingTagRepository.deleteAll(listingTagRepository.findByListing(listing));
+        timeslotRepository.deleteAll(timeslotRepository.findByListing(listing));
+        listingRepository.delete(listing);
+    }
+
+    private void applyListingRequest(Listing listing, Donor donor, CreateListingRequest request) {
+        Category category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
 
         String addressLine = request.addressLine();
         String suburb = request.suburb();
         String region = request.region();
-
-        // If addressLine is empty, just use the organisation's address
-        if (addressLine == null || addressLine.isBlank()){
+        if (addressLine == null || addressLine.isBlank()) {
             addressLine = donor.getAddressLine();
             suburb = donor.getSuburb();
             region = donor.getRegion();
         }
+        requireText(addressLine, "addressLine");
+        requireText(suburb, "suburb");
+        requireText(region, "region");
 
-        Category category = categoryRepository.findById(request.categoryId())
-                .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
-        Listing listing = listingRepository.save(Listing.builder()
-                .donor(donor)
-                .name(request.name().trim())
-                .description(blankToNull(request.description()))
-                .category(category)
-                .quantity(request.quantity())
-                .expiryDate(request.expiryDate())
-                .collectionDeadline(request.collectionDeadline())
-                .addressLine(addressLine.trim())
-                .suburb(suburb.trim())
-                .region(region.trim())
-                .status("AVAILABLE")
-                .maxDailyCapacity(request.maxDailyCapacity())
-                .photoUrl(blankToNull(request.photoUrl()))
-                .isAutoApproved(request.isAutoApproved())
-                .usePickupCode(request.usePickupCode())
-                .build());
+        listing.setName(request.name().trim());
+        listing.setDescription(blankToNull(request.description()));
+        listing.setCategory(category);
+        listing.setQuantity(request.quantity());
+        listing.setExpiryDate(request.expiryDate());
+        listing.setCollectionDeadline(request.collectionDeadline());
+        listing.setAddressLine(addressLine.trim());
+        listing.setSuburb(suburb.trim());
+        listing.setRegion(region.trim());
+        listing.setMaxDailyCapacity(request.maxDailyCapacity());
+        listing.setPhotoUrl(blankToNull(request.photoUrl()));
+        listing.setIsAutoApproved(request.isAutoApproved());
+        listing.setUsePickupCode(request.usePickupCode());
+    }
 
-        // Add tags to listing
+    private void replaceListingDetails(Listing listing, CreateListingRequest request) {
+        listingTagRepository.deleteAll(listingTagRepository.findByListing(listing));
+        timeslotRepository.deleteAll(timeslotRepository.findByListing(listing));
+
         for (Integer tagId : request.tagIds() == null ? Collections.<Integer>emptyList() : request.tagIds()) {
             if (tagId == null) {
                 throw new IllegalArgumentException("tagIds cannot contain null values");
@@ -182,13 +206,33 @@ public class ListingService {
             listingTagRepository.save(ListingTag.builder().listing(listing).tag(tag).build());
         }
 
-        // Add timeslot to listing
         for (CreateTimeslotRequest timeslotRequest : request.timeslots() == null
                 ? Collections.<CreateTimeslotRequest>emptyList() : request.timeslots()) {
             saveTimeslot(listing, timeslotRequest);
         }
+    }
 
-        return new CreatedListingResponse(listing.getListingId(), donor.getId(), listing.getStatus());
+    private static void validateListingRequest(CreateListingRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("request body is required");
+        }
+        requireText(request.name(), "name");
+        if (request.categoryId() == null) {
+            throw new IllegalArgumentException("categoryId is required");
+        }
+        if (request.isAutoApproved() == null) {
+            throw new IllegalArgumentException("isAutoApproved is required");
+        }
+        if (request.usePickupCode() == null) {
+            throw new IllegalArgumentException("usePickupCode is required");
+        }
+        if (request.quantity() == null || request.quantity() <= 0) {
+            throw new IllegalArgumentException("quantity must be greater than zero");
+        }
+        if (request.expiryDate() != null && request.collectionDeadline() != null
+                && request.collectionDeadline().isAfter(request.expiryDate())) {
+            throw new IllegalArgumentException("collectionDeadline cannot be after expiryDate");
+        }
     }
 
     private void saveTimeslot(Listing listing, CreateTimeslotRequest request) {
