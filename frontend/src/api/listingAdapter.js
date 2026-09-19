@@ -29,7 +29,7 @@ export function toListingCard(item, now = new Date()) {
     donor: item.donorName || '',
     suburb: item.suburb || '',
     stateRegion: item.region || '',
-    capacity: item.maxDailyCapacity || 'n/a',
+    capacity: item.maxDailyCapacity == null ? 'unlimited' : item.maxDailyCapacity,
     tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
     emoji: { Bakery: '🥖', Produce: '🥗', Pantry: '🥫', Dairy: '🥛' }[item.category] || '🍲',
     timeLeft: item.latestCollectionDate ? `Collect by ${item.latestCollectionDate}` : 'Available',

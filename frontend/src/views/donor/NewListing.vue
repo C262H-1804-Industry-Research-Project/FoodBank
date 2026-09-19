@@ -8,7 +8,7 @@
     </div>
 
     <div class="card">
-      <form @submit.prevent="submitListing('Live')">
+      <form @submit.prevent="submitListing">
         <div class="form-grid">
           <!-- Food Photo upload -->
           <div class="field span-2">
@@ -46,11 +46,10 @@
 
           <div class="field">
             <label class="field-label">Category</label>
-            <select v-model="form.category">
-              <option value="Bakery">Bakery</option>
-              <option value="Produce">Produce</option>
-              <option value="Dairy">Dairy</option>
-              <option value="Pantry">Pantry</option>
+            <select v-model="form.category" :disabled="isLoadingCatalogue">
+              <option v-for="category in categories" :key="category.id" :value="category.id">
+                {{ category.name }}
+              </option>
             </select>
           </div>
 
@@ -61,12 +60,12 @@
 
           <div class="field">
             <label class="field-label">Expiry date</label>
-            <input v-model="form.expiryDate" type="text" placeholder="dd/mm/yyyy">
+            <input v-model="form.expiryDate" type="date">
           </div>
 
           <div class="field">
             <label class="field-label">Latest collection deadline <span class="text-soft">(optional)</span></label>
-            <input v-model="form.deadline" type="text" placeholder="dd/mm/yyyy, hh:mm">
+            <input v-model="form.deadline" type="date">
           </div>
 
           <!-- Structured 3-field Pickup Address -->
@@ -125,13 +124,13 @@
             <label class="field-label">Allergen & dietary tags</label>
             <div class="chip-group">
               <span
-                v-for="tag in dietaryTags"
-                :key="tag"
+                v-for="tag in tags"
+                :key="tag.id"
                 class="chip"
-                :class="{ active: form.tags.includes(tag) }"
+                :class="{ active: form.tags.includes(tag.id) }"
                 @click="toggleTag(tag)"
               >
-                {{ tag }}
+                {{ tag.name }}
               </span>
             </div>
           </div>
@@ -154,9 +153,14 @@
           </div>
         </div>
 
+        <p v-if="submitError" class="submit-message error" role="alert">{{ submitError }}</p>
+        <p v-else-if="catalogueError" class="submit-message error" role="alert">{{ catalogueError }}</p>
+
         <div class="btn-row">
-          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;">Publish listing</button>
-          <button type="button" class="btn-outline" @click="submitListing('Draft')">Save as draft</button>
+          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;" :disabled="isSubmitting || isLoadingCatalogue">
+            {{ isSubmitting ? 'Publishing…' : 'Publish listing' }}
+          </button>
+          <button type="button" class="btn-outline" :disabled="isSubmitting || isLoadingCatalogue" @click="saveDraft">Save as draft</button>
         </div>
       </form>
     </div>
@@ -164,32 +168,50 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { onMounted, ref, reactive } from 'vue'
+import { createDonorListing, getListingCatalogue } from '../../api/client'
 
 const emit = defineEmits(['add-listing'])
 
 const fileInputRef = ref(null)
 const isDragOver = ref(false)
 const uploadedPhoto = ref(null)
-
-const dietaryTags = ['Contains gluten', 'Contains nuts', 'Contains pork', 'Vegetarian', 'Halal']
+const categories = ref([])
+const tags = ref([])
+const isLoadingCatalogue = ref(true)
+const catalogueError = ref('')
+const isSubmitting = ref(false)
+const submitError = ref('')
 
 const form = reactive({
   name: '',
-  category: 'Bakery',
+  category: null,
   quantity: '',
   expiryDate: '',
-  deadline: 'Today, 8:00pm',
+  deadline: '',
   addressLine: '14 Rundle Mall',
   suburb: 'Adelaide',
   stateRegion: 'SA',
   slotCapacity: 4,              // Default 4 per slot/hour
   autoApproval: true,           // Default: yes
   requirePickupCode: false,     // Default: no
-  tags: ['Contains gluten'],
+  tags: [],
   hideContact: true,
   notes: '',
   maxQty: '4 units'
+})
+
+onMounted(async () => {
+  try {
+    const catalogue = await getListingCatalogue()
+    categories.value = catalogue.categories
+    tags.value = catalogue.tags
+    form.category = categories.value[0]?.id ?? null
+  } catch (error) {
+    catalogueError.value = error.message || 'Unable to load listing categories and tags.'
+  } finally {
+    isLoadingCatalogue.value = false
+  }
 })
 
 function adjustSlotCapacity(delta) {
@@ -230,36 +252,90 @@ function removeUpload() {
 }
 
 function toggleTag(tag) {
-  const idx = form.tags.indexOf(tag)
+  const idx = form.tags.indexOf(tag.id)
   if (idx > -1) form.tags.splice(idx, 1)
-  else form.tags.push(tag)
+  else form.tags.push(tag.id)
 }
 
-function submitListing(status) {
-  if (!form.name || !form.quantity) return
+function quantityValue(value) {
+  const quantity = Number.parseFloat(String(value).replace(/[^0-9.]/g, ''))
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : null
+}
 
-  const newRecord = {
-    id: Date.now(),
-    name: form.name,
-    category: form.category,
-    quantity: form.quantity,
-    deadline: form.deadline || '—',
-    slots: `5:30–6:30pm (${form.slotCapacity} slots/hr)`,
-    booked: `0/${form.slotCapacity}`,
-    slotCapacity: form.slotCapacity,
-    autoApproval: form.autoApproval,
-    requirePickupCode: form.requirePickupCode,
-    addressLine: form.addressLine,
-    suburb: form.suburb,
-    stateRegion: form.stateRegion,
-    status: status,
-    statusClass: status === 'Live' ? 'status-live' : 'status-draft',
-    hideContact: form.hideContact,
-    notes: form.notes,
-    tags: [...form.tags]
+function buildRequest() {
+  const quantity = quantityValue(form.quantity)
+  if (!quantity) throw new Error('Quantity must be a number greater than zero.')
+  if (!form.category) throw new Error('Select a category before publishing.')
+
+  return {
+    name: form.name.trim(),
+    description: form.notes,
+    categoryId: form.category,
+    quantity,
+    expiryDate: form.expiryDate || null,
+    collectionDeadline: form.deadline || null,
+    addressLine: form.addressLine.trim(),
+    suburb: form.suburb.trim(),
+    region: form.stateRegion.trim(),
+    maxDailyCapacity: quantityValue(form.maxQty),
+    photoUrl: uploadedPhoto.value?.url,
+    tagIds: [...form.tags],
+    timeslots: [],
+    isAutoApproved: form.autoApproval,
+    usePickupCode: form.requirePickupCode,
+  }
+}
+
+async function submitListing() {
+  submitError.value = ''
+  if (!form.name.trim() || !form.addressLine.trim() || !form.suburb.trim() || !form.stateRegion.trim()) {
+    submitError.value = 'Complete all required fields before publishing.'
+    return
   }
 
-  emit('add-listing', newRecord)
+  let request
+  try {
+    request = buildRequest()
+  } catch (error) {
+    submitError.value = error.message
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const created = await createDonorListing(1, request)
+
+    const newRecord = {
+      id: created.listingId,
+      name: form.name,
+      category: categories.value.find(category => category.id === form.category)?.name || '',
+      quantity: form.quantity,
+      deadline: form.deadline || '—',
+      slots: `No pickup time selected (${form.slotCapacity} recipients / slot)`,
+      booked: `0/${form.slotCapacity}`,
+      slotCapacity: form.slotCapacity,
+      autoApproval: form.autoApproval,
+      requirePickupCode: form.requirePickupCode,
+      addressLine: form.addressLine,
+      suburb: form.suburb,
+      stateRegion: form.stateRegion,
+      status: 'Live',
+      statusClass: 'status-live',
+      hideContact: form.hideContact,
+      notes: form.notes,
+      tags: tags.value.filter(tag => form.tags.includes(tag.id)).map(tag => tag.name),
+    }
+
+    emit('add-listing', newRecord)
+  } catch (error) {
+    submitError.value = error.message || 'Unable to create the listing.'
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function saveDraft() {
+  submitError.value = 'Saving drafts is not supported by the listings API yet.'
 }
 </script>
 
@@ -328,8 +404,11 @@ function submitListing(status) {
 .toggle.on::after { left: 21px; }
 
 .btn-row { display: flex; gap: 10px; margin-top: 18px; }
+.submit-message { margin: 18px 0 0; font-size: 13px; }
+.submit-message.error { color: var(--danger); }
 .btn-primary { padding: 11px 22px; border: none; border-radius: var(--r-sm); background: var(--primary); color: #fff; font-weight: 700; font-size: 14.5px; cursor: pointer; }
 .btn-primary:hover { background: var(--primary-dark); }
+.btn-primary:disabled, .btn-outline:disabled { opacity: .6; cursor: not-allowed; }
 .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); padding: 9px 16px; border-radius: var(--r-sm); font-weight: 700; font-size: 13px; cursor: pointer; }
 .btn-outline:hover { border-color: var(--primary); color: var(--primary-dark); }
 @media (max-width: 980px) { .form-grid { grid-template-columns: 1fr; } }
