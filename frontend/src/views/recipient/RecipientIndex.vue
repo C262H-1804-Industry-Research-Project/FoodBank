@@ -63,13 +63,14 @@
         <div class="field">
           <label class="field-label">Pickup timeslot</label>
           <select v-model="modalForm.slot">
-            <option>Today, 5:30–6:00pm · 4 spots left</option>
-            <option>Today, 6:00–6:30pm · 6 spots left</option>
+            <option v-for="slot in modalItem.timeslots" :key="slot.startTime">
+              {{ slot.startTime.replace('T', ' ') }} – {{ slot.endTime.replace('T', ' ') }} · {{ slot.remainingSlot }} spots left
+            </option>
           </select>
         </div>
         
         <div class="field">
-          <label class="field-label">Quantity <span style="font-weight:500;color:var(--text-soft);">(max 4 per recipient)</span></label>
+          <label class="field-label">Quantity <span style="font-weight:500;color:var(--text-soft);">(max {{ modalItem.capacity }} per recipient)</span></label>
           <input type="text" v-model="modalForm.qty" placeholder="e.g. 4">
         </div>
         

@@ -20,6 +20,7 @@ export function toListingCard(item, now = new Date()) {
     else if (dayKey(first) === dayKey(tomorrow)) timeType = 'tomorrow'
     else if (first >= saturday && first < monday) timeType = 'weekend'
   }
+
   return {
     id: item.listingId,
     name: item.foodName,
@@ -28,10 +29,12 @@ export function toListingCard(item, now = new Date()) {
     donor: item.donorName || '',
     suburb: item.suburb || '',
     stateRegion: item.region || '',
+    capacity: item.maxDailyCapacity || 'n/a',
     tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
     emoji: { Bakery: '🥖', Produce: '🥗', Pantry: '🥫', Dairy: '🥛' }[item.category] || '🍲',
     timeLeft: item.latestCollectionDate ? `Collect by ${item.latestCollectionDate}` : 'Available',
-    pickupWindow: slots.map(slot => `${slot.startTime.replace('T', ' ')} – ${slot.endTime.replace('T', ' ')} (${slot.remainingSlot} spots)`).join('; '),
+    pickupWindow: slots[0] ? `${slots[0].startTime.replace('T', ' ')} – ${slots[0].endTime.replace('T', ' ')} (${slots[0].remainingSlot} spots)` : '',
+    timeslots: item.timeslots || [],
     timeType,
   }
 }

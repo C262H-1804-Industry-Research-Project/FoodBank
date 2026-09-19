@@ -28,7 +28,7 @@ export async function getAllListings(signal) {
   let page = 0
   let totalPages
   do {
-    const result = await apiRequest(`/listings?page=${page}&size=100`, { signal })
+    const result = await apiRequest(`/listings?page=${page}&size=10`, { signal })
     if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
         || result.page.totalPages < 0) throw new Error('Invalid listings response from the API.')
     items.push(...result.content)

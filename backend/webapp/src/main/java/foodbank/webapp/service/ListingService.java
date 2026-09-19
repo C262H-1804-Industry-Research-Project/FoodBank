@@ -85,6 +85,7 @@ public class ListingService {
                 listing.getDescription(),
                 listing.getCategory() == null ? null : listing.getCategory().getName(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
+                listing.getMaxDailyCapacity(),
                 listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
                 listingTagRepository.findByListing(listing).stream()
                         .map(listingTag -> listingTag.getTag().getName())
@@ -96,7 +97,6 @@ public class ListingService {
                                 timeslot.getRemainingSlot()
                         ))
                         .toArray(TimeSlot[]::new),
-                listing.getListingId(),
                 listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
                 listing.getSuburb(),
                 listing.getRegion()
