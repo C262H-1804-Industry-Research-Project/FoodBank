@@ -92,9 +92,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import BrowseDonations from './BrowseDonations.vue'
+import { getAllListings } from '../../api/client'
+import { toListingCard } from '../../api/listingAdapter'
 
 const router = useRouter()
 
@@ -231,6 +233,18 @@ const availableListings = ref([
 ])
 
 const showModal = ref(false)
+const listingsController = new AbortController()
+onMounted(async () => {
+  try {
+    const rows = await getAllListings(listingsController.signal)
+    if (!listingsController.signal.aborted) availableListings.value = rows.map(row => toListingCard(row))
+  } catch (error) {
+    if (!listingsController.signal.aborted) {
+      window.alert(`${error.message} The original preview data is still displayed; it is not a successful API result.`)
+    }
+  }
+})
+onBeforeUnmount(() => listingsController.abort())
 const modalItem = ref(null)
 const modalForm = reactive({
   slot: 'Today, 5:30–6:00pm · 4 spots left',
