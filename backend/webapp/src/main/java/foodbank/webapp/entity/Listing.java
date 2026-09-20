@@ -37,4 +37,7 @@ public class Listing {
     private String status;
     private Integer maxDailyCapacity;
     private String photoUrl;
+
+    private Boolean isAutoApproved;
+    private Boolean usePickupCode;
 }

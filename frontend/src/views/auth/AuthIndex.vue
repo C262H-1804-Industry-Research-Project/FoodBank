@@ -29,7 +29,6 @@
 
         <!-- 1. LOGIN FORM -->
         <form v-if="currentTab === 'signin'" @submit.prevent="handleLogin">
-          <!-- Role selector buttons for login -->
           <div class="field">
             <label class="field-label">Log in as</label>
             <div class="role-button-group">
@@ -136,17 +135,29 @@
               <button type="button" class="btn-text-back" @click="signupStep = 1">← Change role</button>
             </div>
 
-            <!-- Donor specific fields -->
+            <!-- Donor specific fields with 3-part address -->
             <div v-if="signupForm.role === 'donor'" class="role-fields">
               <div class="rf-title">Donor details</div>
               <div class="field">
                 <label class="field-label">Organisation name</label>
                 <input v-model="signupForm.donorOrg" type="text" placeholder="Green Leaf Café" required>
               </div>
-              <div class="field">
-                <label class="field-label">General area</label>
-                <input v-model="signupForm.donorArea" type="text" placeholder="e.g. Adelaide CBD" required>
-                <div class="field-hint">Your exact pickup address is set later, per listing.</div>
+
+              <!-- 3-Part Address Breakdown -->
+              <div class="address-fieldset">
+                <label class="field-label">Organisation Address</label>
+                <div class="field">
+                  <input v-model="signupForm.donorStreet" type="text" placeholder="Street address & unit (e.g. 14 Rundle St)" required>
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <input v-model="signupForm.donorCityPostcode" type="text" placeholder="City / Suburb, Postcode (e.g. Adelaide, 5000)" required>
+                  </div>
+                  <div class="field">
+                    <input v-model="signupForm.donorCountry" type="text" placeholder="Country (e.g. Australia)" required>
+                  </div>
+                </div>
+                <div class="field-hint">Your exact pickup address can be adjusted per listing.</div>
               </div>
             </div>
 
@@ -193,14 +204,8 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-
-// Top tab state: 'signin' or 'signup'
 const currentTab = ref('signin')
-
-// Login role toggle: 'recipient' (default) or 'donor'
 const loginRole = ref('recipient')
-
-// Registration step tracker: 1 (choose role) or 2 (fill profile)
 const signupStep = ref(1)
 
 function switchTab(tab) {
@@ -210,17 +215,17 @@ function switchTab(tab) {
   }
 }
 
-// Login form model
 const loginForm = reactive({
   account: '',
   password: ''
 })
 
-// Signup form model (only 'donor' or 'recipient')
 const signupForm = reactive({
   role: 'recipient',
   donorOrg: '',
-  donorArea: '',
+  donorStreet: '',
+  donorCityPostcode: '',
+  donorCountry: 'Australia',
   recipientName: '',
   recipientOrg: '',
   phone: '',
@@ -228,7 +233,6 @@ const signupForm = reactive({
   password: ''
 })
 
-// Route on login based on selected button
 function handleLogin() {
   if (loginRole.value === 'donor') {
     router.push('/donor')
@@ -237,7 +241,6 @@ function handleLogin() {
   }
 }
 
-// Route on registration based on chosen role
 function handleRegister() {
   if (signupForm.role === 'donor') {
     router.push('/donor')
@@ -267,7 +270,6 @@ function handleRegister() {
 .auth-tabs button { flex: 1; padding: 10px; border: none; border-radius: 8px; background: transparent; color: var(--text-muted); font-weight: 700; font-size: 13.5px; cursor: pointer; }
 .auth-tabs button.active { background: var(--surface); color: var(--primary-dark); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 
-/* Left/Right Role Selection Card Buttons */
 .role-button-group { display: flex; gap: 12px; margin-bottom: 6px; }
 .role-select-btn {
   flex: 1;
@@ -291,10 +293,22 @@ function handleRegister() {
 .role-btn-desc { font-size: 11px; color: var(--text-soft); margin-top: 2px; }
 
 .field-label { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }
-.field { margin-bottom: 16px; }
+.field { margin-bottom: 14px; }
 .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
 .field-hint { font-size: 11.5px; color: var(--text-soft); margin-top: 4px; }
+
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+
+.address-fieldset {
+  background: var(--surface-2);
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+}
+.address-fieldset .field-label { color: var(--primary-dark); }
 
 .role-fields { border-top: 1px dashed var(--border); padding-top: 16px; margin-top: 4px; }
 .role-fields .rf-title { font-size: 12px; font-weight: 700; color: var(--primary-dark); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
