@@ -2,9 +2,14 @@ package foodbank.webapp.controllers;
 
 import foodbank.webapp.dto.CreateListingRequest;
 import foodbank.webapp.dto.CreatedListingResponse;
+import foodbank.webapp.dto.MyListingResponse;
 import foodbank.webapp.service.ListingService;
 import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,5 +30,9 @@ public class DonorListingController {
             @RequestBody CreateListingRequest request
     ) {
         return listingService.createListing(donorId, request);
+    }
+    @GetMapping
+    public List<MyListingResponse> getMyListings(@PathVariable Integer donorId) {
+        return listingService.getMyListings(donorId);
     }
 }

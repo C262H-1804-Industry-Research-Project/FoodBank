@@ -2,6 +2,7 @@ package foodbank.webapp.service;
 
 
 import foodbank.webapp.dto.ListingResponse;
+import foodbank.webapp.dto.MyListingResponse;
 import foodbank.webapp.dto.TimeSlot;
 import foodbank.webapp.dto.CatalogueItemResponse;
 import foodbank.webapp.dto.CreateListingRequest;
@@ -83,6 +84,34 @@ public class ListingService {
                 listing.getName(),
                 listing.getDescription(),
                 listing.getCategory() == null ? null : listing.getCategory().getName(),
+                listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
+                listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
+                listingTagRepository.findByListing(listing).stream()
+                        .map(listingTag -> listingTag.getTag().getName())
+                        .toArray(String[]::new),
+                timeslotRepository.findByListing(listing).stream()
+                        .map(timeslot -> new TimeSlot(
+                                timeslot.getStartTime().toString(),
+                                timeslot.getEndTime().toString(),
+                                timeslot.getRemainingSlot()
+                        ))
+                        .toArray(TimeSlot[]::new)
+        );
+    }
+
+    public List<MyListingResponse> getMyListings(Integer donorId) {
+        return listingRepository.findByDonorId(donorId).stream()
+                .map(this::toMyListingResponse)
+                .toList();
+    }
+
+    private MyListingResponse toMyListingResponse(Listing listing) {
+        return new MyListingResponse(
+                listing.getListingId(),
+                listing.getName(),
+                listing.getCategory() == null ? null : listing.getCategory().getName(),
+                listing.getQuantity(),
+                listing.getStatus(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
                 listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
                 listingTagRepository.findByListing(listing).stream()
