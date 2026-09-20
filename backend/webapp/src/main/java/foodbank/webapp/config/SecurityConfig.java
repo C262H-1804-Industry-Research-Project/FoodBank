@@ -1,0 +1,112 @@
+package foodbank.webapp.config;
+
+import foodbank.webapp.security.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http
+    ) throws Exception {
+
+        http
+                .csrf(csrf -> csrf.disable())
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
+
+                .formLogin(form -> form.disable())
+                .httpBasic(basic -> basic.disable())
+
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(
+                                (request, response, exception) -> {
+                                    response.setStatus(401);
+                                    response.setContentType(
+                                            "application/json"
+                                    );
+                                    response.getWriter().write(
+                                            "{\"error\":\"Unauthorized\"}"
+                                    );
+                                }
+                        )
+                        .accessDeniedHandler(
+                                (request, response, exception) -> {
+                                    response.setStatus(403);
+                                    response.setContentType(
+                                            "application/json"
+                                    );
+                                    response.getWriter().write(
+                                            "{\"error\":\"Forbidden\"}"
+                                    );
+                                }
+                        )
+                )
+
+                .authorizeHttpRequests(auth -> auth
+
+                        // Allow frontend CORS preflight requests.
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
+
+                        // Public pages and Swagger.
+                        .requestMatchers(
+                                "/",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+
+                        // Public authentication endpoints.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/auth/login",
+                                "/api/auth/register-recipients",
+                                "/api/donors"
+                        ).permitAll()
+
+                        // Public listing browsing endpoints.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/listings/**"
+                        ).permitAll()
+
+                        // Logout requires a valid JWT.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/auth/logout"
+                        ).authenticated()
+
+                        // Donor listing management requires donor role.
+                        .requestMatchers(
+                                "/api/donors/*/listings/**"
+                        ).hasRole("DONOR")
+
+                        // Future APIs are protected by default.
+                        .anyRequest().authenticated()
+                )
+
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
+
+        return http.build();
+    }
+}

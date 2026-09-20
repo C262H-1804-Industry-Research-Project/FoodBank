@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import io.jsonwebtoken.Claims;
 
 @Service
 public class AuthTokenService {
@@ -65,6 +66,13 @@ public class AuthTokenService {
 
     public boolean revokeToken(String token) {
         return activeTokens.remove(token) != null;
+    }
+    public Claims getClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(signingKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     private SecretKey signingKey() {
