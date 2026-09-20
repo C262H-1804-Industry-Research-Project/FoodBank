@@ -86,7 +86,10 @@ public class AuthService {
             }
 
             String accessToken =
-                    authTokenService.createToken(user.getUserId());
+                    authTokenService.createToken(
+                            user.getUserId(),
+                            role
+                    );
 
             return new LoginResponse(
                     accessToken,
@@ -98,6 +101,27 @@ public class AuthService {
         throw new UnauthorizedException(
                 "Invalid email or password"
         );
+    }
+    public void logout(String authorizationHeader) {
+        if (authorizationHeader == null
+                || !authorizationHeader.startsWith("Bearer ")) {
+            throw new UnauthorizedException(
+                    "User not logged in"
+            );
+        }
+
+        String token = authorizationHeader
+                .substring(7)
+                .trim();
+
+        if (token.isBlank()
+                || !authTokenService.isActive(token)) {
+            throw new UnauthorizedException(
+                    "User not logged in"
+            );
+        }
+
+        authTokenService.revokeToken(token);
     }
 
     private static void requireText(String value, String field) {

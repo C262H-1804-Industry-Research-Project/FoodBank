@@ -8,6 +8,7 @@ import foodbank.webapp.service.AuthService;
 import foodbank.webapp.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -29,5 +30,20 @@ public class AuthController {
             @RequestBody LoginRequest request
     ) {
         return authService.login(request);
+    }
+    @PostMapping("/logout")
+    public Map<String, String> logout(
+            @RequestHeader(
+                    value = "Authorization",
+                    required = false
+            )
+            String authorizationHeader
+    ) {
+        authService.logout(authorizationHeader);
+
+        return Map.of(
+                "message",
+                "Logout successful"
+        );
     }
 }
