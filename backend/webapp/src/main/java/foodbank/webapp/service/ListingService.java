@@ -114,6 +114,7 @@ public class ListingService {
                 listing.getStatus(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
                 listing.getCollectionDeadline() == null ? null : listing.getCollectionDeadline().toString(),
+                listing.getPhotoUrl(),
                 listingTagRepository.findByListing(listing).stream()
                         .map(listingTag -> listingTag.getTag().getName())
                         .toArray(String[]::new),

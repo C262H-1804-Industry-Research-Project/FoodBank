@@ -2,6 +2,7 @@ package foodbank.webapp.controllers;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.MediaType;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -14,7 +15,7 @@ public class ImageUploadController {
 
     private static final String UPLOAD_DIR = "uploads/";
 
-    @PostMapping("/photo")
+    @PostMapping(value = "/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, String> uploadPhoto(@RequestParam("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("File is empty");
