@@ -71,6 +71,8 @@ public class AuthService {
                 continue;
             }
 
+            System.out.println("password done");
+
             String name;
 
             if (role.equals("donor")) {
@@ -84,6 +86,8 @@ public class AuthService {
                         .orElseThrow()
                         .getName();
             }
+
+            System.out.println("name: " + name);
 
             String accessToken =
                     authTokenService.createToken(
