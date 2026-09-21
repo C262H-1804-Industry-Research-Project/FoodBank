@@ -78,7 +78,7 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/api/auth/login",
                                 "/api/auth/register-recipients",
-                                "/api/donors"
+                                "/api/auth/register-donors"
                         ).permitAll()
 
                         // Public listing browsing endpoints.

@@ -1,12 +1,10 @@
 package foodbank.webapp.controllers;
 
-import foodbank.webapp.dto.LoginRequest;
-import foodbank.webapp.dto.LoginResponse;
-import foodbank.webapp.dto.RecipientRegisterRequest;
-import foodbank.webapp.dto.RecipientResponse;
+import foodbank.webapp.dto.*;
 import foodbank.webapp.service.AuthService;
 import foodbank.webapp.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
@@ -17,6 +15,12 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthService authService;
+
+    @PostMapping("/register-donors")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DonorResponse createDonor(@RequestBody CreateDonorRequest request) {
+        return userService.createDonor(request);
+    }
 
     @PostMapping("/register-recipients")
     public RecipientResponse registerRecipient(
