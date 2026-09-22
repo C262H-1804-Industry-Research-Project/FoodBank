@@ -10,5 +10,7 @@ public record MyListingResponse(
         String collectionDeadline,
         String photoUrl,
         String[] tags,
-        TimeSlot[] timeslots
+        TimeSlot[] timeslots,
+        String suburb,
+        String region
 ) {}

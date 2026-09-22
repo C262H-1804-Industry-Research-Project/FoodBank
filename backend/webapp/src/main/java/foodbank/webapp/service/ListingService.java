@@ -95,7 +95,8 @@ public class ListingService {
                         .map(timeslot -> new TimeSlot(
                                 timeslot.getStartTime().toString(),
                                 timeslot.getEndTime().toString(),
-                                timeslot.getRemainingSlot()
+                                timeslot.getRemainingSlot(),
+                                timeslot.getMaxRecipients()
                         ))
                         .toArray(TimeSlot[]::new),
                 listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
@@ -127,9 +128,12 @@ public class ListingService {
                         .map(timeslot -> new TimeSlot(
                                 timeslot.getStartTime().toString(),
                                 timeslot.getEndTime().toString(),
-                                timeslot.getRemainingSlot()
+                                timeslot.getRemainingSlot(),
+                                timeslot.getMaxRecipients()
                         ))
-                        .toArray(TimeSlot[]::new)
+                        .toArray(TimeSlot[]::new),
+                listing.getSuburb(),
+                listing.getRegion()
         );
     }
 

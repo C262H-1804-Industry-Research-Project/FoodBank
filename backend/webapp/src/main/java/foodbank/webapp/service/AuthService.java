@@ -3,6 +3,7 @@ package foodbank.webapp.service;
 import foodbank.webapp.dto.LoginRequest;
 import foodbank.webapp.dto.LoginResponse;
 import foodbank.webapp.dto.LoginUserResponse;
+import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.User;
 import foodbank.webapp.exceptions.UnauthorizedException;
 import foodbank.webapp.repositories.DonorRepository;
@@ -72,12 +73,14 @@ public class AuthService {
             }
 
             String name;
+            Integer donorId = null;
 
             if (role.equals("donor")) {
-                name = donorRepository
+                Donor donor = donorRepository
                         .findByUserId(user.getUserId())
-                        .orElseThrow()
-                        .getOrgName();
+                        .orElseThrow();
+                name = donor.getOrgName();
+                donorId = donor.getId();
             } else {
                 name = recipientRepository
                         .findByUserId(user.getUserId())
@@ -94,7 +97,7 @@ public class AuthService {
             return new LoginResponse(
                     accessToken,
                     "Bearer",
-                    new LoginUserResponse(name, role)
+                    new LoginUserResponse(name, role, donorId)
             );
         }
 

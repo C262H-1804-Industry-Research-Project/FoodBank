@@ -2,6 +2,7 @@ package foodbank.webapp.dto;
 
 public record LoginUserResponse(
         String name,
-        String role
+        String role,
+        Integer donorId
 ) {
 }

@@ -37,8 +37,9 @@
         />
 
         <!-- 2. New Listing Form Panel -->
-        <NewListing 
+        <NewListing
           v-else-if="currentPanel === 'newlisting'" 
+          :donor-id="donorId"
           @add-listing="handleAddListing"
         />
 
@@ -59,9 +60,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearSession, logout } from '../../api/client'
+import { clearSession, getDonorListings, getStoredSession, logout } from '../../api/client'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -93,48 +94,47 @@ async function handleLogout() {
   }
 }
 
-// Global donor listings state managed purely on client-side
-const listingsData = ref([
-  {
-    id: 1,
-    name: 'Sourdough loaves',
-    category: 'Bakery',
-    quantity: '12',
-    deadline: 'Today, 8:00pm',
-    slots: '5:30–6:00pm',
-    booked: '2/6',
-    status: 'Live',
-    statusClass: 'status-live',
-    hideContact: true,
-    notes: 'Keep refrigerated'
-  },
-  {
-    id: 2,
-    name: 'Pantry staples box',
-    category: 'Pantry',
-    quantity: '8',
-    deadline: 'Sat, 6:00pm',
-    slots: '10:00–10:30am',
-    booked: '1/6',
-    status: 'Live',
-    statusClass: 'status-live',
-    hideContact: true,
-    notes: 'Long shelf life'
-  },
-  {
-    id: 3,
-    name: 'Dairy bundle',
-    category: 'Dairy',
-    quantity: '10',
-    deadline: '—',
-    slots: 'Not yet published',
-    booked: '0/6',
-    status: 'Draft',
-    statusClass: 'status-draft',
-    hideContact: false,
-    notes: ''
+const session = getStoredSession()
+const donorId = Number(session?.user?.donorId)
+const listingsData = ref([])
+const listingsController = new AbortController()
+
+function toListingRow(listing) {
+  const timeslots = [...(listing.timeslots || [])]
+    .sort((first, second) => first.startTime.localeCompare(second.startTime))
+  const firstSlot = timeslots[0]
+  const status = listing.status || 'Draft'
+
+  return {
+    id: listing.listingId,
+    name: listing.name,
+    category: listing.category,
+    quantity: listing.quantity,
+    deadline: listing.collectionDeadline || listing.expiryDate || '—',
+    suburb: listing.suburb || '',
+    stateRegion: listing.region || '',
+    slots: firstSlot ? `${firstSlot.startTime}–${firstSlot.endTime}` : 'Not yet published',
+    booked: firstSlot ? firstSlot.maxRecipients - firstSlot.remainingSlot : '—',
+    status,
+    statusClass: status.toLowerCase() === 'live' ? 'status-live' : 'status-draft',
   }
-])
+}
+
+async function loadListings() {
+  try {
+    const listings = await getDonorListings(donorId, listingsController.signal)
+    if (!listingsController.signal.aborted) {
+      listingsData.value = listings.map(toListingRow)
+    }
+  } catch (error) {
+    if (!listingsController.signal.aborted) {
+      console.error('Unable to load donor listings.', error)
+    }
+  }
+}
+
+onMounted(loadListings)
+onBeforeUnmount(() => listingsController.abort())
 
 // Add new listing to array and return to listings table
 function handleAddListing(newItem) {
