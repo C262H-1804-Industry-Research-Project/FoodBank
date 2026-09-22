@@ -55,6 +55,9 @@ public class ListingService {
             Pageable pageable
     ) {
         Specification<Listing> specification = (root, query, builder) -> builder.conjunction();
+        specification = specification.and((root, query, builder) ->
+                builder.equal(root.get("status"), "LIVE"));
+        
         if (foodName != null && !foodName.isBlank()) {
             String namePattern = "%" + foodName.trim().toLowerCase() + "%";
             specification = specification.and((root, query, builder) ->
