@@ -1,13 +1,35 @@
 const baseUrl = (import.meta.env?.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
+const authStorageKey = 'second-table-auth'
+
+export function getStoredSession() {
+  try {
+    const value = localStorage.getItem(authStorageKey)
+    return value ? JSON.parse(value) : null
+  } catch {
+    return null
+  }
+}
+
+export function storeSession(session) {
+  localStorage.setItem(authStorageKey, JSON.stringify(session))
+}
+
+export function clearSession() {
+  localStorage.removeItem(authStorageKey)
+}
 
 export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   const timeout = AbortSignal.timeout(15000)
+  const session = getStoredSession()
   let response
   try {
     response = await fetch(`${baseUrl}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
+        ...(session?.accessToken
+          ? { Authorization: `${session.tokenType || 'Bearer'} ${session.accessToken}` }
+          : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -24,6 +46,22 @@ export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   }
   if (!response.ok) throw new Error(data?.error || data?.message || `API request failed (HTTP ${response.status}).`)
   return data
+}
+
+export function login(credentials) {
+  return apiRequest('/auth/login', { method: 'POST', body: credentials })
+}
+
+export function registerDonor(donor) {
+  return apiRequest('/auth/register-donors', { method: 'POST', body: donor })
+}
+
+export function registerRecipient(recipient) {
+  return apiRequest('/auth/register-recipients', { method: 'POST', body: recipient })
+}
+
+export function logout() {
+  return apiRequest('/auth/logout', { method: 'POST' })
 }
 
 // Fetch all pages so the existing client-side filters and six-item pagination

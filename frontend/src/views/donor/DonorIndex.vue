@@ -61,6 +61,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { clearSession, logout } from '../../api/client'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -80,8 +81,16 @@ const currentPanelTitle = computed(() => {
   return navItems.find(item => item.key === currentPanel.value)?.name || ''
 })
 
-function handleLogout() {
-  router.push('/auth')
+async function handleLogout() {
+  try {
+    await logout()
+  } catch {
+    // A locally held session should still be removed if the token has expired
+    // or the API cannot be reached.
+  } finally {
+    clearSession()
+    router.push('/auth')
+  }
 }
 
 // Global donor listings state managed purely on client-side

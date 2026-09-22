@@ -97,6 +97,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import BrowseDonations from './BrowseDonations.vue'
 import { getAllListings } from '../../api/client'
+import { clearSession, logout } from '../../api/client'
 import { toListingCard } from '../../api/listingAdapter'
 
 const router = useRouter()
@@ -113,8 +114,15 @@ const currentPanelTitle = computed(() => {
   return navItems.find(item => item.key === currentPanel.value)?.name || ''
 })
 
-function handleLogout() {
-  router.push('/auth')
+async function handleLogout() {
+  try {
+    await logout()
+  } catch {
+    // Still remove a stale local session when server logout is unavailable.
+  } finally {
+    clearSession()
+    router.push('/auth')
+  }
 }
 
 // Global available donation listings

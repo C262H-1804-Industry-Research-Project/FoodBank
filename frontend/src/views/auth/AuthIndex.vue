@@ -142,6 +142,10 @@
                 <label class="field-label">Organisation name</label>
                 <input v-model="signupForm.donorOrg" type="text" placeholder="Green Leaf Café" required>
               </div>
+              <div class="field">
+                <label class="field-label">Contact phone number</label>
+                <input v-model="signupForm.phone" type="text" placeholder="04xx xxx xxx">
+              </div>
 
               <!-- 3-Part Address Breakdown -->
               <div class="address-fieldset">
@@ -202,6 +206,12 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  login,
+  registerDonor,
+  registerRecipient,
+  storeSession,
+} from '../../api/client'
 
 const router = useRouter()
 const currentTab = ref('signin')
@@ -233,20 +243,60 @@ const signupForm = reactive({
   password: ''
 })
 
-function handleLogin() {
-  if (loginRole.value === 'donor') {
-    router.push('/donor')
-  } else {
-    router.push('/recipient')
+async function handleLogin() {
+  try {
+    const session = await login({
+      email: loginForm.account,
+      password: loginForm.password,
+      role: loginRole.value,
+    })
+    completeLogin(session)
+  } catch (error) {
+    window.alert(error.message)
   }
 }
 
-function handleRegister() {
-  if (signupForm.role === 'donor') {
-    router.push('/donor')
-  } else {
-    router.push('/recipient')
+async function handleRegister() {
+  try {
+    if (signupForm.role === 'donor') {
+      await registerDonor({
+        email: signupForm.email,
+        password: signupForm.password,
+        phone: signupForm.phone,
+        orgName: signupForm.donorOrg,
+        addressLine: signupForm.donorStreet,
+        suburb: signupForm.donorCityPostcode,
+        region: signupForm.donorCountry,
+      })
+    } else {
+      await registerRecipient({
+        name: signupForm.recipientName,
+        phone: signupForm.phone,
+        orgName: signupForm.recipientOrg,
+        email: signupForm.email,
+        password: signupForm.password,
+      })
+    }
+
+    // Registration creates the account but does not return a JWT, so sign in
+    // immediately using the same credentials before opening the relevant portal.
+    const session = await login({
+      email: signupForm.email,
+      password: signupForm.password,
+      role: signupForm.role,
+    })
+    completeLogin(session)
+  } catch (error) {
+    window.alert(error.message)
   }
+}
+
+function completeLogin(session) {
+  if (!session?.accessToken || !session?.user?.role) {
+    throw new Error('The login response is missing session details.')
+  }
+  storeSession(session)
+  router.push(session.user.role === 'donor' ? '/donor' : '/recipient')
 }
 </script>
 
