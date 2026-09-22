@@ -276,6 +276,9 @@ public class ListingService {
         if (!request.endTime().isAfter(request.startTime())) {
             throw new IllegalArgumentException("timeslot endTime must be after startTime");
         }
+        if (!request.startTime().toLocalDate().equals(request.endTime().toLocalDate())) {
+            throw new IllegalArgumentException("timeslot startTime and endTime must be on the same date");
+        }
         if (request.maxRecipients() <= 0) {
             throw new IllegalArgumentException("timeslot maxRecipients must be greater than zero");
         }

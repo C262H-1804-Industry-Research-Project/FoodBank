@@ -64,7 +64,7 @@
           <label class="field-label">Pickup timeslot</label>
           <select v-model="modalForm.slot">
             <option v-for="slot in modalItem.timeslots" :key="slot.startTime">
-              {{ slot.startTime.replace('T', ' ') }} – {{ slot.endTime.replace('T', ' ') }} · {{ slot.remainingSlot }} spots left
+              {{ formatPickupSlot(slot) }} · {{ slot.remainingSlot }} spots left
             </option>
           </select>
         </div>
@@ -98,7 +98,7 @@ import { useRouter } from 'vue-router'
 import BrowseDonations from './BrowseDonations.vue'
 import { getAllListings } from '../../api/client'
 import { clearSession, logout } from '../../api/client'
-import { toListingCard } from '../../api/listingAdapter'
+import { formatPickupSlot, toListingCard } from '../../api/listingAdapter'
 
 const router = useRouter()
 

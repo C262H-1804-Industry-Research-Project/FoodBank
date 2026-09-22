@@ -63,6 +63,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { clearSession, getDonorListings, getStoredSession, logout } from '../../api/client'
+import { formatPickupSlot } from '../../api/listingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -113,7 +114,7 @@ function toListingRow(listing) {
     deadline: listing.collectionDeadline || listing.expiryDate || '—',
     suburb: listing.suburb || '',
     stateRegion: listing.region || '',
-    slots: firstSlot ? `${firstSlot.startTime}–${firstSlot.endTime}` : 'Not yet published',
+    slots: firstSlot ? formatPickupSlot(firstSlot) : 'Not yet published',
     booked: firstSlot ? firstSlot.maxRecipients - firstSlot.remainingSlot : '—',
     status,
     statusClass: status.toLowerCase() === 'live' ? 'status-live' : 'status-draft',

@@ -308,7 +308,7 @@ function formatTimeslot(slot) {
   const [date] = slot.startTime.split('T')
   const startTime = slot.startTime.slice(11, 16)
   const endTime = slot.endTime.slice(11, 16)
-  return `${date} · ${startTime}–${endTime} (${slot.maxRecipients} recipients)`
+  return `${date}: ${startTime} - ${endTime} (${slot.maxRecipients} recipients)`
 }
 
 function triggerFileInput() {

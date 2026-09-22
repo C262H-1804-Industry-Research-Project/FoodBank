@@ -4,6 +4,12 @@ const labels = {
 }
 const dayKey = date => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 
+export function formatPickupSlot(slot) {
+  const [date = '', startTime = ''] = (slot.startTime || '').split('T')
+  const [, endTime = ''] = (slot.endTime || '').split('T')
+  return `${date}: ${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
+}
+
 export function toListingCard(item, now = new Date()) {
   if (item.listingId == null) throw new Error('The listings API is missing listingId. Update the matching backend DTO.')
   const slots = [...(item.timeslots || [])].sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -33,7 +39,7 @@ export function toListingCard(item, now = new Date()) {
     tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
     emoji: { Bakery: '🥖', Produce: '🥗', Pantry: '🥫', Dairy: '🥛' }[item.category] || '🍲',
     timeLeft: item.latestCollectionDate ? `Collect by ${item.latestCollectionDate}` : 'Available',
-    pickupWindow: slots[0] ? `${slots[0].startTime.replace('T', ' ')} – ${slots[0].endTime.replace('T', ' ')} (${slots[0].remainingSlot} spots)` : '',
+    pickupWindow: slots[0] ? formatPickupSlot(slots[0]) : '',
     timeslots: item.timeslots || [],
     timeType,
   }
