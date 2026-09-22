@@ -151,16 +151,53 @@
               <div class="toggle" :class="{ on: form.hideContact }" @click="form.hideContact = !form.hideContact"></div>
             </div>
           </div>
+
+          <!-- Pickup timeslot management -->
+          <div class="field span-2 timeslot-section">
+            <label class="field-label">Pickup timeslots</label>
+
+            <div class="timeslot-form">
+              <input v-model="slotDraft.date" type="date" :min="today">
+              <input v-model="slotDraft.startTime" type="time">
+              <span>to</span>
+              <input v-model="slotDraft.endTime" type="time">
+
+              <button type="button" class="btn-outline" @click="addTimeslot">
+                Add timeslot
+              </button>
+            </div>
+
+            <p v-if="timeslotError" class="timeslot-error" role="alert">
+              {{ timeslotError }}
+            </p>
+
+            <div v-if="timeslots.length" class="timeslot-list">
+              <div v-for="(slot, index) in timeslots" :key="slot.id" class="timeslot-item">
+                <span>
+                  {{ formatTimeslot(slot) }}
+                </span>
+                <button type="button" class="upload-remove" @click="removeTimeslot(index)">
+                  Remove
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="timeslot-empty">
+              No pickup timeslots added yet.
+            </div>
+          </div>
         </div>
 
         <p v-if="submitError" class="submit-message error" role="alert">{{ submitError }}</p>
         <p v-else-if="catalogueError" class="submit-message error" role="alert">{{ catalogueError }}</p>
 
         <div class="btn-row">
-          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;" :disabled="isSubmitting || isLoadingCatalogue">
-            {{ isSubmitting ? 'Publishing…' : 'Publish listing' }}
+          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;" :disabled="isSubmitting || isLoadingCatalogue" @click="submitStatus = 'LIVE'">
+            {{ isSubmitting && submitStatus === 'LIVE' ? 'Publishing…' : 'Publish listing' }}
           </button>
-          <button type="button" class="btn-outline" :disabled="isSubmitting || isLoadingCatalogue" @click="saveDraft">Save as draft</button>
+          <button type="submit" class="btn-outline" :disabled="isSubmitting || isLoadingCatalogue" @click="submitStatus = 'DRAFT'">
+            {{ isSubmitting && submitStatus === 'DRAFT' ? 'Saving…' : 'Save as draft' }}
+          </button>
         </div>
       </form>
     </div>
@@ -170,6 +207,13 @@
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue } from '../../api/client'
+
+const props = defineProps({
+  donorId: {
+    type: Number,
+    required: true,
+  },
+})
 
 const emit = defineEmits(['add-listing'])
 
@@ -182,6 +226,15 @@ const isLoadingCatalogue = ref(true)
 const catalogueError = ref('')
 const isSubmitting = ref(false)
 const submitError = ref('')
+const submitStatus = ref('LIVE')
+const today = new Date().toISOString().slice(0, 10)
+const timeslots = ref([])
+const timeslotError = ref('')
+const slotDraft = reactive({
+  date: '',
+  startTime: '',
+  endTime: '',
+})
 
 const form = reactive({
   name: '',
@@ -219,6 +272,46 @@ function adjustSlotCapacity(delta) {
   if (newVal >= 1 && newVal <= 20) {
     form.slotCapacity = newVal
   }
+}
+
+function addTimeslot() {
+  timeslotError.value = ''
+  if (!slotDraft.date || !slotDraft.startTime || !slotDraft.endTime) {
+    timeslotError.value = 'Enter a date, start time, and end time.'
+    return
+  }
+  if (slotDraft.endTime <= slotDraft.startTime) {
+    timeslotError.value = 'The end time must be after the start time.'
+    return
+  }
+
+  const startTime = `${slotDraft.date}T${slotDraft.startTime}`
+  const endTime = `${slotDraft.date}T${slotDraft.endTime}`
+  if (timeslots.value.some(slot => slot.startTime === startTime && slot.endTime === endTime)) {
+    timeslotError.value = 'This pickup timeslot has already been added.'
+    return
+  }
+
+  timeslots.value.push({
+    id: `${startTime}-${endTime}`,
+    startTime,
+    endTime,
+    maxRecipients: form.slotCapacity,
+  })
+  slotDraft.date = ''
+  slotDraft.startTime = ''
+  slotDraft.endTime = ''
+}
+
+function removeTimeslot(index) {
+  timeslots.value.splice(index, 1)
+}
+
+function formatTimeslot(slot) {
+  const [date] = slot.startTime.split('T')
+  const startTime = slot.startTime.slice(11, 16)
+  const endTime = slot.endTime.slice(11, 16)
+  return `${date}: ${startTime} - ${endTime} (${slot.maxRecipients} recipients)`
 }
 
 function triggerFileInput() {
@@ -280,9 +373,14 @@ function buildRequest() {
     maxDailyCapacity: quantityValue(form.maxQty),
     photoUrl: uploadedPhoto.value?.url,
     tagIds: [...form.tags],
-    timeslots: [],
+    timeslots: timeslots.value.map(({ startTime, endTime, maxRecipients }) => ({
+      startTime,
+      endTime,
+      maxRecipients,
+    })),
     isAutoApproved: form.autoApproval,
     usePickupCode: form.requirePickupCode,
+    status: submitStatus.value
   }
 }
 
@@ -303,7 +401,7 @@ async function submitListing() {
 
   isSubmitting.value = true
   try {
-    const created = await createDonorListing(1, request)
+    const created = await createDonorListing(props.donorId, request)
 
     const newRecord = {
       id: created.listingId,
@@ -311,16 +409,16 @@ async function submitListing() {
       category: categories.value.find(category => category.id === form.category)?.name || '',
       quantity: form.quantity,
       deadline: form.deadline || '—',
-      slots: `No pickup time selected (${form.slotCapacity} recipients / slot)`,
-      booked: `0/${form.slotCapacity}`,
+      slots: timeslots.value[0] ? formatTimeslot(timeslots.value[0]) : `No pickup time selected (${form.slotCapacity} recipients / slot)`,
+      booked: '0',
       slotCapacity: form.slotCapacity,
       autoApproval: form.autoApproval,
       requirePickupCode: form.requirePickupCode,
       addressLine: form.addressLine,
       suburb: form.suburb,
       stateRegion: form.stateRegion,
-      status: 'Live',
-      statusClass: 'status-live',
+      status: form.status || 'DRAFT',
+      statusClass: form.status === 'LIVE' ? 'status-live' : 'status-draft',
       hideContact: form.hideContact,
       notes: form.notes,
       tags: tags.value.filter(tag => form.tags.includes(tag.id)).map(tag => tag.name),
@@ -334,9 +432,7 @@ async function submitListing() {
   }
 }
 
-function saveDraft() {
-  submitError.value = 'Saving drafts is not supported by the listings API yet.'
-}
+
 </script>
 
 <style scoped>
@@ -412,4 +508,56 @@ function saveDraft() {
 .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); padding: 9px 16px; border-radius: var(--r-sm); font-weight: 700; font-size: 13px; cursor: pointer; }
 .btn-outline:hover { border-color: var(--primary); color: var(--primary-dark); }
 @media (max-width: 980px) { .form-grid { grid-template-columns: 1fr; } }
+
+.timeslot-section {
+  background: var(--surface-2);
+  padding: 14px;
+  border-radius: var(--r-md);
+}
+
+.timeslot-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.timeslot-form input {
+  width: auto;
+}
+
+.timeslot-form .btn-outline {
+  margin-left: 4px;
+}
+
+.timeslot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.timeslot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+
+.timeslot-empty {
+  margin-top: 10px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.timeslot-error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
 </style>

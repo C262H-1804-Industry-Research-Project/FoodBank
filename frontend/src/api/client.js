@@ -81,6 +81,16 @@ export async function getAllListings(signal) {
   return items
 }
 
+export async function getDonorListings(donorId, signal) {
+  if (!Number.isInteger(donorId) || donorId <= 0) {
+    throw new Error('The signed-in donor is missing an ID.')
+  }
+
+  const listings = await apiRequest(`/donors/${donorId}/listings`, { signal })
+  if (!Array.isArray(listings)) throw new Error('Invalid donor listings response from the API.')
+  return listings
+}
+
 export async function getListingCatalogue(signal) {
   const [categories, tags] = await Promise.all([
     apiRequest('/listings/categories', { signal }),
