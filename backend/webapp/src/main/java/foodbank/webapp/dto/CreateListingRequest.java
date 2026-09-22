@@ -18,6 +18,7 @@ public record CreateListingRequest(
         List<Integer> tagIds,
         List<CreateTimeslotRequest> timeslots,
         Boolean isAutoApproved,
-        Boolean usePickupCode
+        Boolean usePickupCode,
+        String status
 ) {
 }

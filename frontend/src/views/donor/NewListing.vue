@@ -192,10 +192,12 @@
         <p v-else-if="catalogueError" class="submit-message error" role="alert">{{ catalogueError }}</p>
 
         <div class="btn-row">
-          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;" :disabled="isSubmitting || isLoadingCatalogue">
-            {{ isSubmitting ? 'Publishing…' : 'Publish listing' }}
+          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;" :disabled="isSubmitting || isLoadingCatalogue" @click="submitStatus = 'LIVE'">
+            {{ isSubmitting && submitStatus === 'LIVE' ? 'Publishing…' : 'Publish listing' }}
           </button>
-          <button type="button" class="btn-outline" :disabled="isSubmitting || isLoadingCatalogue" @click="saveDraft">Save as draft</button>
+          <button type="submit" class="btn-outline" :disabled="isSubmitting || isLoadingCatalogue" @click="submitStatus = 'DRAFT'">
+            {{ isSubmitting && submitStatus === 'DRAFT' ? 'Saving…' : 'Save as draft' }}
+          </button>
         </div>
       </form>
     </div>
@@ -224,6 +226,7 @@ const isLoadingCatalogue = ref(true)
 const catalogueError = ref('')
 const isSubmitting = ref(false)
 const submitError = ref('')
+const submitStatus = ref('LIVE')
 const today = new Date().toISOString().slice(0, 10)
 const timeslots = ref([])
 const timeslotError = ref('')
@@ -377,6 +380,7 @@ function buildRequest() {
     })),
     isAutoApproved: form.autoApproval,
     usePickupCode: form.requirePickupCode,
+    status: submitStatus.value
   }
 }
 
@@ -428,9 +432,7 @@ async function submitListing() {
   }
 }
 
-function saveDraft() {
-  submitError.value = 'Saving drafts is not supported by the listings API yet.'
-}
+
 </script>
 
 <style scoped>

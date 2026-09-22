@@ -157,7 +157,7 @@ public class ListingService {
                 .orElseThrow(() -> new java.util.NoSuchElementException("Donor not found"));
         Listing listing = Listing.builder()
                 .donor(donor)
-                .status("AVAILABLE")
+                .status(request.status())
                 .build();
         applyListingRequest(listing, donor, request);
         listing = listingRepository.save(listing);
