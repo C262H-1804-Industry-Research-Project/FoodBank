@@ -1,0 +1,327 @@
+openapi: "3.0.2"
+info:
+  title: API Title
+  version: "1.0"
+servers:
+  - url: https://api.server.test/v1
+
+tags:
+  - name: login-controller
+    description: User registration and authentication
+
+paths:
+  /api/listings:
+    get:
+      tags: [listings]
+      summary: Browse and search listings
+      parameters:
+        - name: foodName
+          in: query
+          schema: { type: string }
+          description: Case-insensitive partial match against the food name.
+        - name: categoryId
+          in: query
+          schema: { type: integer }
+        - name: tagIds
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: integer }
+          description: Repeated tag ID parameter. A listing with any selected tag matches.
+        - name: page
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 10, minimum: 1 }
+      responses:
+        '200':
+          description: A paged listing result
+  /api/listings/categories:
+    get:
+      tags: [listing-catalogue]
+      summary: View available listing categories
+      responses:
+        '200':
+          description: Allowed category names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogueItemResponse'
+  /api/listings/tags:
+    get:
+      tags: [listing-catalogue]
+      summary: View available listing tags
+      responses:
+        '200':
+          description: Approved tag names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogueItemResponse'
+  /api/donors:
+    post:
+      tags: [donor]
+      summary: Create a donor account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDonorRequest'
+      responses:
+        '201':
+          description: Donor account created and pending approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DonorResponse'
+        '400':
+          description: Missing or invalid fields, or duplicate email
+  /api/donors/{donorId}/listings:
+    get:
+      tags: [donor]
+      summary: Get a donor's listings
+      parameters:
+        - name: donorId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Donor listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyListingResponse'
+    post:
+      tags: [donor]
+      summary: Create a listing for a donor
+      parameters:
+        - name: donorId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateListingRequest'
+      responses:
+        '201':
+          description: Listing created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedListingResponse'
+        '400':
+          description: Invalid listing data
+        '404':
+          description: Donor not found
+  /api/donors/{donorId}/listings/{listingId}:
+    put:
+      tags: [donor]
+      summary: Replace a donor listing
+      parameters:
+        - name: donorId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: listingId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateListingRequest'
+      responses:
+        '200':
+          description: Listing updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedListingResponse'
+        '400':
+          description: Invalid listing data
+        '404':
+          description: Listing not found for donor
+    delete:
+      tags: [donor]
+      summary: Delete a donor listing
+      parameters:
+        - name: donorId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: listingId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '204':
+          description: Listing deleted
+        '404':
+          description: Listing not found for donor
+  /api/auth/login:
+    post:
+      tags:
+        - login-controller
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid email or password
+
+
+
+
+
+
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: Password123!
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, example: Bearer }
+        user:
+          $ref: '#/components/schemas/LoginUserResponse'
+    LoginUserResponse:
+      type: object
+      properties:
+        name: { type: string }
+        role: { type: string, enum: [donor, recipient] }
+        donorId: { type: integer, nullable: true }
+    MyListingResponse:
+      type: object
+      properties:
+        listingId: { type: integer }
+        name: { type: string }
+        category: { type: string }
+        quantity: { type: number, format: float }
+        status: { type: string }
+        expiryDate: { type: string, format: date, nullable: true }
+        collectionDeadline: { type: string, format: date, nullable: true }
+        photoUrl: { type: string, nullable: true }
+        tags:
+          type: array
+          items: { type: string }
+        timeslots:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSlot'
+        suburb: { type: string }
+        region: { type: string }
+    TimeSlot:
+      type: object
+      properties:
+        startTime: { type: string }
+        endTime: { type: string }
+        remainingSlot: { type: integer }
+        maxRecipients: { type: integer }
+    CreateDonorRequest:
+      type: object
+      required: [email, password, orgName, addressLine, suburb, region]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        phone: { type: string }
+        orgName: { type: string, example: Green Leaf Café }
+        addressLine: { type: string, example: 123 Example Street }
+        suburb: { type: string, example: Adelaide }
+        region: { type: string, example: SA }
+    DonorResponse:
+      type: object
+      properties:
+        donorId: { type: integer }
+        userId: { type: integer }
+        email: { type: string, format: email }
+        orgName: { type: string }
+        addressLine: { type: string }
+        suburb: { type: string }
+        region: { type: string }
+        approvalStatus: { type: string, example: PENDING }
+        hideContact: { type: boolean }
+    CreateListingRequest:
+      type: object
+      required: [name, categoryId, quantity, isAutoApproved, usePickupCode]
+      properties:
+        name: { type: string, example: Mixed vegetable crates }
+        description: { type: string }
+        categoryId: { type: integer, example: 1 }
+        quantity: { type: number, format: float, example: 8 }
+        expiryDate: { type: string, format: date }
+        collectionDeadline: { type: string, format: date }
+        addressLine: { type: string, example: 123 Example Street }
+        suburb: { type: string, example: Adelaide }
+        region: { type: string, example: SA }
+        maxDailyCapacity: { type: integer }
+        photoUrl: { type: string }
+        notes: { type: string }
+        tagIds:
+          type: array
+          items:
+            type: integer
+        timeslots:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateTimeslotRequest'
+        isAutoApproved: { type: boolean }
+        usePickupCode: { type: boolean }
+    CreateTimeslotRequest:
+      type: object
+      required: [startTime, endTime, maxRecipients]
+      properties:
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        maxRecipients: { type: integer, minimum: 1 }
+    CreatedListingResponse:
+      type: object
+      properties:
+        listingId: { type: integer }
+        donorId: { type: integer }
+        status: { type: string, example: AVAILABLE }
+    CatalogueItemResponse:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
