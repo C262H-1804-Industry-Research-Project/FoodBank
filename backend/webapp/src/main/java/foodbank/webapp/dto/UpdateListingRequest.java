@@ -1,10 +1,11 @@
 package foodbank.webapp.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
-/** Editable listing fields. Photos, tags, expiry and pickup times stay unchanged. */
 public record UpdateListingRequest(
         String name, String description, Integer categoryId, Float quantity,
-        LocalDate collectionDeadline, String addressLine, String suburb, String region,
-        Integer slotCapacity, Boolean isAutoApproved, Boolean usePickupCode, Boolean hideContact
+        LocalDate expiryDate, LocalDate collectionDeadline, String addressLine, String suburb, String region,
+        Integer maxDailyCapacity, List<Integer> tagIds, List<CreateTimeslotRequest> timeslots,
+        Integer slotCapacity, Boolean isAutoApproved, Boolean usePickupCode, Boolean hideContact, String status
 ) {}
