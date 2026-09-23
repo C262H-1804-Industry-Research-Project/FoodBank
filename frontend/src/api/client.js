@@ -109,3 +109,15 @@ export function createDonorListing(donorId, listing, signal) {
     signal,
   })
 }
+
+export function updateDonorListing(donorId, listingId, listing, signal) {
+  return apiRequest(`/donors/${donorId}/listings/${listingId}`, {
+    method: 'PUT', body: listing, signal,
+  })
+}
+
+export function deleteDonorListing(donorId, listingId, signal) {
+  return apiRequest(`/donors/${donorId}/listings/${listingId}`, {
+    method: 'DELETE', signal,
+  })
+}

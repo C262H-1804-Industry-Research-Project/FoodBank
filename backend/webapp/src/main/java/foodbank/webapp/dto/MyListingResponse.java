@@ -12,5 +12,12 @@ public record MyListingResponse(
         String[] tags,
         TimeSlot[] timeslots,
         String suburb,
-        String region
+        String region,
+        Integer categoryId,
+        String description,
+        String addressLine,
+        Boolean isAutoApproved,
+        Boolean usePickupCode,
+        Boolean hideContact,
+        Integer slotCapacity
 ) {}
