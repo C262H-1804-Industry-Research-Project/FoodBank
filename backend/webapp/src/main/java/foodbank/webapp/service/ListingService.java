@@ -136,7 +136,10 @@ public class ListingService {
                         ))
                         .toArray(TimeSlot[]::new),
                 listing.getSuburb(),
-                listing.getRegion()
+                listing.getRegion(),
+                listing.getCategory() == null ? null : listing.getCategory().getCategoryId(),
+                listing.getDescription(), listing.getAddressLine(), listing.getIsAutoApproved(),
+                listing.getUsePickupCode(), listing.getHideContact(), listing.getSlotCapacity()
         );
     }
 
@@ -171,19 +174,72 @@ public class ListingService {
     }
 
     @Transactional
-    public CreatedListingResponse updateListing(Integer donorId, Integer listingId, CreateListingRequest request) {
-        validateListingRequest(request);
-
+    public MyListingResponse updateListing(Integer donorId, Integer listingId, foodbank.webapp.dto.UpdateListingRequest request) {
         Listing listing = listingRepository.findById(listingId)
                 .orElseThrow(() -> new java.util.NoSuchElementException("Listing not found"));
         if (!listing.getDonor().getId().equals(donorId)) {
             throw new java.util.NoSuchElementException("Listing not found for donor");
         }
+        if (request == null) throw new IllegalArgumentException("request body is required");
+        requireText(request.name(), "name");
+        requireText(request.addressLine(), "addressLine");
+        requireText(request.suburb(), "suburb");
+        requireText(request.region(), "region");
+        if (request.categoryId() == null) throw new IllegalArgumentException("categoryId is required");
+        Category category = categoryRepository.findById(request.categoryId())
+                .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
+        if (request.quantity() == null || !Float.isFinite(request.quantity()) || request.quantity() <= 0) {
+            throw new IllegalArgumentException("quantity must be greater than zero");
+        }
+        if (request.isAutoApproved() == null || request.usePickupCode() == null || request.hideContact() == null) {
+            throw new IllegalArgumentException("Approval, pickup code and contact preferences are required");
+        }
+        if (request.slotCapacity() == null || request.slotCapacity() < 1 || request.slotCapacity() > 20) {
+            throw new IllegalArgumentException("Recipients per slot must be between 1 and 20");
+        }
+        if (request.collectionDeadline() != null && listing.getExpiryDate() != null
+                && request.collectionDeadline().isAfter(listing.getExpiryDate())) {
+            throw new IllegalArgumentException("collectionDeadline cannot be after expiryDate");
+        }
+        var slots = timeslotRepository.findByListing(listing);
+        Integer previousCapacity = listing.getSlotCapacity();
+        if (previousCapacity == null && !slots.isEmpty()) {
+            previousCapacity = slots.stream().min(java.util.Comparator.comparing(Timeslot::getStartTime)).orElseThrow().getMaxRecipients();
+        }
+        // Only an explicit capacity change alters slots; never recreate booked slots.
+        if (!request.slotCapacity().equals(previousCapacity)) {
+            for (Timeslot slot : slots) {
+                int booked = slot.getMaxRecipients() - slot.getRemainingSlot();
+                if (request.slotCapacity() < booked) {
+                    throw new foodbank.webapp.exceptions.ConflictException("Capacity cannot be below existing bookings");
+                }
+                slot.setMaxRecipients(request.slotCapacity());
+                slot.setRemainingSlot(request.slotCapacity() - booked);
+            }
+        }
+        listing.setName(request.name().trim());
+        listing.setDescription(blankToNull(request.description()));
+        listing.setCategory(category);
+        listing.setQuantity(request.quantity());
+        listing.setCollectionDeadline(request.collectionDeadline());
+        listing.setAddressLine(request.addressLine().trim());
+        listing.setSuburb(request.suburb().trim());
+        listing.setRegion(request.region().trim());
+        listing.setIsAutoApproved(request.isAutoApproved());
+        listing.setUsePickupCode(request.usePickupCode());
+        listing.setHideContact(request.hideContact());
+        listing.setSlotCapacity(request.slotCapacity());
+        listing.setStatus("LIVE");
+        listingRepository.flush();
+        return toMyListingResponse(listing);
+    }
 
-        applyListingRequest(listing, listing.getDonor(), request);
-        replaceListingDetails(listing, request);
-
-        return new CreatedListingResponse(listing.getListingId(), donorId, listing.getStatus());
+    public void requireDonorOwner(Integer donorId, String userId) {
+        Donor donor = donorRepository.findById(donorId)
+                .orElseThrow(() -> new java.util.NoSuchElementException("Donor not found"));
+        if (!donor.getUserId().toString().equals(userId)) {
+            throw new org.springframework.security.access.AccessDeniedException("Not your listing");
+        }
     }
 
     @Transactional

@@ -26,6 +26,20 @@ public class DonorListingController {
     ) {
         return listingService.createListing(donorId, request);
     }
+    @PutMapping("/{listingId}")
+    public MyListingResponse updateListing(@PathVariable Integer donorId, @PathVariable Integer listingId,
+            @RequestBody foodbank.webapp.dto.UpdateListingRequest request, java.security.Principal principal) {
+        listingService.requireDonorOwner(donorId, principal.getName());
+        return listingService.updateListing(donorId, listingId, request);
+    }
+
+    @DeleteMapping("/{listingId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteListing(@PathVariable Integer donorId, @PathVariable Integer listingId, java.security.Principal principal) {
+        listingService.requireDonorOwner(donorId, principal.getName());
+        listingService.deleteListing(donorId, listingId);
+    }
+
     @GetMapping
     public List<MyListingResponse> getMyListings(@PathVariable Integer donorId) {
         return listingService.getMyListings(donorId);

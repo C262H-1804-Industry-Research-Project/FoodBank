@@ -8,6 +8,7 @@
       <button class="btn-accent" @click="emit('create-new')">+ New listing</button>
     </div>
 
+    <p v-if="actionError && !showEditModal" class="action-error" role="alert">{{ actionError }}</p>
     <table>
       <thead>
         <tr>
@@ -32,8 +33,8 @@
           <td><span class="badge-status" :class="item.statusClass">{{ item.status }}</span></td>
           <td>
             <div class="action-buttons">
-              <button class="btn-outline btn-sm" @click="openEditModal(item)">Edit</button>
-              <button class="btn-danger btn-sm" @click="handleCancelListing(item)">Cancel</button>
+              <button class="btn-outline btn-sm" :disabled="busy" @click="openEditModal(item)">Edit</button>
+              <button class="btn-danger btn-sm" :disabled="busy" @click="handleCancelListing(item)">Cancel</button>
             </div>
           </td>
         </tr>
@@ -58,11 +59,8 @@
 
           <div class="field">
             <label class="field-label">Category</label>
-            <select v-model="editForm.category">
-              <option value="Bakery">Bakery</option>
-              <option value="Produce">Produce</option>
-              <option value="Dairy">Dairy</option>
-              <option value="Pantry">Pantry</option>
+            <select v-model="editForm.categoryId">
+              <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
             </select>
           </div>
 
@@ -73,7 +71,7 @@
 
           <div class="field">
             <label class="field-label">Latest collection deadline</label>
-            <input v-model="editForm.deadline" type="text">
+            <input v-model="editForm.deadline" type="text" placeholder="YYYY-MM-DD">
           </div>
 
           <!-- Structured Address fields -->
@@ -134,10 +132,11 @@
           </div>
         </div>
 
+        <p v-if="actionError" class="action-error" role="alert">{{ actionError }}</p>
         <div class="modal-close-row">
-          <button class="btn-outline" @click="closeEditModal">Cancel</button>
-          <button class="btn-primary" style="width:auto; padding:10px 22px;" @click="confirmAndPublish">
-            Confirm & Publish
+          <button class="btn-outline" :disabled="busy" @click="closeEditModal">Cancel</button>
+          <button class="btn-primary" style="width:auto; padding:10px 22px;" :disabled="busy" @click="confirmAndPublish">
+            {{ busy ? 'Please wait…' : 'Confirm & Publish' }}
           </button>
         </div>
       </div>
@@ -147,28 +146,40 @@
 
 <script setup>
 import { ref } from 'vue'
+import { getListingCatalogue, updateDonorListing, deleteDonorListing } from '../../api/client'
+import { toListingRow } from '../../api/donorListingAdapter'
 
 const props = defineProps({
+  donorId: { type: Number, required: true },
   listings: {
     type: Array,
     required: true
   }
 })
 
-const emit = defineEmits(['create-new', 'update-listing', 'delete-listing'])
+const emit = defineEmits(['create-new', 'update-listing', 'delete-listing']) 
 
 const showEditModal = ref(false)
 const editForm = ref(null)
+const busy = ref(false)
+const actionError = ref('')
+const categories = ref([])
 
-function openEditModal(item) {
+async function openEditModal(item) {
+  if (busy.value) return
   editForm.value = JSON.parse(JSON.stringify(item))
-  if (!editForm.value.slotCapacity) editForm.value.slotCapacity = 4
-  if (editForm.value.autoApproval === undefined) editForm.value.autoApproval = true
-  if (editForm.value.requirePickupCode === undefined) editForm.value.requirePickupCode = false
-  if (!editForm.value.suburb) editForm.value.suburb = 'Adelaide'
-  if (!editForm.value.stateRegion) editForm.value.stateRegion = 'SA'
-  if (!editForm.value.addressLine) editForm.value.addressLine = '14 Rundle Mall'
+  editForm.value.deadline = item.collectionDeadline || ''
+  actionError.value = ''
   showEditModal.value = true
+  busy.value = true
+  try {
+    const catalogue = await getListingCatalogue()
+    categories.value = catalogue.categories
+  } catch (error) {
+    actionError.value = error.message
+  } finally {
+    busy.value = false
+  }
 }
 
 function adjustEditSlotCapacity(delta) {
@@ -180,29 +191,65 @@ function adjustEditSlotCapacity(delta) {
 }
 
 function closeEditModal() {
+  if (busy.value) return
+  actionError.value = ''
   showEditModal.value = false
   editForm.value = null
 }
 
-function confirmAndPublish() {
-  if (editForm.value) {
-    editForm.value.status = 'Live'
-    editForm.value.statusClass = 'status-live'
-    editForm.value.slots = `5:30–6:30pm (${editForm.value.slotCapacity} slots/hr)`
-    emit('update-listing', editForm.value)
-    closeEditModal()
+async function confirmAndPublish() {
+  if (!editForm.value || busy.value) return
+  actionError.value = ''
+  busy.value = true
+  try {
+    const form = editForm.value
+    const quantity = Number(form.quantity)
+    if (![form.name, form.addressLine, form.suburb, form.stateRegion].every(value => value?.trim())) {
+      throw new Error('Complete all required fields before publishing.')
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity must be greater than zero.')
+    if (!Number.isInteger(form.slotCapacity) || form.slotCapacity < 1 || form.slotCapacity > 20) {
+      throw new Error('Recipients per slot must be between 1 and 20.')
+    }
+    if (form.deadline && !/^\d{4}-\d{2}-\d{2}$/.test(form.deadline)) throw new Error('Enter the collection deadline as YYYY-MM-DD, or leave it blank.')
+    if (!form.categoryId) throw new Error('Select a category before publishing.')
+    const saved = await updateDonorListing(props.donorId, form.id, {
+      name: form.name.trim(), description: form.notes, categoryId: form.categoryId,
+      quantity, collectionDeadline: form.deadline || null,
+      addressLine: form.addressLine.trim(), suburb: form.suburb.trim(), region: form.stateRegion.trim(),
+      slotCapacity: form.slotCapacity, isAutoApproved: form.autoApproval,
+      usePickupCode: form.requirePickupCode, hideContact: form.hideContact,
+    })
+    emit('update-listing', toListingRow(saved))
+    showEditModal.value = false
+    editForm.value = null
+  } catch (error) {
+    actionError.value = error.message || 'Unable to update the listing.'
+  } finally {
+    busy.value = false
   }
 }
 
-function handleCancelListing(item) {
-  const confirmed = window.confirm(`Are you sure you want to cancel and delete "${item.name}"?`)
-  if (confirmed) {
+async function handleCancelListing(item) {
+  if (busy.value) return
+  if (!window.confirm(`Are you sure you want to cancel and delete "${item.name}"?`)) return
+  actionError.value = ''
+  busy.value = true
+  try {
+    await deleteDonorListing(props.donorId, item.id)
     emit('delete-listing', item.id)
+  } catch (error) {
+    actionError.value = error.message || 'Unable to cancel the listing.'
+  } finally {
+    busy.value = false
   }
 }
+
 </script>
 
 <style scoped>
+.action-error { color: var(--danger); margin: 12px 0; }
+button:disabled { opacity: .6; cursor: not-allowed; }
 .content-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
 .content-head h2 { font-size: 22px; }
 .content-head .sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
