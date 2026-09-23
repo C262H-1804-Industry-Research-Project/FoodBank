@@ -8,6 +8,7 @@ public record ListingResponse(
         Integer listingId,
         String foodName,
         String description,
+        String photoUrl,
         String category,
         String expiryDate,
         Integer maxDailyCapacity,

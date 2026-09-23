@@ -27,11 +27,14 @@ export function toListingCard(item, now = new Date()) {
     else if (first >= saturday && first < monday) timeType = 'weekend'
   }
 
+  console.log(item)
+
   return {
     id: item.listingId,
     name: item.foodName,
     category: item.category,
     notes: item.description || '',
+    photoUrl: item.photoUrl || '',
     donor: item.donorName || '',
     suburb: item.suburb || '',
     stateRegion: item.region || '',

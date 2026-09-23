@@ -36,6 +36,7 @@
                   </div>
                 </div>
               </div>
+              <div v-if="photoError" class="field-error">{{ photoError }}</div>
             </div>
           </div>
 
@@ -232,7 +233,7 @@
 
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
-import { createDonorListing, getListingCatalogue } from '../../api/client'
+import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
 
 const props = defineProps({
   donorId: {
@@ -246,6 +247,7 @@ const emit = defineEmits(['add-listing'])
 const fileInputRef = ref(null)
 const isDragOver = ref(false)
 const uploadedPhoto = ref(null)
+const photoError = ref('')
 const categories = ref([])
 const tags = ref([])
 const isLoadingCatalogue = ref(true)
@@ -345,10 +347,19 @@ function triggerFileInput() {
 }
 
 function processImageFile(file) {
-  if (!file || !file.type.startsWith('image/')) return
+  if (!file) return
+  photoError.value = ''
+  if (file.size > 5 * 1024 * 1024) {
+    photoError.value = 'Choose an image smaller than 5MB.'
+    return
+  }
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    photoError.value = 'Choose a PNG or JPG image.'
+    return
+  }
   const reader = new FileReader()
   reader.onload = (e) => {
-    uploadedPhoto.value = { name: file.name, url: e.target.result }
+    uploadedPhoto.value = { name: file.name, file, url: e.target.result }
   }
   reader.readAsDataURL(file)
 }
@@ -367,6 +378,7 @@ function handleFileDrop(e) {
 
 function removeUpload() {
   uploadedPhoto.value = null
+  photoError.value = ''
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
 
@@ -397,7 +409,7 @@ function buildRequest() {
     suburb: form.suburb.trim(),
     region: form.stateRegion.trim(),
     maxDailyCapacity: quantityValue(form.maxQty),
-    photoUrl: uploadedPhoto.value?.url,
+    photoUrl: null,
     tagIds: [...form.tags],
     timeslots: timeslots.value.map(({ startTime, endTime, maxRecipients }) => ({
       startTime,
@@ -425,8 +437,13 @@ async function submitListing() {
     return
   }
 
+  if (photoError.value) return
+
   isSubmitting.value = true
   try {
+    if (uploadedPhoto.value?.file) {
+      request.photoUrl = await uploadPhoto(uploadedPhoto.value.file)
+    }
     const created = await createDonorListing(props.donorId, request)
 
     const newRecord = {

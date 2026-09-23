@@ -87,6 +87,8 @@ public class SecurityConfig {
                                 "/api/listings/**"
                         ).permitAll()
 
+                        .requestMatchers("/uploads/**").permitAll()
+
                         // Logout requires a valid JWT.
                         .requestMatchers(
                                 HttpMethod.POST,

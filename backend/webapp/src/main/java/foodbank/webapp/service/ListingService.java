@@ -89,6 +89,7 @@ public class ListingService {
                 listing.getListingId(),
                 listing.getName(),
                 listing.getDescription(),
+                listing.getPhotoUrl(),
                 listing.getCategory() == null ? null : listing.getCategory().getName(),
                 listing.getExpiryDate() == null ? null : listing.getExpiryDate().toString(),
                 listing.getMaxDailyCapacity(),
