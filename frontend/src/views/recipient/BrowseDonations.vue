@@ -64,7 +64,10 @@
           :key="item.id"
           class="listing-card"
         >
-          <div class="lc-image">{{ item.emoji || '🍲' }}</div>
+          <div class="lc-image">
+            <img v-if="item.photoUrl" :src="item.photoUrl" :alt="item.name" loading="lazy">
+            <span v-else>{{ item.emoji || '🍲' }}</span>
+          </div>
           <div class="lc-body">
             <div class="lc-top">
               <div>
@@ -313,13 +316,14 @@ const paginatedListings = computed(() => {
   flex-direction: column;
 }
 .lc-image {
-  height: 110px;
+  height: 160px;
   background: linear-gradient(135deg, var(--primary-tint), var(--surface-2));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 34px;
 }
+.lc-image img { width: 100%; height: 100%; object-fit: cover; }
 .lc-body { padding: 16px; flex: 1; display: flex; flex-direction: column; }
 .lc-top {
   display: flex;

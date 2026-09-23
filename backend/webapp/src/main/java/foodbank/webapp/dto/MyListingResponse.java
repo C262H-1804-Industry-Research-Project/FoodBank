@@ -8,6 +8,7 @@ public record MyListingResponse(
         String status,
         String expiryDate,
         String collectionDeadline,
+        Integer maxDailyCapacity,
         String photoUrl,
         String[] tags,
         TimeSlot[] timeslots,
