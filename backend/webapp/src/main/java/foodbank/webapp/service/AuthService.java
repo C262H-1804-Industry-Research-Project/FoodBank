@@ -5,16 +5,19 @@ import foodbank.webapp.dto.LoginResponse;
 import foodbank.webapp.dto.LoginUserResponse;
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.User;
+import foodbank.webapp.entity.Admin;
 import foodbank.webapp.exceptions.UnauthorizedException;
 import foodbank.webapp.repositories.DonorRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.UserRepository;
+import foodbank.webapp.repositories.AdminRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
+
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final DonorRepository donorRepository;
     private final RecipientRepository recipientRepository;
+    private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthTokenService authTokenService;
 
@@ -40,10 +44,38 @@ public class AuthService {
             );
         }
 
-        // 组长目前只要求实现 Donor 和 Recipient 登录。
         if (role.equals("admin")) {
-            throw new UnauthorizedException(
-                    "Invalid email or password"
+            Admin admin = adminRepository
+                    .findByEmailIgnoreCase(email)
+                    .orElseThrow(() ->
+                            new UnauthorizedException(
+                                    "Invalid email or password"
+                            )
+                    );
+
+            if (!passwordEncoder.matches(
+                    request.password(),
+                    admin.getPassword()
+            )) {
+                throw new UnauthorizedException(
+                        "Invalid email or password"
+                );
+            }
+
+            String accessToken =
+                    authTokenService.createToken(
+                            admin.getAdminId(),
+                            "admin"
+                    );
+
+            return new LoginResponse(
+                    accessToken,
+                    "Bearer",
+                    new LoginUserResponse(
+                            admin.getName(),
+                            "admin",
+                            null
+                    )
             );
         }
 
