@@ -43,7 +43,28 @@
           @add-listing="handleAddListing"
         />
 
-        <!-- 3. Other Panels: Placeholder -->
+        <!-- 3. Requests to Approve Panel -->
+        <ApproveRequests 
+          v-else-if="currentPanel === 'requests'"
+          :requests-list="requestsData"
+          @approve-request="handleApproveRequest"
+          @decline-request="handleDeclineRequest"
+        />
+
+        <!-- 4. Submit Report Panel -->
+        <DonorReports 
+          v-else-if="currentPanel === 'reports'"
+          @report-submitted="handleReportSubmitted"
+        />
+
+        <!-- 5. Report List Panel -->
+        <ReportList 
+          v-else-if="currentPanel === 'reportlist'"
+          :reports="reportsData"
+          @create-report="currentPanel = 'reports'"
+        />
+
+        <!-- 6. Other Panels: Placeholder -->
         <section v-else class="placeholder-container">
           <div class="placeholder-card">
             <div class="placeholder-icon">🚧</div>
@@ -67,15 +88,20 @@ import { formatPickupSlot } from '../../api/listingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
+import ApproveRequests from './ApproveRequests.vue'
+import DonorReports from './DonorReports.vue'
+import ReportList from './ReportList.vue'
 
 const router = useRouter()
 
+// Nav items including Report list and Reports
 const navItems = [
   { key: 'listings', name: 'My listings' },
   { key: 'newlisting', name: 'New listing' },
   { key: 'requests', name: 'Requests to approve' },
   { key: 'history', name: 'Donation history' },
-  { key: 'settings', name: 'Settings & reports' }
+  { key: 'reportlist', name: 'Report list' },
+  { key: 'reports', name: 'File a report' }
 ]
 
 const currentPanel = ref('listings')
@@ -87,8 +113,7 @@ async function handleLogout() {
   try {
     await logout()
   } catch {
-    // A locally held session should still be removed if the token has expired
-    // or the API cannot be reached.
+    // Session fallback
   } finally {
     clearSession()
     router.push('/auth')
@@ -137,13 +162,11 @@ async function loadListings() {
 onMounted(loadListings)
 onBeforeUnmount(() => listingsController.abort())
 
-// Add new listing to array and return to listings table
 function handleAddListing(newItem) {
   listingsData.value.unshift(newItem)
   currentPanel.value = 'listings'
 }
 
-// Update existing listing item in array
 function handleUpdateListing(updatedItem) {
   const index = listingsData.value.findIndex(item => item.id === updatedItem.id)
   if (index !== -1) {
@@ -151,9 +174,82 @@ function handleUpdateListing(updatedItem) {
   }
 }
 
-// Delete / cancel listing by id
 function handleDeleteListing(id) {
   listingsData.value = listingsData.value.filter(item => item.id !== id)
+}
+
+// Requests to Approve state
+const requestsData = ref([
+  {
+    id: 201,
+    foodName: 'Sourdough loaves',
+    totalStock: '12 units',
+    recipientOrg: 'Community Kitchen East',
+    contactName: 'Priya Nair',
+    phone: '0412 345 678',
+    quantity: '4 units',
+    slot: 'Today, 5:30–6:00pm',
+    notes: 'Serving dinner for 20 community members tonight.',
+    status: 'Pending',
+    statusClass: 'status-pending'
+  },
+  {
+    id: 202,
+    foodName: 'Pantry staples box',
+    totalStock: '8 boxes',
+    recipientOrg: 'St. Vincent de Paul Adelaide',
+    contactName: 'Mark Higgins',
+    phone: '0423 789 012',
+    quantity: '2 boxes',
+    slot: 'Sat, 10:00–10:30am',
+    notes: 'Weekly food hamper distribution.',
+    status: 'Pending',
+    statusClass: 'status-pending'
+  }
+])
+
+function handleApproveRequest(id) {
+  const target = requestsData.value.find(r => r.id === id)
+  if (target) {
+    target.status = 'Approved'
+    target.statusClass = 'status-approved'
+  }
+}
+
+function handleDeclineRequest(id) {
+  const target = requestsData.value.find(r => r.id === id)
+  if (target) {
+    target.status = 'Declined'
+    target.statusClass = 'status-declined'
+  }
+}
+
+// Global Reports history state
+const reportsData = ref([
+  {
+    id: 101,
+    foodName: 'Sourdough loaves (12 units)',
+    recipient: 'Community Kitchen East',
+    actualDate: '2026-09-20 18:00',
+    reason: 'Recipient arrived 1 hour late after collection deadline without notification.',
+    status: 'Resolved',
+    statusClass: 'status-resolved'
+  },
+  {
+    id: 102,
+    foodName: 'Pantry staples box (8 boxes)',
+    recipient: 'St. Vincent de Paul Adelaide',
+    actualDate: '2026-09-22 10:30',
+    reason: 'Recipient took 3 boxes instead of approved 2 boxes.',
+    status: 'Under Review',
+    statusClass: 'status-pending'
+  }
+])
+
+function handleReportSubmitted(newReport) {
+  reportsData.value.unshift(newReport)
+  // Automatically navigate to Report list to view historical records
+  currentPanel.value = 'reportlist'
 }
 </script>
 
@@ -179,7 +275,6 @@ function handleDeleteListing(id) {
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
 .app-content { flex: 1; padding: 28px; overflow-y: auto; }
 
-/* Placeholder Styles */
 .placeholder-container { display: flex; justify-content: center; align-items: center; min-height: 400px; }
 .placeholder-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 40px; text-align: center; max-width: 480px; width: 100%; }
 .placeholder-icon { font-size: 36px; margin-bottom: 12px; }
