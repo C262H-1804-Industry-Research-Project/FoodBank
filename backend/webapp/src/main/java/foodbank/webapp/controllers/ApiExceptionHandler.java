@@ -9,6 +9,7 @@ import foodbank.webapp.exceptions.ConflictException;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import foodbank.webapp.exceptions.UnauthorizedException;
+import foodbank.webapp.exceptions.ForbiddenException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -35,6 +36,14 @@ public class ApiExceptionHandler {
     ) {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
+                .body(Map.of("error", exception.getMessage()));
+    }
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<Map<String, String>> handleForbidden(
+            ForbiddenException exception
+    ) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", exception.getMessage()));
     }
 }

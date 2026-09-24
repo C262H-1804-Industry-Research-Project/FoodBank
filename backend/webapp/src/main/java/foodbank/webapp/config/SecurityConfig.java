@@ -87,8 +87,17 @@ public class SecurityConfig {
                                 "/api/listings/**"
                         ).permitAll()
 
-                        .requestMatchers("/uploads/**").permitAll()
+// Publicly accessible uploaded files.
+                                .requestMatchers("/uploads/**").permitAll()
 
+// Report submission requires a Donor or Recipient JWT.
+                                .requestMatchers(
+                                        HttpMethod.POST,
+                                        "/api/reports"
+                                ).hasAnyRole(
+                                        "DONOR",
+                                        "RECIPIENT"
+                                )
                         // Logout requires a valid JWT.
                         .requestMatchers(
                                 HttpMethod.POST,
