@@ -3,14 +3,6 @@
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
       <!-- Category Filter -->
-      <!-- <select v-model="filterCategory">
-        <option value="">All categories</option>
-        <option value="Bakery">Bakery</option>
-        <option value="Produce">Produce</option>
-        <option value="Dairy">Dairy</option>
-        <option value="Pantry">Pantry</option>
-      </select> -->
-
       <select v-model="filterCategory" :disabled="isLoadingCatalogue">
         <option value="">All categories</option>
         <option v-for="category in categories" :key="category.id" :disabled="isLoadingCatalogue">
@@ -43,13 +35,13 @@
       <!-- Dietary Tag Filters -->
       <div class="chip-group">
         <span
-          v-for="tag in dietaryFilters"
+          v-for="tag in tags"
           :key="tag"
           class="chip"
           :class="{ active: activeTags.includes(tag) }"
           @click="toggleTag(tag)"
         >
-          {{ tag }}
+          {{ tag.name }}
         </span>
       </div>
 
@@ -165,7 +157,6 @@ const filterCategory = ref('')
 const filterLocation = ref('')
 const filterTime = ref('')
 const searchKeyword = ref('')
-const dietaryFilters = ['No pork', 'Nut-free', 'Vegetarian', 'Halal']
 const activeTags = ref([])
 const isLoadingCatalogue = ref(true)
 const catalogueError = ref('')
