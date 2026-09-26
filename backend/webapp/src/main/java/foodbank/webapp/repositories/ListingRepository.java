@@ -13,7 +13,7 @@ public interface ListingRepository extends JpaRepository<Listing, Integer>, JpaS
     List<Listing> findByDonorId(Integer donorId);
 
     @Query("""
-    SELECT DISTINCT l
+    SELECT DISTINCT l.name
     FROM Listing l
     WHERE LOWER(l.name) LIKE LOWER(CONCAT('%', :search, '%'))
     LIMIT 5
