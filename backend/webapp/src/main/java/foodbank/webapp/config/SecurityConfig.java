@@ -89,6 +89,9 @@ public class SecurityConfig {
 
                         .requestMatchers("/uploads/**").permitAll()
 
+                        // suggestions for searching
+                        .requestMatchers("/api/suggestions/*").permitAll()
+
                         // Logout requires a valid JWT.
                         .requestMatchers(
                                 HttpMethod.POST,

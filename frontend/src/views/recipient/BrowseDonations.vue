@@ -178,10 +178,7 @@ onMounted(async () => {
   }
 })
 
-console.log(activeTags.value)
 function toggleTag(tag) {
-  console.log("tag", tag)
-  console.log("activeTag", activeTags)
   const index = activeTags.value.indexOf(tag.name)
   if (index > -1) {
     activeTags.value.splice(index, 1)
