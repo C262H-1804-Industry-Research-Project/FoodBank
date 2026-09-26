@@ -3,12 +3,19 @@
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
       <!-- Category Filter -->
-      <select v-model="filterCategory">
+      <!-- <select v-model="filterCategory">
         <option value="">All categories</option>
         <option value="Bakery">Bakery</option>
         <option value="Produce">Produce</option>
         <option value="Dairy">Dairy</option>
         <option value="Pantry">Pantry</option>
+      </select> -->
+
+      <select v-model="filterCategory" :disabled="isLoadingCatalogue">
+        <option value="">All categories</option>
+        <option v-for="category in categories" :key="category.id" :disabled="isLoadingCatalogue">
+          {{ category.name }}
+        </option>
       </select>
 
       <!-- Suburb or Region Search -->
@@ -139,7 +146,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+
+import { onMounted, ref, computed, watch } from 'vue'
+import { getListingCatalogue } from '../../api/client'
+
 
 const props = defineProps({
   listings: {
@@ -157,6 +167,26 @@ const filterTime = ref('')
 const searchKeyword = ref('')
 const dietaryFilters = ['No pork', 'Nut-free', 'Vegetarian', 'Halal']
 const activeTags = ref([])
+const isLoadingCatalogue = ref(true)
+const catalogueError = ref('')
+const categories = ref([])
+const tags = ref([])
+
+
+onMounted(async () => {
+  try {
+    const catalogue = await getListingCatalogue()
+    categories.value = catalogue.categories
+    tags.value = catalogue.tags
+    filterCategory = categories.value[0]?.id ?? null
+
+    
+  } catch (error) {
+    catalogueError.value = error.message || 'Unable to load listing categories and tags.'
+  } finally {
+    isLoadingCatalogue.value = false
+  }
+})
 
 function toggleTag(tag) {
   const index = activeTags.value.indexOf(tag)

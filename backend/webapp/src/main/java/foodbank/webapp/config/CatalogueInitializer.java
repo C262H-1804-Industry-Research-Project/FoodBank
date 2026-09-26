@@ -15,7 +15,7 @@ public class CatalogueInitializer {
     @Bean
     CommandLineRunner initializeCatalogue(CategoryRepository categoryRepository, TagRepository tagRepository) {
         return arguments -> {
-            List.of("Bakery", "Produce", "Pantry", "Dairy").forEach(name -> categoryRepository.findByNameIgnoreCase(name)
+            List.of("Bakery", "Produce", "Pantry", "Dairy", "Fruit", "Meat&Seafood").forEach(name -> categoryRepository.findByNameIgnoreCase(name)
                     .orElseGet(() -> categoryRepository.save(Category.builder().name(name).build())));
             List.of("no-pork", "nut-free", "vegetarian", "halal").forEach(name -> tagRepository.findByNameIgnoreCase(name)
                     .orElseGet(() -> tagRepository.save(Tag.builder().name(name).type("DIETARY").build())));
