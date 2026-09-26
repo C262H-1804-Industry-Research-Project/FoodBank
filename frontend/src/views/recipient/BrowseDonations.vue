@@ -36,9 +36,9 @@
       <div class="chip-group">
         <span
           v-for="tag in tags"
-          :key="tag"
+          :key="tag.id"
           class="chip"
-          :class="{ active: activeTags.includes(tag) }"
+          :class="{ active: activeTags.includes(tag.name) }"
           @click="toggleTag(tag)"
         >
           {{ tag.name }}
@@ -164,14 +164,13 @@ const categories = ref([])
 const tags = ref([])
 
 
+// Load categories and tags on mount 
 onMounted(async () => {
   try {
     const catalogue = await getListingCatalogue()
     categories.value = catalogue.categories
     tags.value = catalogue.tags
     filterCategory = categories.value[0]?.id ?? null
-
-    
   } catch (error) {
     catalogueError.value = error.message || 'Unable to load listing categories and tags.'
   } finally {
@@ -179,12 +178,15 @@ onMounted(async () => {
   }
 })
 
+console.log(activeTags.value)
 function toggleTag(tag) {
-  const index = activeTags.value.indexOf(tag)
+  console.log("tag", tag)
+  console.log("activeTag", activeTags)
+  const index = activeTags.value.indexOf(tag.name)
   if (index > -1) {
     activeTags.value.splice(index, 1)
   } else {
-    activeTags.value.push(tag)
+    activeTags.value.push(tag.name)
   }
 }
 
