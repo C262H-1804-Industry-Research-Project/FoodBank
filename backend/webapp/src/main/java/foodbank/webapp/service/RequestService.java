@@ -1,6 +1,7 @@
 package foodbank.webapp.service;
 
 import foodbank.webapp.dto.RequestResponse;
+import foodbank.webapp.dto.RequestSubmission;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Request;
@@ -12,8 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +36,17 @@ public class RequestService {
     public RequestResponse approveRequest(Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
+
+        Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        Listing listing = timeslot.getListing();
+
         request.setStatus("APPROVED");
+
+        if (Boolean.TRUE.equals(listing.getUsePickupCode())) {
+            request.setPickupCode(generatePickupCode());
+        }
+
         return toResponse(requestRepository.save(request));
     }
 
@@ -42,6 +56,92 @@ public class RequestService {
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         request.setStatus("REJECTED");
         return toResponse(requestRepository.save(request));
+    }
+
+    @Transactional
+    public RequestResponse createRequest(RequestSubmission req) {
+        if (req.timeslotId() == null || req.recipientId() == null) {
+            throw new IllegalArgumentException("timeslotId and recipientId are required");
+        }
+        if (req.quantityRequested() == null || req.quantityRequested() <= 0) {
+            throw new IllegalArgumentException("quantityRequested must be greater than zero");
+        }
+
+        Timeslot timeslot = timeslotRepository.findById(req.timeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+
+        Recipient recipient = recipientRepository.findById(req.recipientId())
+                .orElseThrow(() -> new NoSuchElementException("Recipient not found"));
+
+        Listing listing = timeslot.getListing();
+
+        if (!"LIVE".equals(listing.getStatus())) {
+            throw new IllegalStateException("This listing is not currently available for requests");
+        }
+
+        if (timeslot.getRemainingSlot() == null || timeslot.getRemainingSlot() <= 0) {
+            throw new IllegalStateException("This timeslot is fully booked");
+        }
+
+        boolean alreadyRequested = requestRepository.existsByTimeslotIdAndRecipientId(
+                req.timeslotId(), req.recipientId());
+        if (alreadyRequested) {
+            throw new IllegalStateException("You have already submitted a request for this timeslot");
+        }
+
+        LocalDate pickupDay = timeslot.getStartTime().toLocalDate();
+        LocalDateTime dayStart = pickupDay.atStartOfDay();
+        LocalDateTime dayEnd = pickupDay.plusDays(1).atStartOfDay();
+
+        Integer listingLimit = listing.getMaxDailyCapacity();
+        if (listingLimit != null) {
+            Double usedForListing = requestRepository.sumActiveQuantityForListing(
+                    req.recipientId(), listing.getListingId(), dayStart, dayEnd);
+            double totalForListing = (usedForListing == null ? 0 : usedForListing) + req.quantityRequested();
+            if (totalForListing > listingLimit) {
+                throw new IllegalArgumentException(
+                        "Exceeds the daily limit of " + listingLimit + " for this listing");
+            }
+        }
+
+        Integer personalLimit = recipient.getClaimLimit();
+        if (personalLimit != null) {
+            Double usedForDay = requestRepository.sumActiveQuantityForDay(
+                    req.recipientId(), dayStart, dayEnd);
+            double totalForDay = (usedForDay == null ? 0 : usedForDay) + req.quantityRequested();
+            if (totalForDay > personalLimit) {
+                throw new IllegalArgumentException(
+                        "Exceeds your personal daily limit of " + personalLimit);
+            }
+        }
+
+        boolean autoApproved = Boolean.TRUE.equals(listing.getIsAutoApproved());
+        boolean needsPickupCode = Boolean.TRUE.equals(listing.getUsePickupCode());
+
+        Request request = Request.builder()
+                .timeslotId(req.timeslotId())
+                .recipientId(req.recipientId())
+                .quantityRequested(req.quantityRequested())
+                .status(autoApproved ? "APPROVED" : "PENDING")
+                .pickupCode(autoApproved && needsPickupCode ? generatePickupCode() : null)
+                .build();
+
+        request = requestRepository.save(request);
+
+        timeslot.setRemainingSlot(timeslot.getRemainingSlot() - 1);
+        timeslotRepository.save(timeslot);
+
+        return toResponse(request);
+    }
+
+    private String generatePickupCode() {
+        return String.format("%06d", new Random().nextInt(999999));
+    }
+
+    public List<RequestResponse> getMyRequests(Integer recipientId) {
+        return requestRepository.findByRecipientId(recipientId).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private RequestResponse toResponse(Request request) {

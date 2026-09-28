@@ -2,12 +2,14 @@ package foodbank.webapp.controllers;
 
 import foodbank.webapp.dto.*;
 import foodbank.webapp.service.DonorSettingsService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 public class DonorSettingsController {
     private final DonorSettingsService donorSettingsService;
 
