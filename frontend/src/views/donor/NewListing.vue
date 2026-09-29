@@ -36,6 +36,7 @@
                   </div>
                 </div>
               </div>
+              <div v-if="photoError" class="field-error">{{ photoError }}</div>
             </div>
           </div>
 
@@ -44,19 +45,29 @@
             <input v-model="form.name" type="text" placeholder="e.g. Sourdough loaves" required>
           </div>
 
-          <div class="field">
-            <label class="field-label">Category</label>
-            <select v-model="form.category" :disabled="isLoadingCatalogue">
-              <option v-for="category in categories" :key="category.id" :value="category.id">
-                {{ category.name }}
-              </option>
-            </select>
+          <div class="field span-2 fields-row">
+            <div class="field">
+              <label class="field-label">Category</label>
+              <select v-model="form.category" :disabled="isLoadingCatalogue">
+                <option v-for="category in categories" :key="category.id" :value="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Quantity</label>
+              <input v-model="form.quantity" type="text" placeholder="e.g. 12 units" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label">Max quantity per recipient / day</label>
+              <input v-model="form.maxQty" type="number" min="1" placeholder="e.g. 4 units">
+            </div>
           </div>
 
-          <div class="field">
-            <label class="field-label">Quantity</label>
-            <input v-model="form.quantity" type="text" placeholder="e.g. 12 units" required>
-          </div>
+
+
 
           <div class="field">
             <label class="field-label">Expiry date</label>
@@ -81,23 +92,17 @@
 
           <div class="field">
             <label class="field-label">State / Region</label>
-            <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
-          </div>
-
-          <!-- Timeslot capacity adjustment (Default 4 per slot/hour) -->
-          <div class="field">
-            <label class="field-label">Recipients allowed per 1-hour slot</label>
-            <div class="slot-stepper">
-              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(-1)">−</button>
-              <input type="number" v-model.number="form.slotCapacity" min="1" max="20" class="stepper-input">
-              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(1)">+</button>
-              <span class="stepper-desc">recipients / slot</span>
-            </div>
-          </div>
-
-          <div class="field">
-            <label class="field-label">Max quantity per recipient / day</label>
-            <input v-model="form.maxQty" type="text" placeholder="e.g. 4 units">
+            <select v-model="form.stateRegion" required>
+              <option value="" disabled>Select a state or territory</option>
+              <option value="ACT">ACT</option>
+              <option value="NSW">NSW</option>
+              <option value="NT">NT</option>
+              <option value="QLD">QLD</option>
+              <option value="SA">SA</option>
+              <option value="TAS">TAS</option>
+              <option value="VIC">VIC</option>
+              <option value="WA">WA</option>
+            </select>
           </div>
 
           <!-- Checkbox Options: Auto-Approval & Require Pickup Code -->
@@ -141,7 +146,7 @@
             <textarea v-model="form.notes" rows="3" placeholder="e.g. Keep refrigerated below 4°C; best collected same day"></textarea>
           </div>
 
-          <!-- Privacy toggle -->
+          <!-- Privacy toggle
           <div class="field span-2">
             <div class="toggle-row">
               <div>
@@ -150,9 +155,20 @@
               </div>
               <div class="toggle" :class="{ on: form.hideContact }" @click="form.hideContact = !form.hideContact"></div>
             </div>
-          </div>
+          </div> -->
 
           <!-- Pickup timeslot management -->
+          <div class="field">
+            <label class="field-label">Recipients allowed per slot</label>
+            <div class="slot-stepper">
+              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(-1)">−</button>
+              <input type="number" v-model.number="form.slotCapacity" min="1" max="20" class="stepper-input">
+              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(1)">+</button>
+              <span class="stepper-desc">recipients / slot</span>
+            </div>
+          </div>
+
+
           <div class="field span-2 timeslot-section">
             <label class="field-label">Pickup timeslots</label>
 
@@ -186,6 +202,17 @@
               No pickup timeslots added yet.
             </div>
           </div>
+
+          <!-- Privacy toggle -->
+          <div class="field span-2">
+            <div class="toggle-row">
+              <div>
+                <div class="tr-label">Hide phone / email from recipients</div>
+                <div class="tr-desc">Reduces spam and rude messages; recipients still reach you in-app</div>
+              </div>
+              <div class="toggle" :class="{ on: form.hideContact }" @click="form.hideContact = !form.hideContact"></div>
+            </div>
+          </div>
         </div>
 
         <p v-if="submitError" class="submit-message error" role="alert">{{ submitError }}</p>
@@ -206,7 +233,7 @@
 
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
-import { createDonorListing, getListingCatalogue } from '../../api/client'
+import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
 
 const props = defineProps({
   donorId: {
@@ -220,6 +247,7 @@ const emit = defineEmits(['add-listing'])
 const fileInputRef = ref(null)
 const isDragOver = ref(false)
 const uploadedPhoto = ref(null)
+const photoError = ref('')
 const categories = ref([])
 const tags = ref([])
 const isLoadingCatalogue = ref(true)
@@ -319,10 +347,19 @@ function triggerFileInput() {
 }
 
 function processImageFile(file) {
-  if (!file || !file.type.startsWith('image/')) return
+  if (!file) return
+  photoError.value = ''
+  if (file.size > 5 * 1024 * 1024) {
+    photoError.value = 'Choose an image smaller than 5MB.'
+    return
+  }
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    photoError.value = 'Choose a PNG or JPG image.'
+    return
+  }
   const reader = new FileReader()
   reader.onload = (e) => {
-    uploadedPhoto.value = { name: file.name, url: e.target.result }
+    uploadedPhoto.value = { name: file.name, file, url: e.target.result }
   }
   reader.readAsDataURL(file)
 }
@@ -341,6 +378,7 @@ function handleFileDrop(e) {
 
 function removeUpload() {
   uploadedPhoto.value = null
+  photoError.value = ''
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
 
@@ -371,7 +409,7 @@ function buildRequest() {
     suburb: form.suburb.trim(),
     region: form.stateRegion.trim(),
     maxDailyCapacity: quantityValue(form.maxQty),
-    photoUrl: uploadedPhoto.value?.url,
+    photoUrl: null,
     tagIds: [...form.tags],
     timeslots: timeslots.value.map(({ startTime, endTime, maxRecipients }) => ({
       startTime,
@@ -399,8 +437,13 @@ async function submitListing() {
     return
   }
 
+  if (photoError.value) return
+
   isSubmitting.value = true
   try {
+    if (uploadedPhoto.value?.file) {
+      request.photoUrl = await uploadPhoto(uploadedPhoto.value.file)
+    }
     const created = await createDonorListing(props.donorId, request)
 
     const newRecord = {
@@ -467,6 +510,12 @@ async function submitListing() {
 .stepper-btn:hover { border-color: var(--primary); color: var(--primary-dark); }
 .stepper-input { width: 60px !important; text-align: center; }
 .stepper-desc { font-size: 12.5px; color: var(--text-muted); }
+
+.fields-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
 
 /* Checkbox group */
 .checkbox-group {

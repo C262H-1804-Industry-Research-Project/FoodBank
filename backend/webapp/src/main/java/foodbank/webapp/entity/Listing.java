@@ -40,4 +40,6 @@ public class Listing {
 
     private Boolean isAutoApproved;
     private Boolean usePickupCode;
+    private Boolean hideContact;
+    private Integer slotCapacity;
 }
