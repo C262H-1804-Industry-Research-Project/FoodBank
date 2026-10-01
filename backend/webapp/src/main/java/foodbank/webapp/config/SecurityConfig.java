@@ -89,6 +89,10 @@ public class SecurityConfig {
 
 // Publicly accessible uploaded files.
                                 .requestMatchers("/uploads/**").permitAll()
+// Admin APIs require an authenticated Admin JWT.
+                                .requestMatchers(
+                                        "/api/admin/**"
+                                ).hasRole("ADMIN")
 
 // Report submission requires a Donor or Recipient JWT.
                                 .requestMatchers(

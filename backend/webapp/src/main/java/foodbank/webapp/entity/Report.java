@@ -49,6 +49,18 @@ public class Report {
     // PENDING, IN_REVIEW, RESOLVED or DISMISSED.
     private String status;
 
+    // Internal note written by the administrator.
+    private String adminNote;
+
+    // Final action or decision for the report.
+    private String outcome;
+
+    // The Admin ID that most recently processed the report.
+    private Integer processedBy;
+
+    // The time when an administrator processed the report.
+    private LocalDateTime processedAt;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
