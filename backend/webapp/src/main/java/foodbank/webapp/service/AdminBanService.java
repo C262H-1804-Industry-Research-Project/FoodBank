@@ -78,6 +78,7 @@ public class AdminBanService {
         int banCount = Math.toIntExact(
                 banRecordRepository.countByUserId(userId) + 1
         );
+        String previousStatus = user.getStatus();
 
         BanRecord banRecord = banRecordRepository.save(
                 BanRecord.builder()
@@ -89,7 +90,10 @@ public class AdminBanService {
                         .banCount(banCount)
                         .startDate(startDate)
                         .endDate(endDate)
+                        .previousStatus(previousStatus)
+                        .active(Boolean.TRUE)
                         .build()
+
         );
 
         user.setStatus("BANNED");

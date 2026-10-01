@@ -25,6 +25,10 @@ public class BanRecord {
     private String reason;
     // TEMPORARY or PERMANENT.
     private String banType;
+    // User status before the ban was applied.
+    private String previousStatus;
+    // Whether this ban is currently active.
+    private Boolean active;
     // Number of bans recorded for this user.
     private Integer banCount;
     private LocalDate startDate;
