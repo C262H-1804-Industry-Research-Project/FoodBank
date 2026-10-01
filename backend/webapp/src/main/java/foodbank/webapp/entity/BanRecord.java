@@ -21,6 +21,11 @@ public class BanRecord {
     private Integer userId;
     private Integer adminId;
     private Integer reportId;
+    // Reason entered by the administrator.
+    private String reason;
+    // TEMPORARY or PERMANENT.
+    private String banType;
+    // Number of bans recorded for this user.
     private Integer banCount;
     private LocalDate startDate;
     private LocalDate endDate;

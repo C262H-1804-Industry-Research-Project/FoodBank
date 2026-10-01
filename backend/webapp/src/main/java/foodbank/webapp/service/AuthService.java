@@ -11,6 +11,7 @@ import foodbank.webapp.repositories.DonorRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.UserRepository;
 import foodbank.webapp.repositories.AdminRepository;
+import foodbank.webapp.exceptions.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -102,6 +103,14 @@ public class AuthService {
                     user.getPassword()
             )) {
                 continue;
+            }
+
+            if ("BANNED".equalsIgnoreCase(
+                    user.getStatus()
+            )) {
+                throw new ForbiddenException(
+                        "Account is banned"
+                );
             }
 
             String name;
