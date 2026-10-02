@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -36,13 +38,13 @@ public class AuthController {
         return authService.login(request);
     }
     @PostMapping("/logout")
+    @SecurityRequirement(name = "bearerAuth")
     public Map<String, String> logout(
-            @RequestHeader(
-                    value = "Authorization",
-                    required = false
-            )
-            String authorizationHeader
+            HttpServletRequest request
     ) {
+        String authorizationHeader =
+                request.getHeader("Authorization");
+
         authService.logout(authorizationHeader);
 
         return Map.of(

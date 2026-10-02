@@ -23,7 +23,7 @@ public class AuthTokenService {
     @Value("${JWT_EXPIRATION_MS:3600000}")
     private long jwtExpirationMs;
 
-    private final Map<String, Integer> activeTokens =
+    private final Map<String, ActiveToken> activeTokens =
             new ConcurrentHashMap<>();
 
     public String createToken(Integer userId, String role) {
@@ -41,7 +41,10 @@ public class AuthTokenService {
                 .signWith(signingKey())
                 .compact();
 
-        activeTokens.put(token, userId);
+        activeTokens.put(
+                token,
+                new ActiveToken(userId, role)
+        );
 
         return token;
     }
@@ -67,6 +70,22 @@ public class AuthTokenService {
     public boolean revokeToken(String token) {
         return activeTokens.remove(token) != null;
     }
+    public void revokeTokensForUser(Integer userId) {
+        activeTokens.entrySet().removeIf(entry -> {
+            ActiveToken activeToken = entry.getValue();
+
+            boolean sameUser =
+                    activeToken.userId().equals(userId);
+
+            boolean userRole =
+                    activeToken.role().equalsIgnoreCase("donor")
+                            || activeToken.role().equalsIgnoreCase(
+                            "recipient"
+                    );
+
+            return sameUser && userRole;
+        });
+    }
     public Claims getClaims(String token) {
         return Jwts.parser()
                 .verifyWith(signingKey())
@@ -78,5 +97,10 @@ public class AuthTokenService {
     private SecretKey signingKey() {
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+    private record ActiveToken(
+            Integer userId,
+            String role
+    ) {
     }
 }
