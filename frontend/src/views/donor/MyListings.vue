@@ -51,6 +51,21 @@
         <h3>Edit listing</h3>
         <div class="modal-sub">Update the details for {{ editForm.name }}</div>
 
+        <div class="field edit-photo-field">
+          <label class="field-label">Food photo</label>
+          <input ref="photoInputRef" type="file" accept="image/png,image/jpeg" hidden @change="handlePhotoSelection">
+          <div class="edit-photo-preview">
+            <img v-if="selectedPhoto?.preview || editForm.photoUrl" :src="selectedPhoto?.preview || editForm.photoUrl" alt="Food photo preview">
+            <span v-else class="edit-photo-placeholder">📷 No photo selected</span>
+            <div class="edit-photo-actions">
+              <button type="button" class="btn-outline" :disabled="busy" @click="photoInputRef?.click()">{{ editForm.photoUrl || selectedPhoto ? 'Replace photo' : 'Add photo' }}</button>
+              <button v-if="editForm.photoUrl || selectedPhoto" type="button" class="upload-remove" :disabled="busy" @click="removePhoto">Remove photo</button>
+              <span class="upload-hint">PNG or JPG, up to 5MB</span>
+            </div>
+          </div>
+          <p v-if="photoError" class="action-error" role="alert">{{ photoError }}</p>
+        </div>
+
         <div class="form-grid">
           <div class="field span-2">
             <label class="field-label">Food name</label>
@@ -209,7 +224,7 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
-import { getListingCatalogue, updateDonorListing, deleteDonorListing } from '../../api/client'
+import { getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
 import { toListingRow } from '../../api/donorListingAdapter'
 
 const props = defineProps({
@@ -224,6 +239,9 @@ const emit = defineEmits(['create-new', 'update-listing', 'delete-listing'])
 
 const showEditModal = ref(false)
 const editForm = ref(null)
+const photoInputRef = ref(null)
+const selectedPhoto = ref(null)
+const photoError = ref('')
 const busy = ref(false)
 const actionError = ref('')
 const categories = ref([])
@@ -235,6 +253,8 @@ const slotDraft = reactive({ date: '', startTime: '', endTime: '' })
 async function openEditModal(item) {
   if (busy.value) return
   editForm.value = JSON.parse(JSON.stringify(item))
+  selectedPhoto.value = null
+  photoError.value = ''
   editForm.value.deadline = item.collectionDeadline || ''
   editForm.value.expiryDate = item.expiryDate || ''
   editForm.value.maxQty = item.maxDailyCapacity ?? ''
@@ -259,6 +279,30 @@ async function openEditModal(item) {
   } finally {
     busy.value = false
   }
+}
+
+function handlePhotoSelection(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  photoError.value = ''
+  if (file.size > 5 * 1024 * 1024) {
+    photoError.value = 'Choose an image smaller than 5MB.'
+    return
+  }
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    photoError.value = 'Choose a PNG or JPG image.'
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => { selectedPhoto.value = { file, preview: reader.result } }
+  reader.readAsDataURL(file)
+}
+
+function removePhoto() {
+  selectedPhoto.value = null
+  if (editForm.value) editForm.value.photoUrl = ''
+  photoError.value = ''
 }
 
 function adjustEditSlotCapacity(delta) {
@@ -311,6 +355,8 @@ function removeTimeslot(index) {
 function closeEditModal() {
   if (busy.value) return
   actionError.value = ''
+  selectedPhoto.value = null
+  photoError.value = ''
   showEditModal.value = false
   editForm.value = null
 }
@@ -318,6 +364,7 @@ function closeEditModal() {
 async function saveListing(status) {
   if (!editForm.value || busy.value) return
   actionError.value = ''
+  if (photoError.value) return
   busy.value = true
   try {
     const form = editForm.value
@@ -338,6 +385,9 @@ async function saveListing(status) {
     }
     if (!form.categoryId) throw new Error('Select a category before publishing.')
 
+    const photoUrl = selectedPhoto.value
+      ? await uploadPhoto(selectedPhoto.value.file)
+      : (form.photoUrl || null)
     const saved = await updateDonorListing(props.donorId, form.id, {
       name: form.name.trim(), description: form.notes, categoryId: form.categoryId,
       quantity, expiryDate: form.expiryDate || null, collectionDeadline: form.deadline || null,
@@ -345,11 +395,12 @@ async function saveListing(status) {
       maxDailyCapacity, tagIds: form.tagIds,
       timeslots: form.timeslots.map(({ startTime, endTime }) => ({ startTime, endTime, maxRecipients: form.slotCapacity })),
       slotCapacity: form.slotCapacity, isAutoApproved: form.autoApproval,
-      usePickupCode: form.requirePickupCode, hideContact: form.hideContact, status,
+      usePickupCode: form.requirePickupCode, hideContact: form.hideContact, photoUrl, status,
     })
-    emit('update-listing', toListingRow(saved))
+    emit('update-listing', toListingRow({ ...saved, photoUrl: saved.photoUrl || photoUrl }))
     showEditModal.value = false
     editForm.value = null
+    selectedPhoto.value = null
   } catch (error) {
     actionError.value = error.message || 'Unable to update the listing.'
   } finally {
@@ -376,6 +427,12 @@ async function handleCancelListing(item) {
 
 <style scoped>
 .action-error { color: var(--danger); margin: 12px 0; }
+.edit-photo-field { margin: 18px 0; }
+.edit-photo-preview { display: flex; align-items: center; gap: 14px; }
+.edit-photo-preview img { width: 120px; height: 90px; object-fit: cover; border: 1px solid var(--border); border-radius: 8px; }
+.edit-photo-placeholder { width: 120px; height: 90px; display: grid; place-items: center; background: var(--surface-2); border-radius: 8px; color: var(--text-soft); font-size: 12px; }
+.edit-photo-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.upload-hint { color: var(--text-soft); font-size: 11px; }
 button:disabled { opacity: .6; cursor: not-allowed; }
 .content-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
 .content-head h2 { font-size: 22px; }
