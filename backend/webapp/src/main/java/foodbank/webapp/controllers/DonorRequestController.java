@@ -2,12 +2,14 @@ package foodbank.webapp.controllers;
 
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.service.RequestService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
+@SecurityRequirement(name = "bearerAuth")
 @RequestMapping("/api/donors/{donorId}/requests")
 @RequiredArgsConstructor
 public class DonorRequestController {

@@ -3,6 +3,7 @@ package foodbank.webapp.controllers;
 import foodbank.webapp.dto.ListingResponse;
 import foodbank.webapp.dto.CatalogueItemResponse;
 import foodbank.webapp.service.ListingService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/listings")
 public class ListingController {
