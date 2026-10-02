@@ -18,6 +18,7 @@ export function toListingRow(listing) {
     categoryId: listing.categoryId,
     addressLine: listing.addressLine || '',
     notes: listing.description || '',
+    photoUrl: listing.photoUrl || '',
     autoApproval: listing.isAutoApproved ?? true,
     requirePickupCode: listing.usePickupCode ?? false,
     hideContact: listing.hideContact ?? true,

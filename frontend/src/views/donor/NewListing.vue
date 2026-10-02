@@ -464,6 +464,7 @@ async function submitListing() {
       statusClass: form.status === 'LIVE' ? 'status-live' : 'status-draft',
       hideContact: form.hideContact,
       notes: form.notes,
+      photoUrl: created.photoUrl || request.photoUrl,
       tags: tags.value.filter(tag => form.tags.includes(tag.id)).map(tag => tag.name),
     }
 

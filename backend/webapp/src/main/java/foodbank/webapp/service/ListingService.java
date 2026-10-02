@@ -241,6 +241,7 @@ public class ListingService {
         listing.setSuburb(request.suburb().trim());
         listing.setRegion(request.region().trim());
         listing.setMaxDailyCapacity(request.maxDailyCapacity());
+        listing.setPhotoUrl(blankToNull(request.photoUrl()));
         listing.setIsAutoApproved(request.isAutoApproved());
         listing.setUsePickupCode(request.usePickupCode());
         listing.setHideContact(request.hideContact());

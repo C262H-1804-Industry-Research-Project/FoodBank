@@ -3,12 +3,11 @@
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
       <!-- Category Filter -->
-      <select v-model="filterCategory">
+      <select v-model="filterCategory" :disabled="isLoadingCatalogue">
         <option value="">All categories</option>
-        <option value="Bakery">Bakery</option>
-        <option value="Produce">Produce</option>
-        <option value="Dairy">Dairy</option>
-        <option value="Pantry">Pantry</option>
+        <option v-for="category in categories" :key="category.id" :disabled="isLoadingCatalogue">
+          {{ category.name }}
+        </option>
       </select>
 
       <!-- Suburb or Region Search -->
@@ -36,13 +35,13 @@
       <!-- Dietary Tag Filters -->
       <div class="chip-group">
         <span
-          v-for="tag in dietaryFilters"
-          :key="tag"
+          v-for="tag in tags"
+          :key="tag.id"
           class="chip"
-          :class="{ active: activeTags.includes(tag) }"
+          :class="{ active: activeTags.includes(tag.name) }"
           @click="toggleTag(tag)"
         >
-          {{ tag }}
+          {{ tag.name }}
         </span>
       </div>
 
@@ -139,7 +138,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+
+import { onMounted, ref, computed, watch } from 'vue'
+import { getListingCatalogue } from '../../api/client'
+
 
 const props = defineProps({
   listings: {
@@ -155,15 +157,33 @@ const filterCategory = ref('')
 const filterLocation = ref('')
 const filterTime = ref('')
 const searchKeyword = ref('')
-const dietaryFilters = ['No pork', 'Nut-free', 'Vegetarian', 'Halal']
 const activeTags = ref([])
+const isLoadingCatalogue = ref(true)
+const catalogueError = ref('')
+const categories = ref([])
+const tags = ref([])
+
+
+// Load categories and tags on mount 
+onMounted(async () => {
+  try {
+    const catalogue = await getListingCatalogue()
+    categories.value = catalogue.categories
+    tags.value = catalogue.tags
+    filterCategory = categories.value[0]?.id ?? null
+  } catch (error) {
+    catalogueError.value = error.message || 'Unable to load listing categories and tags.'
+  } finally {
+    isLoadingCatalogue.value = false
+  }
+})
 
 function toggleTag(tag) {
-  const index = activeTags.value.indexOf(tag)
+  const index = activeTags.value.indexOf(tag.name)
   if (index > -1) {
     activeTags.value.splice(index, 1)
   } else {
-    activeTags.value.push(tag)
+    activeTags.value.push(tag.name)
   }
 }
 
