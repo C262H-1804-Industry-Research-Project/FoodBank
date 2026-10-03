@@ -11,11 +11,12 @@
         <option value="Pantry">Pantry</option>
       </select>
 
-      <!-- Suburb or Region Search -->
+      <!-- Upgraded Suburb, Postcode or Region Search -->
       <input 
         type="text" 
         v-model="filterLocation" 
-        placeholder="📍 Suburb or state (e.g. Adelaide, SA)"
+        placeholder="📍 Suburb, postcode or state (e.g. Adelaide, 5000, SA)"
+        class="location-search-input"
       >
 
       <!-- Pickup Time Filter -->
@@ -74,9 +75,9 @@
               <span class="badge-time" :class="item.urgencyClass || 'ok'">{{ item.timeLeft || 'Available' }}</span>
             </div>
 
-            <!-- Address shown as Suburb + State/Region -->
+            <!-- Address shown with Suburb, Postcode, and State/Region -->
             <div class="lc-meta">
-              📍 {{ item.suburb }}, {{ item.stateRegion }}<br>
+              📍 {{ item.suburb }}<span v-if="item.postcode"> ({{ item.postcode }})</span>, {{ item.stateRegion }}<br>
               🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}
             </div>
 
@@ -182,7 +183,7 @@ const hasActiveFilters = computed(() => {
   )
 })
 
-// Filter matching logic
+// Enhanced Filter matching logic: supports Suburb, Postcode, and State matching
 const filteredListings = computed(() => {
   return props.listings.filter(item => {
     if (filterCategory.value && item.category !== filterCategory.value) {
@@ -192,8 +193,10 @@ const filteredListings = computed(() => {
     if (filterLocation.value.trim()) {
       const qLoc = filterLocation.value.trim().toLowerCase()
       const suburbMatch = (item.suburb || '').toLowerCase().includes(qLoc)
+      const postcodeMatch = String(item.postcode || '').toLowerCase().includes(qLoc)
       const stateMatch = (item.stateRegion || '').toLowerCase().includes(qLoc)
-      if (!suburbMatch && !stateMatch) {
+      
+      if (!suburbMatch && !postcodeMatch && !stateMatch) {
         return false
       }
     }
@@ -262,6 +265,9 @@ const paginatedListings = computed(() => {
   padding: 14px 16px;
   margin-bottom: 22px;
   align-items: center;
+}
+.location-search-input {
+  min-width: 260px;
 }
 .filter-bar select, .filter-bar input[type=text] {
   padding: 8px 10px;
