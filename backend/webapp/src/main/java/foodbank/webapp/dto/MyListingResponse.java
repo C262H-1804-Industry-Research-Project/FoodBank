@@ -8,9 +8,17 @@ public record MyListingResponse(
         String status,
         String expiryDate,
         String collectionDeadline,
+        Integer maxDailyCapacity,
         String photoUrl,
         String[] tags,
         TimeSlot[] timeslots,
         String suburb,
-        String region
+        String region,
+        Integer categoryId,
+        String description,
+        String addressLine,
+        Boolean isAutoApproved,
+        Boolean usePickupCode,
+        Boolean hideContact,
+        Integer slotCapacity
 ) {}

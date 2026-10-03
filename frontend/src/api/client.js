@@ -30,9 +30,9 @@ export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
         ...(session?.accessToken
           ? { Authorization: `${session.tokenType || 'Bearer'} ${session.accessToken}` }
           : {}),
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     })
   } catch (error) {
@@ -46,6 +46,19 @@ export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   }
   if (!response.ok) throw new Error(data?.error || data?.message || `API request failed (HTTP ${response.status}).`)
   return data
+}
+
+export async function uploadPhoto(file, signal) {
+  const body = new FormData()
+  body.append('file', file)
+  const result = await apiRequest('/uploads/photo', { method: 'POST', body, signal })
+  const photoUrl = typeof result === 'string'
+    ? result
+    : result?.photoUrl || result?.url || result?.imageUrl || result?.location
+  if (typeof photoUrl !== 'string' || !photoUrl.trim()) {
+    throw new Error('The photo upload response did not include a photo URL.')
+  }
+  return photoUrl
 }
 
 export function login(credentials) {
@@ -107,5 +120,17 @@ export function createDonorListing(donorId, listing, signal) {
     method: 'POST',
     body: listing,
     signal,
+  })
+}
+
+export function updateDonorListing(donorId, listingId, listing, signal) {
+  return apiRequest(`/donors/${donorId}/listings/${listingId}`, {
+    method: 'PUT', body: listing, signal,
+  })
+}
+
+export function deleteDonorListing(donorId, listingId, signal) {
+  return apiRequest(`/donors/${donorId}/listings/${listingId}`, {
+    method: 'DELETE', signal,
   })
 }

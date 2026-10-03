@@ -1,5 +1,10 @@
 package foodbank.webapp.controllers;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaTypeFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
@@ -10,6 +15,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
+@SecurityRequirement(name = "bearerAuth")
 @RequestMapping("/api/uploads")
 public class ImageUploadController {  
 
@@ -38,5 +44,26 @@ public class ImageUploadController {
 
         String url = "/uploads/" + filename;
         return Map.of("url", url);
+    }
+
+    @GetMapping("/photo/{filename}")
+    public ResponseEntity<Resource> getPhoto(
+            @PathVariable String filename) throws IOException {
+
+        Path filePath = Paths.get(UPLOAD_DIR).resolve(filename).normalize();
+
+        if (!Files.exists(filePath) || !Files.isRegularFile(filePath)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(filePath);
+
+        MediaType mediaType = MediaTypeFactory
+                .getMediaType(resource)
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .body(resource);
     }
 }
