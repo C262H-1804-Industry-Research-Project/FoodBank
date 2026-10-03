@@ -3,16 +3,16 @@
     <div class="content-head">
       <div>
         <h2>New listing</h2>
-        <div class="sub">Publish surplus food for recipients to reserve</div>
+        <div class="sub">Publish surplus food for recipients to reserve. Optional fields are marked with (*).</div>
       </div>
     </div>
 
     <div class="card">
       <form @submit.prevent="submitListing">
         <div class="form-grid">
-          <!-- Food Photo upload -->
+          <!-- Food Photo upload (Optional) -->
           <div class="field span-2">
-            <label class="field-label">Food photo</label>
+            <label class="field-label">* Food photo <span class="text-soft">(optional)</span></label>
             <div
               class="upload-box"
               :class="{ 'has-image': uploadedPhoto, 'drag-over': isDragOver }"
@@ -75,7 +75,7 @@
           </div>
 
           <div class="field">
-            <label class="field-label">Latest collection deadline <span class="text-soft">(optional)</span></label>
+            <label class="field-label">* Latest collection deadline <span class="text-soft">(optional)</span></label>
             <input v-model="form.deadline" type="date">
           </div>
 
@@ -86,23 +86,29 @@
           </div>
 
           <div class="field">
-            <label class="field-label">Suburb / Area</label>
+            <label class="field-label">Suburb / Area <span class="req-tag">• Required</span></label>
             <input v-model="form.suburb" type="text" placeholder="e.g. Adelaide" required>
           </div>
 
           <div class="field">
             <label class="field-label">State / Region</label>
-            <select v-model="form.stateRegion" required>
-              <option value="" disabled>Select a state or territory</option>
-              <option value="ACT">ACT</option>
-              <option value="NSW">NSW</option>
-              <option value="NT">NT</option>
-              <option value="QLD">QLD</option>
-              <option value="SA">SA</option>
-              <option value="TAS">TAS</option>
-              <option value="VIC">VIC</option>
-              <option value="WA">WA</option>
-            </select>
+            <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
+          </div>
+
+          <!-- Timeslot capacity adjustment (Default 4 per slot/hour) -->
+          <div class="field">
+            <label class="field-label">Recipients allowed per 1-hour slot</label>
+            <div class="slot-stepper">
+              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(-1)">−</button>
+              <input type="number" v-model.number="form.slotCapacity" min="1" max="20" class="stepper-input">
+              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(1)">+</button>
+              <span class="stepper-desc">recipients / slot</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field-label">* Max quantity per recipient / day <span class="text-soft">(optional)</span></label>
+            <input v-model="form.maxQty" type="text" placeholder="e.g. 4 units">
           </div>
 
           <!-- Checkbox Options: Auto-Approval & Require Pickup Code -->
@@ -124,9 +130,9 @@
             </label>
           </div>
 
-          <!-- Dietary tags -->
+          <!-- Dietary tags (Optional) -->
           <div class="field span-2">
-            <label class="field-label">Allergen & dietary tags</label>
+            <label class="field-label">* Allergen & dietary tags <span class="text-soft">(optional)</span></label>
             <div class="chip-group">
               <span
                 v-for="tag in tags"
@@ -140,9 +146,9 @@
             </div>
           </div>
 
-          <!-- Storage instructions / notes (Shown on food card) -->
+          <!-- Storage instructions / notes (Optional) -->
           <div class="field span-2">
-            <label class="field-label">Storage instructions / additional notes <span class="text-soft">(displayed on food card)</span></label>
+            <label class="field-label">* Storage instructions / description <span class="text-soft">(optional - shown on request card)</span></label>
             <textarea v-model="form.notes" rows="3" placeholder="e.g. Keep refrigerated below 4°C; best collected same day"></textarea>
           </div>
 
@@ -460,8 +466,8 @@ async function submitListing() {
       addressLine: form.addressLine,
       suburb: form.suburb,
       stateRegion: form.stateRegion,
-      status: form.status || 'DRAFT',
-      statusClass: form.status === 'LIVE' ? 'status-live' : 'status-draft',
+      status: submitStatus.value || 'DRAFT',
+      statusClass: submitStatus.value === 'LIVE' ? 'status-live' : 'status-draft',
       hideContact: form.hideContact,
       notes: form.notes,
       photoUrl: created.photoUrl || request.photoUrl,
@@ -475,8 +481,6 @@ async function submitListing() {
     isSubmitting.value = false
   }
 }
-
-
 </script>
 
 <style scoped>
@@ -488,7 +492,8 @@ async function submitListing() {
 .span-2 { grid-column: 1 / -1; }
 .field { margin-bottom: 4px; }
 .field-label { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }
-.field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; }
+.req-tag { font-size: 11px; font-weight: 700; color: var(--primary-dark); margin-left: 4px; }
+.field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; box-sizing: border-box; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
 .text-soft { color: var(--text-soft); font-weight: 500; }
 

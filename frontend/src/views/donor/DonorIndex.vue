@@ -51,20 +51,26 @@
           @decline-request="handleDeclineRequest"
         />
 
-        <!-- 4. Submit Report Panel -->
+        <!-- 4. Donation History Panel -->
+        <DonationHistory 
+          v-else-if="currentPanel === 'history'"
+          :history-list="historyData"
+        />
+
+        <!-- 5. Submit Report Panel -->
         <DonorReports 
           v-else-if="currentPanel === 'reports'"
           @report-submitted="handleReportSubmitted"
         />
 
-        <!-- 5. Report List Panel -->
+        <!-- 6. Report List Panel -->
         <ReportList 
           v-else-if="currentPanel === 'reportlist'"
           :reports="reportsData"
           @create-report="currentPanel = 'reports'"
         />
 
-        <!-- 6. Other Panels: Placeholder -->
+        <!-- 7. Other Panels: Placeholder -->
         <section v-else class="placeholder-container">
           <div class="placeholder-card">
             <div class="placeholder-icon">🚧</div>
@@ -89,6 +95,7 @@ import { formatPickupSlot } from '../../api/listingAdapter'
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
 import ApproveRequests from './ApproveRequests.vue'
+import DonationHistory from './DonationHistory.vue'
 import DonorReports from './DonorReports.vue'
 import ReportList from './ReportList.vue'
 
@@ -224,6 +231,42 @@ function handleDeclineRequest(id) {
   }
 }
 
+// Donation history state
+const historyData = ref([
+  {
+    id: 301,
+    foodName: 'Artisan Bagels bundle (15 units)',
+    category: 'Bakery',
+    quantity: '15 units',
+    collectedBy: 'Norwood Youth Refuge',
+    completedDate: '2026-09-28 18:30'
+  },
+  {
+    id: 302,
+    foodName: 'Seasonal Fruit crates (4 boxes)',
+    category: 'Produce',
+    quantity: '4 boxes',
+    collectedBy: 'Community Kitchen East',
+    completedDate: '2026-09-25 11:00'
+  },
+  {
+    id: 303,
+    foodName: 'Unsweetened Oat Milk (20 cartons)',
+    category: 'Dairy',
+    quantity: '20 cartons',
+    collectedBy: 'Salvation Army Centre',
+    completedDate: '2026-09-21 16:45'
+  },
+  {
+    id: 304,
+    foodName: 'Canned Beans & Chickpeas (25 cans)',
+    category: 'Pantry',
+    quantity: '25 cans',
+    collectedBy: 'St. Vincent de Paul Adelaide',
+    completedDate: '2026-09-15 14:00'
+  }
+])
+
 // Global Reports history state
 const reportsData = ref([
   {
@@ -248,7 +291,6 @@ const reportsData = ref([
 
 function handleReportSubmitted(newReport) {
   reportsData.value.unshift(newReport)
-  // Automatically navigate to Report list to view historical records
   currentPanel.value = 'reportlist'
 }
 </script>
