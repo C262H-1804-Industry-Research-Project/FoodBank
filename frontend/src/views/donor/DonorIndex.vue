@@ -30,6 +30,7 @@
         <!-- 1. My Listings Panel -->
         <MyListings 
           v-if="currentPanel === 'listings'" 
+          :donor-id="donorId"
           :listings="listingsData"
           @create-new="currentPanel = 'newlisting'"
           @update-listing="handleUpdateListing"
@@ -90,7 +91,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { clearSession, getDonorListings, getStoredSession, logout } from '../../api/client'
-import { formatPickupSlot } from '../../api/listingAdapter'
+import { toListingRow } from '../../api/donorListingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -131,27 +132,6 @@ const session = getStoredSession()
 const donorId = Number(session?.user?.donorId)
 const listingsData = ref([])
 const listingsController = new AbortController()
-
-function toListingRow(listing) {
-  const timeslots = [...(listing.timeslots || [])]
-    .sort((first, second) => first.startTime.localeCompare(second.startTime))
-  const firstSlot = timeslots[0]
-  const status = listing.status || 'Draft'
-
-  return {
-    id: listing.listingId,
-    name: listing.name,
-    category: listing.category,
-    quantity: listing.quantity,
-    deadline: listing.collectionDeadline || listing.expiryDate || '—',
-    suburb: listing.suburb || '',
-    stateRegion: listing.region || '',
-    slots: firstSlot ? formatPickupSlot(firstSlot) : 'Not yet published',
-    booked: firstSlot ? firstSlot.maxRecipients - firstSlot.remainingSlot : '—',
-    status,
-    statusClass: status.toLowerCase() === 'live' ? 'status-live' : 'status-draft',
-  }
-}
 
 async function loadListings() {
   try {

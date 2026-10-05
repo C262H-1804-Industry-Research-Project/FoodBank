@@ -95,16 +95,6 @@
             <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
           </div>
 
-          <!-- Timeslot capacity adjustment (Default 4 per slot/hour) -->
-          <div class="field">
-            <label class="field-label">Recipients allowed per 1-hour slot</label>
-            <div class="slot-stepper">
-              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(-1)">−</button>
-              <input type="number" v-model.number="form.slotCapacity" min="1" max="20" class="stepper-input">
-              <button type="button" class="stepper-btn" @click="adjustSlotCapacity(1)">+</button>
-              <span class="stepper-desc">recipients / slot</span>
-            </div>
-          </div>
 
           <div class="field">
             <label class="field-label">* Max quantity per recipient / day <span class="text-soft">(optional)</span></label>
@@ -240,6 +230,7 @@
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
+import { toListingRow } from '../../api/donorListingAdapter'
 
 const props = defineProps({
   donorId: {
@@ -452,27 +443,17 @@ async function submitListing() {
     }
     const created = await createDonorListing(props.donorId, request)
 
-    const newRecord = {
-      id: created.listingId,
-      name: form.name,
+    const newRecord = toListingRow({
+      ...request,
+      listingId: created.listingId,
+      status: created.status || request.status || 'DRAFT',
       category: categories.value.find(category => category.id === form.category)?.name || '',
-      quantity: form.quantity,
-      deadline: form.deadline || '—',
-      slots: timeslots.value[0] ? formatTimeslot(timeslots.value[0]) : `No pickup time selected (${form.slotCapacity} recipients / slot)`,
-      booked: '0',
-      slotCapacity: form.slotCapacity,
-      autoApproval: form.autoApproval,
-      requirePickupCode: form.requirePickupCode,
-      addressLine: form.addressLine,
-      suburb: form.suburb,
-      stateRegion: form.stateRegion,
-      status: submitStatus.value || 'DRAFT',
-      statusClass: submitStatus.value === 'LIVE' ? 'status-live' : 'status-draft',
-      hideContact: form.hideContact,
-      notes: form.notes,
       photoUrl: created.photoUrl || request.photoUrl,
       tags: tags.value.filter(tag => form.tags.includes(tag.id)).map(tag => tag.name),
-    }
+      timeslots: request.timeslots.map(slot => ({ ...slot, remainingSlot: slot.maxRecipients })),
+      slotCapacity: form.slotCapacity,
+      hideContact: form.hideContact,
+    })
 
     emit('add-listing', newRecord)
   } catch (error) {
