@@ -25,10 +25,7 @@ public class DonorSettingsService {
                         )
                 );
 
-        return new DonorSettingsResponse(
-                donor.getId(),
-                donor.getHideContact()
-        );
+        return toResponse(donor);
     }
 
     @Transactional
@@ -48,9 +45,16 @@ public class DonorSettingsService {
 
         donorRepository.save(donor);
 
+        return toResponse(donor);
+    }
+
+    private DonorSettingsResponse toResponse(Donor donor) {
         return new DonorSettingsResponse(
                 donor.getId(),
-                donor.getHideContact()
+                donor.getHideContact(),
+                donor.getAddressLine(),
+                donor.getSuburb(),
+                donor.getRegion()
         );
     }
 }

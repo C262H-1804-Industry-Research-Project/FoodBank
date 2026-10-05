@@ -90,6 +90,12 @@ export async function getListingsPage({ page = 0, size = 6, foodName, categoryId
   return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
 }
 
+export async function getDonorSettings(donorId, signal) {
+  const settings = await apiRequest(`/donors/${donorId}/settings`, { signal })
+  if (settings?.donorId == null) throw new Error('Invalid donor settings response from the API.')
+  return settings
+}
+
 export async function getDonorListings(donorId, signal) {
   if (!Number.isInteger(donorId) || donorId <= 0) {
     throw new Error('The signed-in donor is missing an ID.')

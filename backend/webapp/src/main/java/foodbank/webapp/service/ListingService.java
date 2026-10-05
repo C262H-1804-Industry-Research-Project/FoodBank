@@ -186,9 +186,18 @@ public class ListingService {
         }
         if (request == null) throw new IllegalArgumentException("request body is required");
         requireText(request.name(), "name");
-        requireText(request.addressLine(), "addressLine");
-        requireText(request.suburb(), "suburb");
-        requireText(request.region(), "region");
+        // A blank address means "use the donor's own address", as when creating a listing
+        String addressLine = request.addressLine();
+        String suburb = request.suburb();
+        String region = request.region();
+        if (addressLine == null || addressLine.isBlank()) {
+            addressLine = listing.getDonor().getAddressLine();
+            suburb = listing.getDonor().getSuburb();
+            region = listing.getDonor().getRegion();
+        }
+        requireText(addressLine, "addressLine");
+        requireText(suburb, "suburb");
+        requireText(region, "region");
         if (request.categoryId() == null) throw new IllegalArgumentException("categoryId is required");
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
@@ -237,9 +246,9 @@ public class ListingService {
         listing.setQuantity(request.quantity());
         listing.setExpiryDate(request.expiryDate());
         listing.setCollectionDeadline(request.collectionDeadline());
-        listing.setAddressLine(request.addressLine().trim());
-        listing.setSuburb(request.suburb().trim());
-        listing.setRegion(request.region().trim());
+        listing.setAddressLine(addressLine.trim());
+        listing.setSuburb(suburb.trim());
+        listing.setRegion(region.trim());
         listing.setMaxDailyCapacity(request.maxDailyCapacity());
         listing.setPhotoUrl(blankToNull(request.photoUrl()));
         listing.setIsAutoApproved(request.isAutoApproved());

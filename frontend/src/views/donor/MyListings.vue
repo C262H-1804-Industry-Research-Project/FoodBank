@@ -101,36 +101,48 @@
             <input v-model="editForm.deadline" type="date">
           </div>
 
-          <!-- Structured Address fields -->
-          <div class="field span-2">
-            <label class="field-label">Pickup street address</label>
-            <AddressAutocomplete
-              v-model="editForm.addressLine"
-              placeholder="Start typing the street address"
-              required
-              @select="applyPickupAddress"
-            />
+          <!-- Pickup address: the donor's own address unless unticked -->
+          <div v-if="donorAddress" class="field span-2">
+            <label class="checkbox-row">
+              <input v-model="editForm.useDonorAddress" type="checkbox">
+              <div>
+                <strong>Pickup address is the same as my organisation's address</strong>
+                <div class="checkbox-desc">{{ formatAddress(donorAddress) }}</div>
+              </div>
+            </label>
           </div>
 
-          <div class="field">
-            <label class="field-label">Suburb / Area</label>
-            <input v-model="editForm.suburb" type="text" required>
-          </div>
+          <template v-if="!editForm.useDonorAddress">
+            <div class="field span-2">
+              <label class="field-label">Pickup street address</label>
+              <AddressAutocomplete
+                v-model="editForm.addressLine"
+                placeholder="Start typing the street address"
+                required
+                @select="applyPickupAddress"
+              />
+            </div>
 
-          <div class="field">
-            <label class="field-label">State / Region</label>
-            <select v-model="editForm.stateRegion" required>
-              <option value="" disabled>Select a state or territory</option>
-              <option value="ACT">ACT</option>
-              <option value="NSW">NSW</option>
-              <option value="NT">NT</option>
-              <option value="QLD">QLD</option>
-              <option value="SA">SA</option>
-              <option value="TAS">TAS</option>
-              <option value="VIC">VIC</option>
-              <option value="WA">WA</option>
-            </select>
-          </div>
+            <div class="field">
+              <label class="field-label">Suburb / Area</label>
+              <input v-model="editForm.suburb" type="text" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label">State / Region</label>
+              <select v-model="editForm.stateRegion" required>
+                <option value="" disabled>Select a state or territory</option>
+                <option value="ACT">ACT</option>
+                <option value="NSW">NSW</option>
+                <option value="NT">NT</option>
+                <option value="QLD">QLD</option>
+                <option value="SA">SA</option>
+                <option value="TAS">TAS</option>
+                <option value="VIC">VIC</option>
+                <option value="WA">WA</option>
+              </select>
+            </div>
+          </template>
 
           <!-- Checkbox Options -->
           <div class="field span-2 checkbox-group">
@@ -230,11 +242,12 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
-import { toListingRow } from '../../api/donorListingAdapter'
+import { formatAddress, isSameAddress, toListingRow } from '../../api/donorListingAdapter'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: { type: Number, required: true },
+  donorAddress: { type: Object, default: null },
   listings: {
     type: Array,
     required: true
@@ -266,6 +279,7 @@ async function openEditModal(item) {
   editForm.value.maxQty = item.maxDailyCapacity ?? ''
   editForm.value.tagIds = []
   editForm.value.timeslots = item.timeslots || []
+  editForm.value.useDonorAddress = Boolean(props.donorAddress) && isSameAddress(item, props.donorAddress)
   timeslotError.value = ''
   slotDraft.date = ''
   slotDraft.startTime = ''
@@ -381,7 +395,8 @@ async function saveListing(status) {
   try {
     const form = editForm.value
     const quantity = Number(form.quantity)
-    if (![form.name, form.addressLine, form.suburb, form.stateRegion].every(value => value?.trim())) {
+    const requiredFields = form.useDonorAddress ? [form.name] : [form.name, form.addressLine, form.suburb, form.stateRegion]
+    if (!requiredFields.every(value => value?.trim())) {
       throw new Error('Complete all required fields before publishing.')
     }
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity must be greater than zero.')
@@ -403,7 +418,10 @@ async function saveListing(status) {
     const saved = await updateDonorListing(props.donorId, form.id, {
       name: form.name.trim(), description: form.notes, categoryId: form.categoryId,
       quantity, expiryDate: form.expiryDate || null, collectionDeadline: form.deadline || null,
-      addressLine: form.addressLine.trim(), suburb: form.suburb.trim(), region: form.stateRegion.trim(),
+      // Blank address fields tell the backend to use the donor's own address
+      addressLine: form.useDonorAddress ? null : form.addressLine.trim(),
+      suburb: form.useDonorAddress ? null : form.suburb.trim(),
+      region: form.useDonorAddress ? null : form.stateRegion.trim(),
       maxDailyCapacity, tagIds: form.tagIds,
       timeslots: form.timeslots.map(({ startTime, endTime }) => ({ startTime, endTime, maxRecipients: form.slotCapacity })),
       slotCapacity: form.slotCapacity, isAutoApproved: form.autoApproval,

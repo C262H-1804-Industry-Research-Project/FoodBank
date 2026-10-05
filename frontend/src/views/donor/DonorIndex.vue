@@ -31,6 +31,7 @@
         <MyListings 
           v-if="currentPanel === 'listings'" 
           :donor-id="donorId"
+          :donor-address="donorAddress"
           :listings="listingsData"
           @create-new="currentPanel = 'newlisting'"
           @update-listing="handleUpdateListing"
@@ -41,6 +42,7 @@
         <NewListing
           v-else-if="currentPanel === 'newlisting'" 
           :donor-id="donorId"
+          :donor-address="donorAddress"
           @add-listing="handleAddListing"
         />
 
@@ -90,8 +92,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearSession, getDonorListings, getStoredSession, logout } from '../../api/client'
-import { toListingRow } from '../../api/donorListingAdapter'
+import { clearSession, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
+import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -146,12 +148,31 @@ async function loadListings() {
   }
 }
 
-onMounted(loadListings)
+// The donor's own address, used by "same as my organisation's address" on listings
+const donorAddress = ref(null)
+
+async function loadDonorAddress() {
+  try {
+    const settings = await getDonorSettings(donorId, listingsController.signal)
+    if (!listingsController.signal.aborted) donorAddress.value = toDonorAddress(settings)
+  } catch (error) {
+    if (!listingsController.signal.aborted) {
+      console.error('Unable to load the donor address.', error)
+    }
+  }
+}
+
+onMounted(() => {
+  loadListings()
+  loadDonorAddress()
+})
 onBeforeUnmount(() => listingsController.abort())
 
 function handleAddListing(newItem) {
   listingsData.value.unshift(newItem)
   currentPanel.value = 'listings'
+  // Reload so fields the backend filled in (e.g. the donor's own pickup address) are shown
+  loadListings()
 }
 
 function handleUpdateListing(updatedItem) {

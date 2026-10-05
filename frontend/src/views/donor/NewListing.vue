@@ -61,7 +61,7 @@
             </div>
 
             <div class="field">
-              <label class="field-label">Max quantity per recipient / day</label>
+              <label class="field-label">* Max quantity per recipient / day</label>
               <input v-model="form.maxQty" type="number" min="1" placeholder="e.g. 4 units">
             </div>
           </div>
@@ -79,32 +79,41 @@
             <input v-model="form.deadline" type="date">
           </div>
 
-          <!-- Structured 3-field Pickup Address -->
+          <!-- Pickup address: the donor's own address unless unticked -->
           <div class="field span-2">
-            <label class="field-label">Pickup street address</label>
-            <AddressAutocomplete
-              v-model="form.addressLine"
-              placeholder="Start typing the street address (e.g. 14 Rundle Mall)"
-              required
-              @select="applyPickupAddress"
-            />
+            <label class="checkbox-row">
+              <input v-model="form.useDonorAddress" type="checkbox">
+              <div>
+                <strong>Pickup address is the same as my organisation's address</strong>
+                <div class="checkbox-desc">
+                  {{ donorAddress ? formatAddress(donorAddress) : 'Untick to enter a different pickup address for this listing.' }}
+                </div>
+              </div>
+            </label>
           </div>
 
-          <div class="field">
-            <label class="field-label">Suburb / Area <span class="req-tag">• Required</span></label>
-            <input v-model="form.suburb" type="text" placeholder="e.g. Adelaide" required>
-          </div>
+          <template v-if="!form.useDonorAddress">
+            <div class="field span-2">
+              <label class="field-label">Pickup street address</label>
+              <AddressAutocomplete
+                v-model="form.addressLine"
+                placeholder="Start typing the street address (e.g. 14 Rundle Mall)"
+                required
+                @select="applyPickupAddress"
+              />
+            </div>
 
-          <div class="field">
-            <label class="field-label">State / Region</label>
-            <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
-          </div>
+            <div class="field">
+              <label class="field-label">Suburb / Area <span class="req-tag">• Required</span></label>
+              <input v-model="form.suburb" type="text" placeholder="e.g. Adelaide" required>
+            </div>
 
+            <div class="field">
+              <label class="field-label">State / Region</label>
+              <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
+            </div>
+          </template>
 
-          <div class="field">
-            <label class="field-label">* Max quantity per recipient / day <span class="text-soft">(optional)</span></label>
-            <input v-model="form.maxQty" type="text" placeholder="e.g. 4 units">
-          </div>
 
           <!-- Checkbox Options: Auto-Approval & Require Pickup Code -->
           <div class="field span-2 checkbox-group">
@@ -235,13 +244,17 @@
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
-import { toListingRow } from '../../api/donorListingAdapter'
+import { formatAddress, toListingRow } from '../../api/donorListingAdapter'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: {
     type: Number,
     required: true,
+  },
+  donorAddress: {
+    type: Object,
+    default: null,
   },
 })
 
@@ -273,9 +286,10 @@ const form = reactive({
   quantity: '',
   expiryDate: '',
   deadline: '',
-  addressLine: '14 Rundle Mall',
-  suburb: 'Adelaide',
-  stateRegion: 'SA',
+  useDonorAddress: true,         // Default: use the address from the donor's account
+  addressLine: '',
+  suburb: '',
+  stateRegion: '',
   slotCapacity: 4,              // Default 4 per slot/hour
   autoApproval: true,           // Default: yes
   requirePickupCode: false,     // Default: no
@@ -413,9 +427,10 @@ function buildRequest() {
     quantity,
     expiryDate: form.expiryDate || null,
     collectionDeadline: form.deadline || null,
-    addressLine: form.addressLine.trim(),
-    suburb: form.suburb.trim(),
-    region: form.stateRegion.trim(),
+    // Blank address fields tell the backend to use the donor's own address
+    addressLine: form.useDonorAddress ? null : form.addressLine.trim(),
+    suburb: form.useDonorAddress ? null : form.suburb.trim(),
+    region: form.useDonorAddress ? null : form.stateRegion.trim(),
     maxDailyCapacity: quantityValue(form.maxQty),
     photoUrl: null,
     tagIds: [...form.tags],
@@ -432,7 +447,9 @@ function buildRequest() {
 
 async function submitListing() {
   submitError.value = ''
-  if (!form.name.trim() || !form.addressLine.trim() || !form.suburb.trim() || !form.stateRegion.trim()) {
+  const addressMissing = !form.useDonorAddress
+    && (!form.addressLine.trim() || !form.suburb.trim() || !form.stateRegion.trim())
+  if (!form.name.trim() || addressMissing) {
     submitError.value = 'Complete all required fields before publishing.'
     return
   }
