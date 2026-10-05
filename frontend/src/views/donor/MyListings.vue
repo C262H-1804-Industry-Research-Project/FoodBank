@@ -104,7 +104,12 @@
           <!-- Structured Address fields -->
           <div class="field span-2">
             <label class="field-label">Pickup street address</label>
-            <input v-model="editForm.addressLine" type="text" required>
+            <AddressAutocomplete
+              v-model="editForm.addressLine"
+              placeholder="Start typing the street address"
+              required
+              @select="applyPickupAddress"
+            />
           </div>
 
           <div class="field">
@@ -226,6 +231,7 @@
 import { reactive, ref } from 'vue'
 import { getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
 import { toListingRow } from '../../api/donorListingAdapter'
+import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: { type: Number, required: true },
@@ -303,6 +309,12 @@ function removePhoto() {
   selectedPhoto.value = null
   if (editForm.value) editForm.value.photoUrl = ''
   photoError.value = ''
+}
+
+function applyPickupAddress(address) {
+  if (!editForm.value) return
+  if (address.suburb) editForm.value.suburb = address.suburb
+  if (address.stateRegion) editForm.value.stateRegion = address.stateRegion
 }
 
 function adjustEditSlotCapacity(delta) {
@@ -475,8 +487,8 @@ tbody tr:hover { background: #FBFAF6; }
 .span-2 { grid-column: 1 / -1; }
 .field { margin-bottom: 4px; }
 .field-label { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }
-.field input, .field select, .field textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 13.5px; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.field input, .field :deep(.address-autocomplete input), .field select, .field textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 13.5px; }
+.field input:focus, .field :deep(.address-autocomplete input:focus), .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
 .text-soft { color: var(--text-soft); font-weight: 500; }
 .fields-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 

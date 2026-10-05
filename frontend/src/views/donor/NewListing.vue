@@ -82,7 +82,12 @@
           <!-- Structured 3-field Pickup Address -->
           <div class="field span-2">
             <label class="field-label">Pickup street address</label>
-            <input v-model="form.addressLine" type="text" placeholder="Street number & name (e.g. 14 Rundle Mall)" required>
+            <AddressAutocomplete
+              v-model="form.addressLine"
+              placeholder="Start typing the street address (e.g. 14 Rundle Mall)"
+              required
+              @select="applyPickupAddress"
+            />
           </div>
 
           <div class="field">
@@ -231,6 +236,7 @@
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
 import { toListingRow } from '../../api/donorListingAdapter'
+import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: {
@@ -385,6 +391,11 @@ function toggleTag(tag) {
   else form.tags.push(tag.id)
 }
 
+function applyPickupAddress(address) {
+  if (address.suburb) form.suburb = address.suburb
+  if (address.stateRegion) form.stateRegion = address.stateRegion
+}
+
 function quantityValue(value) {
   const quantity = Number.parseFloat(String(value).replace(/[^0-9.]/g, ''))
   return Number.isFinite(quantity) && quantity > 0 ? quantity : null
@@ -474,8 +485,8 @@ async function submitListing() {
 .field { margin-bottom: 4px; }
 .field-label { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }
 .req-tag { font-size: 11px; font-weight: 700; color: var(--primary-dark); margin-left: 4px; }
-.field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; box-sizing: border-box; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.field input, .field :deep(.address-autocomplete input), .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; box-sizing: border-box; }
+.field input:focus, .field :deep(.address-autocomplete input:focus), .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
 .text-soft { color: var(--text-soft); font-weight: 500; }
 
 .upload-box { border: 1.5px dashed var(--border); border-radius: var(--r-md); padding: 28px; text-align: center; cursor: pointer; background: var(--surface-2); transition: .15s; }
