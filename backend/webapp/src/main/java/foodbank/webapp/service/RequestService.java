@@ -6,6 +6,7 @@ import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
+import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
@@ -22,6 +23,8 @@ import java.util.Random;
 @Service
 @RequiredArgsConstructor
 public class RequestService {
+    public static final int MAX_NOTE_LENGTH = 500;
+
     private final RequestRepository requestRepository;
     private final TimeslotRepository timeslotRepository;
     private final RecipientRepository recipientRepository;
@@ -66,6 +69,10 @@ public class RequestService {
         if (req.quantityRequested() == null || req.quantityRequested() <= 0) {
             throw new IllegalArgumentException("quantityRequested must be greater than zero");
         }
+        String note = req.note() == null || req.note().isBlank() ? null : req.note().strip();
+        if (note != null && note.length() > MAX_NOTE_LENGTH) {
+            throw new IllegalArgumentException("note must be at most " + MAX_NOTE_LENGTH + " characters");
+        }
 
         Timeslot timeslot = timeslotRepository.findById(req.timeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
@@ -76,17 +83,17 @@ public class RequestService {
         Listing listing = timeslot.getListing();
 
         if (!"LIVE".equals(listing.getStatus())) {
-            throw new IllegalStateException("This listing is not currently available for requests");
+            throw new ConflictException("This listing is not currently available for requests");
         }
 
         if (timeslot.getRemainingSlot() == null || timeslot.getRemainingSlot() <= 0) {
-            throw new IllegalStateException("This timeslot is fully booked");
+            throw new ConflictException("This timeslot is fully booked");
         }
 
         boolean alreadyRequested = requestRepository.existsByTimeslotIdAndRecipientId(
                 req.timeslotId(), req.recipientId());
         if (alreadyRequested) {
-            throw new IllegalStateException("You have already submitted a request for this timeslot");
+            throw new ConflictException("You have already submitted a request for this timeslot");
         }
 
         LocalDate pickupDay = timeslot.getStartTime().toLocalDate();
@@ -124,6 +131,7 @@ public class RequestService {
                 .quantityRequested(req.quantityRequested())
                 .status(autoApproved ? "APPROVED" : "PENDING")
                 .pickupCode(autoApproved && needsPickupCode ? generatePickupCode() : null)
+                .note(note)
                 .build();
 
         request = requestRepository.save(request);
@@ -159,7 +167,8 @@ public class RequestService {
                 timeslot.getEndTime().toString(),
                 request.getQuantityRequested(),
                 request.getStatus(),
-                request.getPickupCode()
+                request.getPickupCode(),
+                request.getNote()
         );
     }
 }
