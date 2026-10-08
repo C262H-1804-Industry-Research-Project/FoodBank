@@ -101,31 +101,48 @@
             <input v-model="editForm.deadline" type="date">
           </div>
 
-          <!-- Structured Address fields -->
-          <div class="field span-2">
-            <label class="field-label">Pickup street address</label>
-            <input v-model="editForm.addressLine" type="text" required>
+          <!-- Pickup address: the donor's own address unless unticked -->
+          <div v-if="donorAddress" class="field span-2">
+            <label class="checkbox-row">
+              <input v-model="editForm.useDonorAddress" type="checkbox">
+              <div>
+                <strong>Pickup address is the same as my organisation's address</strong>
+                <div class="checkbox-desc">{{ formatAddress(donorAddress) }}</div>
+              </div>
+            </label>
           </div>
 
-          <div class="field">
-            <label class="field-label">Suburb / Area</label>
-            <input v-model="editForm.suburb" type="text" required>
-          </div>
+          <template v-if="!editForm.useDonorAddress">
+            <div class="field span-2">
+              <label class="field-label">Pickup street address</label>
+              <AddressAutocomplete
+                v-model="editForm.addressLine"
+                placeholder="Start typing the street address"
+                required
+                @select="applyPickupAddress"
+              />
+            </div>
 
-          <div class="field">
-            <label class="field-label">State / Region</label>
-            <select v-model="editForm.stateRegion" required>
-              <option value="" disabled>Select a state or territory</option>
-              <option value="ACT">ACT</option>
-              <option value="NSW">NSW</option>
-              <option value="NT">NT</option>
-              <option value="QLD">QLD</option>
-              <option value="SA">SA</option>
-              <option value="TAS">TAS</option>
-              <option value="VIC">VIC</option>
-              <option value="WA">WA</option>
-            </select>
-          </div>
+            <div class="field">
+              <label class="field-label">Suburb / Area</label>
+              <input v-model="editForm.suburb" type="text" required>
+            </div>
+
+            <div class="field">
+              <label class="field-label">State / Region</label>
+              <select v-model="editForm.stateRegion" required>
+                <option value="" disabled>Select a state or territory</option>
+                <option value="ACT">ACT</option>
+                <option value="NSW">NSW</option>
+                <option value="NT">NT</option>
+                <option value="QLD">QLD</option>
+                <option value="SA">SA</option>
+                <option value="TAS">TAS</option>
+                <option value="VIC">VIC</option>
+                <option value="WA">WA</option>
+              </select>
+            </div>
+          </template>
 
           <!-- Checkbox Options -->
           <div class="field span-2 checkbox-group">
@@ -225,10 +242,12 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
-import { toListingRow } from '../../api/donorListingAdapter'
+import { formatAddress, isSameAddress, toListingRow } from '../../api/donorListingAdapter'
+import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: { type: Number, required: true },
+  donorAddress: { type: Object, default: null },
   listings: {
     type: Array,
     required: true
@@ -260,6 +279,7 @@ async function openEditModal(item) {
   editForm.value.maxQty = item.maxDailyCapacity ?? ''
   editForm.value.tagIds = []
   editForm.value.timeslots = item.timeslots || []
+  editForm.value.useDonorAddress = Boolean(props.donorAddress) && isSameAddress(item, props.donorAddress)
   timeslotError.value = ''
   slotDraft.date = ''
   slotDraft.startTime = ''
@@ -303,6 +323,12 @@ function removePhoto() {
   selectedPhoto.value = null
   if (editForm.value) editForm.value.photoUrl = ''
   photoError.value = ''
+}
+
+function applyPickupAddress(address) {
+  if (!editForm.value) return
+  if (address.suburb) editForm.value.suburb = address.suburb
+  if (address.stateRegion) editForm.value.stateRegion = address.stateRegion
 }
 
 function adjustEditSlotCapacity(delta) {
@@ -369,7 +395,8 @@ async function saveListing(status) {
   try {
     const form = editForm.value
     const quantity = Number(form.quantity)
-    if (![form.name, form.addressLine, form.suburb, form.stateRegion].every(value => value?.trim())) {
+    const requiredFields = form.useDonorAddress ? [form.name] : [form.name, form.addressLine, form.suburb, form.stateRegion]
+    if (!requiredFields.every(value => value?.trim())) {
       throw new Error('Complete all required fields before publishing.')
     }
     if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity must be greater than zero.')
@@ -391,7 +418,10 @@ async function saveListing(status) {
     const saved = await updateDonorListing(props.donorId, form.id, {
       name: form.name.trim(), description: form.notes, categoryId: form.categoryId,
       quantity, expiryDate: form.expiryDate || null, collectionDeadline: form.deadline || null,
-      addressLine: form.addressLine.trim(), suburb: form.suburb.trim(), region: form.stateRegion.trim(),
+      // Blank address fields tell the backend to use the donor's own address
+      addressLine: form.useDonorAddress ? null : form.addressLine.trim(),
+      suburb: form.useDonorAddress ? null : form.suburb.trim(),
+      region: form.useDonorAddress ? null : form.stateRegion.trim(),
       maxDailyCapacity, tagIds: form.tagIds,
       timeslots: form.timeslots.map(({ startTime, endTime }) => ({ startTime, endTime, maxRecipients: form.slotCapacity })),
       slotCapacity: form.slotCapacity, isAutoApproved: form.autoApproval,
@@ -475,8 +505,8 @@ tbody tr:hover { background: #FBFAF6; }
 .span-2 { grid-column: 1 / -1; }
 .field { margin-bottom: 4px; }
 .field-label { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }
-.field input, .field select, .field textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 13.5px; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.field input, .field :deep(.address-autocomplete input), .field select, .field textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 13.5px; }
+.field input:focus, .field :deep(.address-autocomplete input:focus), .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
 .text-soft { color: var(--text-soft); font-weight: 500; }
 .fields-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 

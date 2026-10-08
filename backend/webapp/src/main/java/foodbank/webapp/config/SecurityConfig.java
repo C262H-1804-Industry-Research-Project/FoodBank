@@ -103,6 +103,11 @@ public class SecurityConfig {
                                 "RECIPIENT"
                         )
 
+                        // A recipient's saved location (used for listing distances).
+                        .requestMatchers(
+                                "/api/recipients/me/**"
+                        ).hasRole("RECIPIENT")
+
                         // Pickup requests are made and viewed by recipients.
                         .requestMatchers(
                                 "/api/requests",

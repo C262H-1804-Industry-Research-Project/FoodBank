@@ -34,3 +34,18 @@ export function toListingRow(listing) {
   }
 }
 
+
+// The donor's own address in the same shape as a listing row's address fields
+export function toDonorAddress(settings) {
+  if (!settings?.addressLine) return null
+  return { addressLine: settings.addressLine, suburb: settings.suburb || '', stateRegion: settings.region || '' }
+}
+
+export function formatAddress(address) {
+  return [address.addressLine, address.suburb, address.stateRegion].filter(Boolean).join(', ')
+}
+
+export function isSameAddress(first, second) {
+  const normalise = value => (value || '').trim().toLowerCase()
+  return ['addressLine', 'suburb', 'stateRegion'].every(key => normalise(first?.[key]) === normalise(second?.[key]))
+}

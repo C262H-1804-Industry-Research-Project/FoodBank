@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,19 +42,22 @@ public class ListingService {
     private final DonorRepository donorRepository;
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
+    private final GeocodingService geocodingService;
 
     public Page<Listing> findAllListing(Pageable pageable){
         return listingRepository.findAll(pageable);
     }
 
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
-        return findAllListing(pageable).map(this::toListingResponse);
+        return findAllListing(pageable).map(listing -> toListingResponse(listing, null));
     }
 
     public Page<ListingResponse> searchListingResponses(
             String foodName,
             Integer categoryId,
             List<Integer> tagIds,
+            List<String> suburbs,
+            GeocodingService.Coordinates origin,
             Pageable pageable
     ) {
         Specification<Listing> specification = (root, query, builder) -> builder.conjunction();
@@ -81,10 +85,80 @@ public class ListingService {
                 return builder.exists(matchingTag);
             });
         }
-        return listingRepository.findAll(specification, pageable).map(this::toListingResponse);
+        if (suburbs != null && !suburbs.isEmpty()) {
+            specification = specification.and(inAnySuburb(suburbs));
+        }
+        if (origin != null) {
+            specification = specification.and(nearestFirst(origin));
+        }
+        return listingRepository.findAll(specification, pageable).map(listing -> toListingResponse(listing, origin));
     }
 
-    private ListingResponse toListingResponse(Listing listing) {
+    /**
+     * Matches listings in any of the given suburbs. Each entry is "Suburb|REGION", or just "Suburb"
+     * to match that suburb name in any region. Comparison ignores case and surrounding spaces.
+     */
+    private Specification<Listing> inAnySuburb(List<String> suburbs) {
+        return (root, query, builder) -> {
+            var listingSuburb = builder.lower(builder.trim(root.<String>get("suburb")));
+            var listingRegion = builder.lower(builder.trim(root.<String>get("region")));
+            var matches = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            for (String entry : suburbs) {
+                if (entry == null || entry.isBlank()) continue;
+                String[] parts = entry.split("\\|", 2);
+                String suburb = parts[0].trim().toLowerCase();
+                String region = parts.length > 1 ? parts[1].trim().toLowerCase() : "";
+                if (suburb.isEmpty()) continue;
+                matches.add(region.isEmpty()
+                        ? builder.equal(listingSuburb, suburb)
+                        : builder.and(builder.equal(listingSuburb, suburb), builder.equal(listingRegion, region)));
+            }
+            return matches.isEmpty()
+                    ? builder.conjunction()
+                    : builder.or(matches.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+    }
+
+    /**
+     * Orders by an equirectangular distance approximation, which ranks nearby points the same as the
+     * exact great-circle distance while staying plain arithmetic for the database. Listings without
+     * coordinates come last. The count query is left unordered.
+     */
+    private Specification<Listing> nearestFirst(GeocodingService.Coordinates origin) {
+        double longitudeScale = Math.cos(Math.toRadians(origin.latitude()));
+        return (root, query, builder) -> {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                jakarta.persistence.criteria.Expression<Double> latitude = root.get("latitude");
+                jakarta.persistence.criteria.Expression<Double> longitude = root.get("longitude");
+                var latitudeDelta = builder.diff(latitude, origin.latitude());
+                var longitudeDelta = builder.prod(builder.diff(longitude, origin.longitude()), longitudeScale);
+                var distanceSquared = builder.sum(
+                        builder.prod(latitudeDelta, latitudeDelta),
+                        builder.prod(longitudeDelta, longitudeDelta));
+                var missingCoordinates = builder.<Integer>selectCase()
+                        .when(builder.or(builder.isNull(latitude), builder.isNull(longitude)), 1)
+                        .otherwise(0);
+                query.orderBy(
+                        builder.asc(missingCoordinates),
+                        builder.asc(distanceSquared),
+                        builder.asc(root.get("listingId")));
+            }
+            return builder.conjunction();
+        };
+    }
+
+    /** Looks up and stores the pickup point coordinates; leaves them empty if the lookup fails. */
+    public void updateCoordinates(Listing listing) {
+        var coordinates = geocodingService.geocode(listing.getAddressLine(), listing.getSuburb(), listing.getRegion());
+        listing.setLatitude(coordinates.map(GeocodingService.Coordinates::latitude).orElse(null));
+        listing.setLongitude(coordinates.map(GeocodingService.Coordinates::longitude).orElse(null));
+    }
+
+    private ListingResponse toListingResponse(Listing listing, GeocodingService.Coordinates origin) {
+        Double distanceKm = origin == null || listing.getLatitude() == null || listing.getLongitude() == null
+                ? null
+                : GeocodingService.distanceKm(origin.latitude(), origin.longitude(),
+                        listing.getLatitude(), listing.getLongitude());
         return new ListingResponse(
                 listing.getListingId(),
                 listing.getName(),
@@ -108,7 +182,8 @@ public class ListingService {
                         .toArray(TimeSlot[]::new),
                 listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
                 listing.getSuburb(),
-                listing.getRegion()
+                listing.getRegion(),
+                distanceKm
         );
     }
 
@@ -172,6 +247,7 @@ public class ListingService {
                 .status(request.status())
                 .build();
         applyListingRequest(listing, donor, request);
+        updateCoordinates(listing);
         listing = listingRepository.save(listing);
 
         replaceListingDetails(listing, request);
@@ -188,9 +264,18 @@ public class ListingService {
         }
         if (request == null) throw new IllegalArgumentException("request body is required");
         requireText(request.name(), "name");
-        requireText(request.addressLine(), "addressLine");
-        requireText(request.suburb(), "suburb");
-        requireText(request.region(), "region");
+        // A blank address means "use the donor's own address", as when creating a listing
+        String addressLine = request.addressLine();
+        String suburb = request.suburb();
+        String region = request.region();
+        if (addressLine == null || addressLine.isBlank()) {
+            addressLine = listing.getDonor().getAddressLine();
+            suburb = listing.getDonor().getSuburb();
+            region = listing.getDonor().getRegion();
+        }
+        requireText(addressLine, "addressLine");
+        requireText(suburb, "suburb");
+        requireText(region, "region");
         if (request.categoryId() == null) throw new IllegalArgumentException("categoryId is required");
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
@@ -239,9 +324,15 @@ public class ListingService {
         listing.setQuantity(request.quantity());
         listing.setExpiryDate(request.expiryDate());
         listing.setCollectionDeadline(request.collectionDeadline());
-        listing.setAddressLine(request.addressLine().trim());
-        listing.setSuburb(request.suburb().trim());
-        listing.setRegion(request.region().trim());
+        boolean addressChanged = !Objects.equals(listing.getAddressLine(), addressLine.trim())
+                || !Objects.equals(listing.getSuburb(), suburb.trim())
+                || !Objects.equals(listing.getRegion(), region.trim());
+        listing.setAddressLine(addressLine.trim());
+        listing.setSuburb(suburb.trim());
+        listing.setRegion(region.trim());
+        if (addressChanged || listing.getLatitude() == null) {
+            updateCoordinates(listing);
+        }
         listing.setMaxDailyCapacity(request.maxDailyCapacity());
         listing.setPhotoUrl(blankToNull(request.photoUrl()));
         listing.setIsAutoApproved(request.isAutoApproved());

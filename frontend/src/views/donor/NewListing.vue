@@ -61,7 +61,7 @@
             </div>
 
             <div class="field">
-              <label class="field-label">Max quantity per recipient / day</label>
+              <label class="field-label">* Max quantity per recipient / day</label>
               <input v-model="form.maxQty" type="number" min="1" placeholder="e.g. 4 units">
             </div>
           </div>
@@ -79,27 +79,41 @@
             <input v-model="form.deadline" type="date">
           </div>
 
-          <!-- Structured 3-field Pickup Address -->
+          <!-- Pickup address: the donor's own address unless unticked -->
           <div class="field span-2">
-            <label class="field-label">Pickup street address</label>
-            <input v-model="form.addressLine" type="text" placeholder="Street number & name (e.g. 14 Rundle Mall)" required>
+            <label class="checkbox-row">
+              <input v-model="form.useDonorAddress" type="checkbox">
+              <div>
+                <strong>Pickup address is the same as my organisation's address</strong>
+                <div class="checkbox-desc">
+                  {{ donorAddress ? formatAddress(donorAddress) : 'Untick to enter a different pickup address for this listing.' }}
+                </div>
+              </div>
+            </label>
           </div>
 
-          <div class="field">
-            <label class="field-label">Suburb / Area <span class="req-tag">• Required</span></label>
-            <input v-model="form.suburb" type="text" placeholder="e.g. Adelaide" required>
-          </div>
+          <template v-if="!form.useDonorAddress">
+            <div class="field span-2">
+              <label class="field-label">Pickup street address</label>
+              <AddressAutocomplete
+                v-model="form.addressLine"
+                placeholder="Start typing the street address (e.g. 14 Rundle Mall)"
+                required
+                @select="applyPickupAddress"
+              />
+            </div>
 
-          <div class="field">
-            <label class="field-label">State / Region</label>
-            <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
-          </div>
+            <div class="field">
+              <label class="field-label">Suburb / Area <span class="req-tag">• Required</span></label>
+              <input v-model="form.suburb" type="text" placeholder="e.g. Adelaide" required>
+            </div>
 
+            <div class="field">
+              <label class="field-label">State / Region</label>
+              <input v-model="form.stateRegion" type="text" placeholder="e.g. SA" required>
+            </div>
+          </template>
 
-          <div class="field">
-            <label class="field-label">* Max quantity per recipient / day <span class="text-soft">(optional)</span></label>
-            <input v-model="form.maxQty" type="text" placeholder="e.g. 4 units">
-          </div>
 
           <!-- Checkbox Options: Auto-Approval & Require Pickup Code -->
           <div class="field span-2 checkbox-group">
@@ -230,12 +244,17 @@
 <script setup>
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
-import { toListingRow } from '../../api/donorListingAdapter'
+import { formatAddress, toListingRow } from '../../api/donorListingAdapter'
+import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: {
     type: Number,
     required: true,
+  },
+  donorAddress: {
+    type: Object,
+    default: null,
   },
 })
 
@@ -267,9 +286,10 @@ const form = reactive({
   quantity: '',
   expiryDate: '',
   deadline: '',
-  addressLine: '14 Rundle Mall',
-  suburb: 'Adelaide',
-  stateRegion: 'SA',
+  useDonorAddress: true,         // Default: use the address from the donor's account
+  addressLine: '',
+  suburb: '',
+  stateRegion: '',
   slotCapacity: 4,              // Default 4 per slot/hour
   autoApproval: true,           // Default: yes
   requirePickupCode: false,     // Default: no
@@ -385,6 +405,11 @@ function toggleTag(tag) {
   else form.tags.push(tag.id)
 }
 
+function applyPickupAddress(address) {
+  if (address.suburb) form.suburb = address.suburb
+  if (address.stateRegion) form.stateRegion = address.stateRegion
+}
+
 function quantityValue(value) {
   const quantity = Number.parseFloat(String(value).replace(/[^0-9.]/g, ''))
   return Number.isFinite(quantity) && quantity > 0 ? quantity : null
@@ -402,9 +427,10 @@ function buildRequest() {
     quantity,
     expiryDate: form.expiryDate || null,
     collectionDeadline: form.deadline || null,
-    addressLine: form.addressLine.trim(),
-    suburb: form.suburb.trim(),
-    region: form.stateRegion.trim(),
+    // Blank address fields tell the backend to use the donor's own address
+    addressLine: form.useDonorAddress ? null : form.addressLine.trim(),
+    suburb: form.useDonorAddress ? null : form.suburb.trim(),
+    region: form.useDonorAddress ? null : form.stateRegion.trim(),
     maxDailyCapacity: quantityValue(form.maxQty),
     photoUrl: null,
     tagIds: [...form.tags],
@@ -421,7 +447,9 @@ function buildRequest() {
 
 async function submitListing() {
   submitError.value = ''
-  if (!form.name.trim() || !form.addressLine.trim() || !form.suburb.trim() || !form.stateRegion.trim()) {
+  const addressMissing = !form.useDonorAddress
+    && (!form.addressLine.trim() || !form.suburb.trim() || !form.stateRegion.trim())
+  if (!form.name.trim() || addressMissing) {
     submitError.value = 'Complete all required fields before publishing.'
     return
   }
@@ -474,8 +502,8 @@ async function submitListing() {
 .field { margin-bottom: 4px; }
 .field-label { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: block; }
 .req-tag { font-size: 11px; font-weight: 700; color: var(--primary-dark); margin-left: 4px; }
-.field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; box-sizing: border-box; }
-.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.field input, .field :deep(.address-autocomplete input), .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 14px; box-sizing: border-box; }
+.field input:focus, .field :deep(.address-autocomplete input:focus), .field select:focus, .field textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
 .text-soft { color: var(--text-soft); font-weight: 500; }
 
 .upload-box { border: 1.5px dashed var(--border); border-radius: var(--r-md); padding: 28px; text-align: center; cursor: pointer; background: var(--surface-2); transition: .15s; }

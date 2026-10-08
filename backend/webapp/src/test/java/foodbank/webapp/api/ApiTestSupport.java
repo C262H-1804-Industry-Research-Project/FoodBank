@@ -31,7 +31,7 @@ import java.util.UUID;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-abstract class ApiTestSupport {
+public abstract class ApiTestSupport {
 
     @Autowired protected MockMvc mockMvc;
     @Autowired protected AuthTokenService authTokenService;
