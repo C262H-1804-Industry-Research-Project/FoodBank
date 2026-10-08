@@ -91,8 +91,8 @@ public class RequestService {
             throw new ConflictException("This timeslot is fully booked");
         }
 
-        boolean alreadyRequested = requestRepository.existsByTimeslotIdAndRecipientId(
-                req.timeslotId(), recipientId);
+        boolean alreadyRequested = requestRepository.existsByTimeslotIdAndRecipientIdAndStatusNot(
+                req.timeslotId(), recipientId, "CANCELLED");
         if (alreadyRequested) {
             throw new ConflictException("You have already submitted a request for this timeslot");
         }
@@ -152,6 +152,31 @@ public class RequestService {
         return requestRepository.findByRecipientId(recipientId).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional
+    public void cancelRequest(Integer requestId, Integer userId) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new NoSuchElementException("Request not found"));
+        Recipient recipient = findRecipientForUser(userId);
+        if (!request.getRecipientId().equals(recipient.getRecipientId())) {
+            throw new ForbiddenException("You can only cancel your own requests");
+        }
+        if (!"PENDING".equals(request.getStatus()) && !"APPROVED".equals(request.getStatus())) {
+            throw new ConflictException("This request can no longer be cancelled");
+        }
+
+        Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        if (!timeslot.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new ConflictException("Requests can only be cancelled before pickup time");
+        }
+
+        request.setStatus("CANCELLED");
+        request.setPickupCode(null);
+        requestRepository.save(request);
+        timeslot.setRemainingSlot(timeslot.getRemainingSlot() + 1);
+        timeslotRepository.save(timeslot);
     }
 
     private Recipient findRecipientForUser(Integer userId) {
