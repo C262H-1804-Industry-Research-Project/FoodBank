@@ -1,9 +1,11 @@
 package foodbank.webapp.dto;
 
 public record CreateReportRequest(
-        Integer reporterId,
-        Integer reportedId,
+        String reportType,
         Integer listingId,
-        Integer requestId,
-        String reason
-) {}
+        Integer pickupRequestId,
+        Integer reportedUserId,
+        String reason,
+        String details
+) {
+}

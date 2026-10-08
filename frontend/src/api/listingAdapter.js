@@ -27,7 +27,7 @@ export function toListingCard(item, now = new Date()) {
     else if (first >= saturday && first < monday) timeType = 'weekend'
   }
 
-  console.log(item)
+  // console.log(item)
 
   return {
     id: item.listingId,
@@ -39,7 +39,8 @@ export function toListingCard(item, now = new Date()) {
     suburb: item.suburb || '',
     stateRegion: item.region || '',
     capacity: item.maxDailyCapacity == null ? 'unlimited' : item.maxDailyCapacity,
-    tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
+    // tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
+    tags: item.tags || [],
     emoji: { Bakery: '🥖', Produce: '🥗', Pantry: '🥫', Dairy: '🥛' }[item.category] || '🍲',
     timeLeft: item.latestCollectionDate ? `Collect by ${item.latestCollectionDate}` : 'Available',
     pickupWindow: slots[0] ? formatPickupSlot(slots[0]) : '',

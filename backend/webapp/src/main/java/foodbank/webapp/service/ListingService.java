@@ -99,6 +99,7 @@ public class ListingService {
                         .toArray(String[]::new),
                 timeslotRepository.findByListing(listing).stream()
                         .map(timeslot -> new TimeSlot(
+                                timeslot.getTimeslotId(),
                                 timeslot.getStartTime().toString(),
                                 timeslot.getEndTime().toString(),
                                 timeslot.getRemainingSlot(),
@@ -133,6 +134,7 @@ public class ListingService {
                         .toArray(String[]::new),
                 timeslotRepository.findByListing(listing).stream()
                         .map(timeslot -> new TimeSlot(
+                                timeslot.getTimeslotId(),
                                 timeslot.getStartTime().toString(),
                                 timeslot.getEndTime().toString(),
                                 timeslot.getRemainingSlot(),
@@ -241,6 +243,7 @@ public class ListingService {
         listing.setSuburb(request.suburb().trim());
         listing.setRegion(request.region().trim());
         listing.setMaxDailyCapacity(request.maxDailyCapacity());
+        listing.setPhotoUrl(blankToNull(request.photoUrl()));
         listing.setIsAutoApproved(request.isAutoApproved());
         listing.setUsePickupCode(request.usePickupCode());
         listing.setHideContact(request.hideContact());

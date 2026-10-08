@@ -77,21 +77,17 @@ export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' })
 }
 
-// Fetch all pages so the existing client-side filters and six-item pagination
-// continue to operate on the full collection, including donor-name searches.
-export async function getAllListings(signal) {
-  const items = []
-  let page = 0
-  let totalPages
-  do {
-    const result = await apiRequest(`/listings?page=${page}&size=10`, { signal })
-    if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
-        || result.page.totalPages < 0) throw new Error('Invalid listings response from the API.')
-    items.push(...result.content)
-    totalPages = result.page.totalPages
-    page++
-  } while (page < totalPages)
-  return items
+// Fetch one page of live listings. `page` is zero-based, matching Spring's PageRequest.
+export async function getListingsPage({ page = 0, size = 6, foodName, categoryId, tagIds = [] } = {}, signal) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (foodName?.trim()) params.set('foodName', foodName.trim())
+  if (categoryId != null && categoryId !== '') params.set('categoryId', String(categoryId))
+  tagIds.forEach(tagId => params.append('tagIds', String(tagId)))
+
+  const result = await apiRequest(`/listings?${params}`, { signal })
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid listings response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
 }
 
 export async function getDonorListings(donorId, signal) {
