@@ -38,6 +38,7 @@ export function toListingCard(item, now = new Date()) {
     donor: item.donorName || '',
     suburb: item.suburb || '',
     stateRegion: item.region || '',
+    distanceKm: Number.isFinite(item.distanceKm) ? item.distanceKm : null,
     capacity: item.maxDailyCapacity == null ? 'unlimited' : item.maxDailyCapacity,
     // tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
     tags: item.tags || [],
@@ -47,4 +48,12 @@ export function toListingCard(item, now = new Date()) {
     timeslots: item.timeslots || [],
     timeType,
   }
+}
+
+export function formatDistance(distanceKm) {
+  if (!Number.isFinite(distanceKm)) return ''
+  const metres = Math.max(Math.round(distanceKm * 1000 / 50) * 50, 50)
+  if (metres < 1000) return `${metres} m away`
+  const tenthsOfKm = Math.round(distanceKm * 10) / 10
+  return `${tenthsOfKm < 10 ? tenthsOfKm.toFixed(1) : Math.round(distanceKm)} km away`
 }

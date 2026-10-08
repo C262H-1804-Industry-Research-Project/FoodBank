@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,19 +42,23 @@ public class ListingService {
     private final DonorRepository donorRepository;
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
+    private final GeocodingService geocodingService;
 
     public Page<Listing> findAllListing(Pageable pageable){
         return listingRepository.findAll(pageable);
     }
 
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
-        return findAllListing(pageable).map(this::toListingResponse);
+        return findAllListing(pageable).map(listing -> toListingResponse(listing, null));
     }
 
     public Page<ListingResponse> searchListingResponses(
             String foodName,
             Integer categoryId,
             List<Integer> tagIds,
+            String suburb,
+            String region,
+            GeocodingService.Coordinates origin,
             Pageable pageable
     ) {
         Specification<Listing> specification = (root, query, builder) -> builder.conjunction();
@@ -81,10 +86,62 @@ public class ListingService {
                 return builder.exists(matchingTag);
             });
         }
-        return listingRepository.findAll(specification, pageable).map(this::toListingResponse);
+        if (suburb != null && !suburb.isBlank()) {
+            String normalisedSuburb = suburb.trim().toLowerCase();
+            specification = specification.and((root, query, builder) ->
+                    builder.equal(builder.lower(builder.trim(root.get("suburb"))), normalisedSuburb));
+        }
+        if (region != null && !region.isBlank()) {
+            String normalisedRegion = region.trim().toLowerCase();
+            specification = specification.and((root, query, builder) ->
+                    builder.equal(builder.lower(builder.trim(root.get("region"))), normalisedRegion));
+        }
+        if (origin != null) {
+            specification = specification.and(nearestFirst(origin));
+        }
+        return listingRepository.findAll(specification, pageable).map(listing -> toListingResponse(listing, origin));
     }
 
-    private ListingResponse toListingResponse(Listing listing) {
+    /**
+     * Orders by an equirectangular distance approximation, which ranks nearby points the same as the
+     * exact great-circle distance while staying plain arithmetic for the database. Listings without
+     * coordinates come last. The count query is left unordered.
+     */
+    private Specification<Listing> nearestFirst(GeocodingService.Coordinates origin) {
+        double longitudeScale = Math.cos(Math.toRadians(origin.latitude()));
+        return (root, query, builder) -> {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                jakarta.persistence.criteria.Expression<Double> latitude = root.get("latitude");
+                jakarta.persistence.criteria.Expression<Double> longitude = root.get("longitude");
+                var latitudeDelta = builder.diff(latitude, origin.latitude());
+                var longitudeDelta = builder.prod(builder.diff(longitude, origin.longitude()), longitudeScale);
+                var distanceSquared = builder.sum(
+                        builder.prod(latitudeDelta, latitudeDelta),
+                        builder.prod(longitudeDelta, longitudeDelta));
+                var missingCoordinates = builder.<Integer>selectCase()
+                        .when(builder.or(builder.isNull(latitude), builder.isNull(longitude)), 1)
+                        .otherwise(0);
+                query.orderBy(
+                        builder.asc(missingCoordinates),
+                        builder.asc(distanceSquared),
+                        builder.asc(root.get("listingId")));
+            }
+            return builder.conjunction();
+        };
+    }
+
+    /** Looks up and stores the pickup point coordinates; leaves them empty if the lookup fails. */
+    public void updateCoordinates(Listing listing) {
+        var coordinates = geocodingService.geocode(listing.getAddressLine(), listing.getSuburb(), listing.getRegion());
+        listing.setLatitude(coordinates.map(GeocodingService.Coordinates::latitude).orElse(null));
+        listing.setLongitude(coordinates.map(GeocodingService.Coordinates::longitude).orElse(null));
+    }
+
+    private ListingResponse toListingResponse(Listing listing, GeocodingService.Coordinates origin) {
+        Double distanceKm = origin == null || listing.getLatitude() == null || listing.getLongitude() == null
+                ? null
+                : GeocodingService.distanceKm(origin.latitude(), origin.longitude(),
+                        listing.getLatitude(), listing.getLongitude());
         return new ListingResponse(
                 listing.getListingId(),
                 listing.getName(),
@@ -107,7 +164,8 @@ public class ListingService {
                         .toArray(TimeSlot[]::new),
                 listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
                 listing.getSuburb(),
-                listing.getRegion()
+                listing.getRegion(),
+                distanceKm
         );
     }
 
@@ -170,6 +228,7 @@ public class ListingService {
                 .status(request.status())
                 .build();
         applyListingRequest(listing, donor, request);
+        updateCoordinates(listing);
         listing = listingRepository.save(listing);
 
         replaceListingDetails(listing, request);
@@ -246,9 +305,15 @@ public class ListingService {
         listing.setQuantity(request.quantity());
         listing.setExpiryDate(request.expiryDate());
         listing.setCollectionDeadline(request.collectionDeadline());
+        boolean addressChanged = !Objects.equals(listing.getAddressLine(), addressLine.trim())
+                || !Objects.equals(listing.getSuburb(), suburb.trim())
+                || !Objects.equals(listing.getRegion(), region.trim());
         listing.setAddressLine(addressLine.trim());
         listing.setSuburb(suburb.trim());
         listing.setRegion(region.trim());
+        if (addressChanged || listing.getLatitude() == null) {
+            updateCoordinates(listing);
+        }
         listing.setMaxDailyCapacity(request.maxDailyCapacity());
         listing.setPhotoUrl(blankToNull(request.photoUrl()));
         listing.setIsAutoApproved(request.isAutoApproved());

@@ -2,6 +2,7 @@ package foodbank.webapp.controllers;
 
 import foodbank.webapp.dto.ListingResponse;
 import foodbank.webapp.dto.CatalogueItemResponse;
+import foodbank.webapp.service.GeocodingService;
 import foodbank.webapp.service.ListingService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
@@ -29,11 +30,25 @@ public class ListingController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String foodName,
             @RequestParam(required = false) Integer categoryId,
-            @RequestParam(required = false) List<Integer> tagIds
+            @RequestParam(required = false) List<Integer> tagIds,
+            @RequestParam(required = false) String suburb,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude
     ) {
         Pageable pageable = PageRequest.of(page, size);
+        if ((latitude == null) != (longitude == null)) {
+            throw new IllegalArgumentException("latitude and longitude must be given together");
+        }
+        GeocodingService.Coordinates origin = null;
+        if (latitude != null) {
+            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+                throw new IllegalArgumentException("latitude or longitude is out of range");
+            }
+            origin = new GeocodingService.Coordinates(latitude, longitude);
+        }
 
-        return new PagedModel<>(listingService.searchListingResponses(foodName, categoryId, tagIds, pageable));
+        return new PagedModel<>(listingService.searchListingResponses(foodName, categoryId, tagIds, suburb, region, origin, pageable));
     }
 
     @GetMapping("/categories")

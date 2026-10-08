@@ -1,5 +1,27 @@
 <template>
   <section class="panel-section">
+    <!-- Recipient's location: listings are sorted and labelled by distance from here -->
+    <div class="location-bar">
+      <template v-if="showLocationInput">
+        <span class="lb-label">📍 Your location</span>
+        <AddressAutocomplete
+          v-model="locationQuery"
+          aria-label="Your location"
+          class="location-search"
+          types="address,locality,place,postcode"
+          placeholder="Enter your address, suburb or postcode to see how far each pickup is"
+          @select="applyLocation"
+        />
+        <button v-if="myLocation" type="button" class="lb-link" @click="cancelLocationChange">Cancel</button>
+      </template>
+      <template v-else>
+        <span class="lb-label">📍 Distances from</span>
+        <strong class="lb-address">{{ myLocation.label }}</strong>
+        <button type="button" class="lb-link" @click="changeLocation">Change</button>
+        <button type="button" class="lb-link" @click="clearLocation">Clear</button>
+      </template>
+    </div>
+
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
       <!-- Category Filter -->
@@ -29,6 +51,18 @@
           {{ tag.name }}
         </span>
       </div>
+
+      <!-- Optionally limit results to the recipient's own suburb -->
+      <button
+        v-if="mySuburbLabel"
+        type="button"
+        class="chip"
+        :class="{ active: onlyMySuburb }"
+        :aria-pressed="onlyMySuburb"
+        @click="onlyMySuburb = !onlyMySuburb"
+      >
+        Only in {{ mySuburbLabel }}
+      </button>
 
       <button 
         v-if="hasActiveFilters" 
@@ -65,7 +99,7 @@
             </div>
 
             <div class="lc-meta">
-              📍 {{ item.suburb }}, {{ item.stateRegion }}<br>
+              📍 {{ item.suburb }}, {{ item.stateRegion }}<span v-if="item.distanceKm != null" class="lc-distance"> · {{ formatDistance(item.distanceKm) }}</span><br>
               🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}
             </div>
 
@@ -131,7 +165,9 @@
 
 import { onBeforeUnmount, onMounted, ref, computed, watch } from 'vue'
 import { getListingCatalogue, getListingsPage } from '../../api/client'
-import { toListingCard } from '../../api/listingAdapter'
+import { formatDistance, toListingCard } from '../../api/listingAdapter'
+import { isAddressLookupEnabled } from '../../api/mapbox'
+import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const emit = defineEmits(['request'])
 
@@ -139,6 +175,10 @@ const emit = defineEmits(['request'])
 const filterCategory = ref('')
 const searchKeyword = ref('')
 const activeTagIds = ref([])
+const locationQuery = ref('')
+const myLocation = ref(null) // { label, suburb, stateRegion, latitude, longitude }
+const isEditingLocation = ref(false)
+const onlyMySuburb = ref(false)
 const isLoadingCatalogue = ref(true)
 const catalogueError = ref('')
 const categories = ref([])
@@ -154,6 +194,7 @@ const currentPage = ref(1)
 const pageSize = 6
 let listingsController = null
 let searchTimer = null
+let locationTimer = null
 
 async function loadListings() {
   listingsController?.abort()
@@ -168,6 +209,10 @@ async function loadListings() {
       foodName: searchKeyword.value,
       categoryId: filterCategory.value,
       tagIds: activeTagIds.value,
+      suburb: onlyMySuburb.value ? myLocation.value?.suburb : '',
+      region: onlyMySuburb.value ? myLocation.value?.stateRegion : '',
+      latitude: myLocation.value?.latitude,
+      longitude: myLocation.value?.longitude,
     }, controller.signal)
     if (controller.signal.aborted) return
     // The requested page no longer exists (e.g. listings were removed); go to the last one
@@ -206,6 +251,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   listingsController?.abort()
   clearTimeout(searchTimer)
+  clearTimeout(locationTimer)
 })
 
 function toggleTag(tag) {
@@ -217,17 +263,67 @@ function toggleTag(tag) {
   }
 }
 
+const mySuburbLabel = computed(() => {
+  if (!myLocation.value?.suburb) return ''
+  return [myLocation.value.suburb, myLocation.value.stateRegion].filter(Boolean).join(', ')
+})
+
+// Without Mapbox there are no suggestions to pick, so keep the text box open
+const showLocationInput = computed(() => !myLocation.value || isEditingLocation.value || !isAddressLookupEnabled)
+
+function applyLocation(address) {
+  myLocation.value = {
+    label: address.label || [address.addressLine, mySuburbLabel.value].filter(Boolean).join(', '),
+    suburb: address.suburb,
+    stateRegion: address.stateRegion,
+    latitude: address.latitude,
+    longitude: address.longitude,
+  }
+  if (!myLocation.value.suburb) onlyMySuburb.value = false
+  locationQuery.value = ''
+  isEditingLocation.value = false
+}
+
+function changeLocation() {
+  locationQuery.value = ''
+  isEditingLocation.value = true
+}
+
+function cancelLocationChange() {
+  locationQuery.value = ''
+  isEditingLocation.value = false
+}
+
+function clearLocation() {
+  locationQuery.value = ''
+  myLocation.value = null
+  onlyMySuburb.value = false
+  isEditingLocation.value = false
+}
+
+// Without Mapbox, the typed text can only be used as a suburb name (no distances)
+watch(locationQuery, query => {
+  if (isAddressLookupEnabled) return
+  clearTimeout(locationTimer)
+  locationTimer = setTimeout(() => {
+    myLocation.value = query.trim() ? { label: query.trim(), suburb: query.trim(), stateRegion: '' } : null
+    onlyMySuburb.value = Boolean(myLocation.value)
+  }, 300)
+})
+
 function resetFilters() {
   filterCategory.value = ''
   searchKeyword.value = ''
   activeTagIds.value = []
+  onlyMySuburb.value = false
 }
 
 const hasActiveFilters = computed(() => {
   return (
     filterCategory.value !== '' ||
     searchKeyword.value.trim() !== '' ||
-    activeTagIds.value.length > 0
+    activeTagIds.value.length > 0 ||
+    onlyMySuburb.value
   )
 })
 
@@ -237,7 +333,7 @@ function applyFilters() {
   else currentPage.value = 1
 }
 
-watch([filterCategory, activeTagIds], applyFilters, { deep: true })
+watch([filterCategory, activeTagIds, myLocation, onlyMySuburb], applyFilters, { deep: true })
 
 // Wait for the user to stop typing before searching
 watch(searchKeyword, () => {
@@ -274,7 +370,38 @@ defineExpose({ reload: loadListings })
   margin-bottom: 22px;
   align-items: center;
 }
-.filter-bar select, .filter-bar input[type=text] {
+.location-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.lb-label { font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.lb-address { font-size: 13.5px; color: var(--text); }
+.lb-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.location-search { flex: 1; min-width: 260px; }
+.location-bar :deep(.address-autocomplete input) {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+.lc-distance { font-weight: 700; color: var(--primary-dark); }
+.filter-bar select, .filter-bar input[type=text], .filter-bar :deep(.address-autocomplete input) {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);

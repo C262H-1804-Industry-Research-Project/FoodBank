@@ -17,5 +17,7 @@ public record ListingResponse(
         TimeSlot[] timeslots,
         String donorName,
         String suburb,
-        String region
+        String region,
+        // Kilometres from the recipient's location; null when no location was given or the address has no coordinates
+        Double distanceKm
 ){ }

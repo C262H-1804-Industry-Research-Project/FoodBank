@@ -5,6 +5,7 @@
       type="text"
       :placeholder="placeholder"
       :required="required"
+      :aria-label="ariaLabel || undefined"
       autocomplete="off"
       role="combobox"
       aria-autocomplete="list"
@@ -34,8 +35,10 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { retrieveAddress, suggestAddresses } from '../api/mapbox'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: String, default: '' },
+  types: { type: String, default: 'address' },
+  ariaLabel: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   required: { type: Boolean, default: false },
 })
@@ -79,7 +82,7 @@ async function loadSuggestions(query) {
   controller = new AbortController()
   const { signal } = controller
   try {
-    const results = await suggestAddresses(query, sessionToken, signal)
+    const results = await suggestAddresses(query, sessionToken, signal, props.types)
     if (signal.aborted) return
     suggestions.value = results
     activeIndex.value = -1

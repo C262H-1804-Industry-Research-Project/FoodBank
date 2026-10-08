@@ -16,13 +16,14 @@ async function mapboxRequest(path, params, signal) {
   return response.json()
 }
 
-export async function suggestAddresses(query, sessionToken, signal) {
+// `types` limits results, e.g. "address" or "address,locality,place,postcode"
+export async function suggestAddresses(query, sessionToken, signal, types = 'address') {
   if (!isAddressLookupEnabled) return []
   const result = await mapboxRequest('/suggest', {
     q: query.slice(0, 256),
     session_token: sessionToken,
     country: 'au',
-    types: 'address',
+    types,
     language: 'en',
     limit: '5',
     proximity: 'ip',
@@ -31,11 +32,15 @@ export async function suggestAddresses(query, sessionToken, signal) {
 }
 
 // Turn Mapbox's address context into the listing's street / suburb / state fields
-export function toPickupAddress(name, context = {}) {
+// For a suburb or city result, the suburb is the feature itself rather than part of its context
+const suburbFeatureTypes = ['locality', 'place', 'neighborhood']
+
+export function toPickupAddress(name, context = {}, featureType = 'address') {
   const regionCode = context.region?.region_code || ''
   return {
     addressLine: context.address?.name || name || '',
-    suburb: context.locality?.name || context.place?.name || '',
+    suburb: (suburbFeatureTypes.includes(featureType) ? name : '')
+      || context.locality?.name || context.place?.name || '',
     stateRegion: regionCode.replace(/^AU-/i, '').toUpperCase(),
     postcode: context.postcode?.name || '',
   }
@@ -45,7 +50,22 @@ export async function retrieveAddress(suggestion, sessionToken, signal) {
   const result = await mapboxRequest(`/retrieve/${encodeURIComponent(suggestion.mapbox_id)}`, {
     session_token: sessionToken,
   }, signal)
-  const properties = result?.features?.[0]?.properties
-  if (!properties) return toPickupAddress(suggestion.name, suggestion.context)
-  return toPickupAddress(properties.name, properties.context)
+  const feature = result?.features?.[0]
+  const properties = feature?.properties
+  if (!properties) {
+    return {
+      ...toPickupAddress(suggestion.name, suggestion.context, suggestion.feature_type),
+      label: suggestion.full_address || suggestion.name || '',
+      latitude: null,
+      longitude: null,
+    }
+  }
+  // GeoJSON coordinates are [longitude, latitude]
+  const [longitude = null, latitude = null] = feature.geometry?.coordinates || []
+  return {
+    ...toPickupAddress(properties.name, properties.context, properties.feature_type),
+    label: properties.full_address || properties.name || '',
+    latitude: properties.coordinates?.latitude ?? latitude,
+    longitude: properties.coordinates?.longitude ?? longitude,
+  }
 }

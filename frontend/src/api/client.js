@@ -78,11 +78,20 @@ export function logout() {
 }
 
 // Fetch one page of live listings. `page` is zero-based, matching Spring's PageRequest.
-export async function getListingsPage({ page = 0, size = 6, foodName, categoryId, tagIds = [] } = {}, signal) {
+export async function getListingsPage({
+  page = 0, size = 6, foodName, categoryId, tagIds = [], suburb, region, latitude, longitude,
+} = {}, signal) {
   const params = new URLSearchParams({ page: String(page), size: String(size) })
   if (foodName?.trim()) params.set('foodName', foodName.trim())
   if (categoryId != null && categoryId !== '') params.set('categoryId', String(categoryId))
   tagIds.forEach(tagId => params.append('tagIds', String(tagId)))
+  if (suburb?.trim()) params.set('suburb', suburb.trim())
+  if (region?.trim()) params.set('region', region.trim())
+  // With a location, the backend sorts nearest-first and returns each listing's distanceKm
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    params.set('latitude', String(latitude))
+    params.set('longitude', String(longitude))
+  }
 
   const result = await apiRequest(`/listings?${params}`, { signal })
   if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
