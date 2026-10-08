@@ -212,6 +212,50 @@ paths:
                 $ref: '#/components/schemas/LoginResponse'
         '401':
           description: Invalid email or password
+  /api/requests:
+    post:
+      tags: [recipient-request]
+      summary: Submit a pickup request for a timeslot as the signed-in recipient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestSubmission'
+      responses:
+        '201':
+          description: Request created (PENDING, or APPROVED if the listing auto-approves)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+        '400':
+          description: Missing fields, non-positive quantity, note too long, or daily limit exceeded
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+        '404':
+          description: Timeslot not found
+        '409':
+          description: Listing not live, timeslot fully booked, or recipient already requested this timeslot
+    get:
+      tags: [recipient-request]
+      summary: Get the signed-in recipient's pickup requests
+      description: The recipient is identified from the bearer token.
+      responses:
+        '200':
+          description: Recipient's requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequestResponse'
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
 
 
 
@@ -271,6 +315,7 @@ components:
     TimeSlot:
       type: object
       properties:
+        timeslotId: { type: integer }
         startTime: { type: string }
         endTime: { type: string }
         remainingSlot: { type: integer }
@@ -337,6 +382,31 @@ components:
         listingId: { type: integer }
         donorId: { type: integer }
         status: { type: string, example: AVAILABLE }
+    RequestSubmission:
+      type: object
+      description: The recipient is taken from the bearer token, not the body.
+      required: [timeslotId, quantityRequested]
+      properties:
+        timeslotId: { type: integer }
+        quantityRequested: { type: number, format: float, minimum: 0, exclusiveMinimum: true, example: 2 }
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional message to the donor. Trimmed; blank is stored as null.
+          example: Will arrive a bit late
+    RequestResponse:
+      type: object
+      properties:
+        requestId: { type: integer }
+        recipientName: { type: string }
+        listingName: { type: string }
+        timeslotStart: { type: string }
+        timeslotEnd: { type: string }
+        quantityRequested: { type: number, format: float }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        pickupCode: { type: string, nullable: true }
+        note: { type: string, nullable: true }
     CatalogueItemResponse:
       type: object
       required: [id, name]

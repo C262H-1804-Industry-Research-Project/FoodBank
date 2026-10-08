@@ -8,5 +8,6 @@ public record RequestResponse(
         String timeslotEnd,
         Float quantityRequested,
         String status,
-        String pickupCode
+        String pickupCode,
+        String note
 ) {}

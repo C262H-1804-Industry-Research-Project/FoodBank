@@ -156,6 +156,7 @@ public class ListingService {
                         .toArray(String[]::new),
                 timeslotRepository.findByListing(listing).stream()
                         .map(timeslot -> new TimeSlot(
+                                timeslot.getTimeslotId(),
                                 timeslot.getStartTime().toString(),
                                 timeslot.getEndTime().toString(),
                                 timeslot.getRemainingSlot(),
@@ -191,6 +192,7 @@ public class ListingService {
                         .toArray(String[]::new),
                 timeslotRepository.findByListing(listing).stream()
                         .map(timeslot -> new TimeSlot(
+                                timeslot.getTimeslotId(),
                                 timeslot.getStartTime().toString(),
                                 timeslot.getEndTime().toString(),
                                 timeslot.getRemainingSlot(),
