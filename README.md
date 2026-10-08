@@ -123,6 +123,8 @@ Vite proxies `/api` requests to `http://localhost:8080`. To use another API serv
 | `frontend/` | `npm run dev` | Start the Vite development server |
 | `frontend/` | `npm run build` | Create a production frontend build |
 | `frontend/` | `npm run preview` | Preview the production build |
+| `frontend/` | `npm test` | Run frontend tests once (Vitest; API and Mapbox are mocked) |
+| `frontend/` | `npm run test:watch` | Re-run frontend tests on every change |
 | `backend/webapp/` | `mvn compile` | Compile the API |
 | `backend/webapp/` | `mvn test` | Run backend tests (uses an in-memory database; no MySQL or environment variables needed) |
 | `backend/webapp/` | `mvn spring-boot:run` | Start the API |
@@ -145,8 +147,8 @@ For the complete request and response contract, see [`api/openapi.yaml`](api/ope
 From the repository root, validate the current frontend and backend changes with:
 
 ```bash
-(cd frontend && npm run build)
-(cd backend/webapp && mvn compile)
+(cd frontend && npm test && npm run build)
+(cd backend/webapp && mvn test)
 ```
 
 ## Project status

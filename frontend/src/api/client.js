@@ -108,7 +108,6 @@ export async function getListingsPage({
 
   const result = await apiRequest(`/listings?${params}`, { signal })
 
-  console.log('result', result)
   if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
       || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid listings response from the API.')
   return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }

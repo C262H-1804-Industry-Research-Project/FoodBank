@@ -28,13 +28,16 @@ public class GeocodingService {
     private final String accessToken;
     private final RestClient restClient;
 
-    public GeocodingService(@Value("${mapbox.access-token:}") String accessToken) {
+    public GeocodingService(
+            @Value("${mapbox.access-token:}") String accessToken,
+            // Overridable so tests can point lookups at a local fake server
+            @Value("${mapbox.base-url:https://api.mapbox.com/search/searchbox/v1}") String baseUrl) {
         this.accessToken = accessToken == null ? "" : accessToken.trim();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
         this.restClient = RestClient.builder()
-                .baseUrl("https://api.mapbox.com/search/searchbox/v1")
+                .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
                 .build();
     }
