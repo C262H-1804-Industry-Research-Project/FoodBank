@@ -99,7 +99,7 @@
             </div>
 
             <div class="lc-meta">
-              📍 {{ item.suburb }}, {{ item.stateRegion }}<span v-if="item.distanceKm != null" class="lc-distance"> · {{ formatDistance(item.distanceKm) }}</span><br>
+              📍 {{ item.suburb }}, {{ item.stateRegion }}<span v-if="item.distanceKm != null" class="lc-distance"> · ~ {{ formatDistance(item.distanceKm) }}</span><br>
               🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}
             </div>
 
@@ -164,7 +164,9 @@
 <script setup>
 
 import { onBeforeUnmount, onMounted, ref, computed, watch } from 'vue'
-import { getListingCatalogue, getListingsPage } from '../../api/client'
+import {
+  clearMyLocation, getListingCatalogue, getListingsPage, getMyLocation, getStoredSession, saveMyLocation,
+} from '../../api/client'
 import { formatDistance, toListingCard } from '../../api/listingAdapter'
 import { isAddressLookupEnabled } from '../../api/mapbox'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
@@ -234,9 +236,40 @@ async function loadListings() {
   }
 }
 
+// Only a signed-in recipient has a saved location
+const canSaveLocation = getStoredSession()?.user?.role === 'recipient'
+
+function locationLabel({ addressLine, suburb, stateRegion }) {
+  const area = [suburb, stateRegion].filter(Boolean).join(', ')
+  // For a suburb-only location the address line is just the suburb name
+  if (!addressLine || addressLine.toLowerCase() === suburb?.toLowerCase()) return area
+  return [addressLine, area].filter(Boolean).join(', ')
+}
+
+// Restore the location the recipient entered last time; returns true if one was set
+async function restoreSavedLocation() {
+  if (!canSaveLocation) return false
+  try {
+    const saved = await getMyLocation()
+    if (!saved) return false
+    const location = { addressLine: saved.addressLine, suburb: saved.suburb, stateRegion: saved.region }
+    myLocation.value = {
+      ...location,
+      label: locationLabel(location),
+      latitude: saved.latitude ?? undefined,
+      longitude: saved.longitude ?? undefined,
+    }
+    return true
+  } catch (error) {
+    console.warn('Unable to load saved location:', error.message)
+    return false
+  }
+}
+
 // Load categories and tags on mount 
 onMounted(async () => {
-  loadListings()
+  // Setting a restored location reloads the listings through the watcher below
+  restoreSavedLocation().then(restored => { if (!restored) loadListings() })
   try {
     const catalogue = await getListingCatalogue()
     categories.value = catalogue.categories
@@ -274,6 +307,7 @@ const showLocationInput = computed(() => !myLocation.value || isEditingLocation.
 function applyLocation(address) {
   myLocation.value = {
     label: address.label || [address.addressLine, mySuburbLabel.value].filter(Boolean).join(', '),
+    addressLine: address.addressLine,
     suburb: address.suburb,
     stateRegion: address.stateRegion,
     latitude: address.latitude,
@@ -282,6 +316,15 @@ function applyLocation(address) {
   if (!myLocation.value.suburb) onlyMySuburb.value = false
   locationQuery.value = ''
   isEditingLocation.value = false
+  if (canSaveLocation) {
+    saveMyLocation({
+      addressLine: address.addressLine,
+      suburb: address.suburb,
+      region: address.stateRegion,
+      latitude: Number.isFinite(address.latitude) ? address.latitude : null,
+      longitude: Number.isFinite(address.longitude) ? address.longitude : null,
+    }).catch(error => console.warn('Unable to save location:', error.message))
+  }
 }
 
 function changeLocation() {
@@ -299,6 +342,9 @@ function clearLocation() {
   myLocation.value = null
   onlyMySuburb.value = false
   isEditingLocation.value = false
+  if (canSaveLocation) {
+    clearMyLocation().catch(error => console.warn('Unable to clear saved location:', error.message))
+  }
 }
 
 // Without Mapbox, the typed text can only be used as a suburb name (no distances)
@@ -400,7 +446,7 @@ defineExpose({ reload: loadListings })
   border-radius: var(--r-sm);
   font-size: 13px;
 }
-.lc-distance { font-weight: 700; color: var(--primary-dark); }
+.lc-distance { font-weight: 500;}
 .filter-bar select, .filter-bar input[type=text], .filter-bar :deep(.address-autocomplete input) {
   padding: 8px 10px;
   border: 1px solid var(--border);

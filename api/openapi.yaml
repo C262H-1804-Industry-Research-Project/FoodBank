@@ -47,7 +47,9 @@ paths:
         - name: longitude
           in: query
           schema: { type: number, minimum: -180, maximum: 180 }
-          description: The recipient's longitude. Must be sent with latitude.
+          description: >-
+            The recipient's longitude. Must be sent with latitude. If both are omitted and the
+            caller is a signed-in recipient, their saved location (/api/recipients/me/location) is used.
         - name: page
           in: query
           schema: { type: integer, default: 0, minimum: 0 }
@@ -212,6 +214,58 @@ paths:
                 $ref: '#/components/schemas/LoginResponse'
         '401':
           description: Invalid email or password
+  /api/recipients/me/location:
+    get:
+      tags: [recipient-location]
+      summary: Get the signed-in recipient's saved location
+      responses:
+        '200':
+          description: Saved location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipientLocation'
+        '204':
+          description: No location saved
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+    put:
+      tags: [recipient-location]
+      summary: Save the signed-in recipient's location
+      description: >-
+        Used to show distance to listings. If latitude/longitude are omitted the server tries
+        to geocode the address; they stay null if that fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipientLocation'
+      responses:
+        '200':
+          description: Location saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipientLocation'
+        '400':
+          description: No addressLine or suburb, only one coordinate, or coordinates out of range
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+    delete:
+      tags: [recipient-location]
+      summary: Clear the signed-in recipient's saved location
+      responses:
+        '204':
+          description: Location cleared
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
   /api/requests:
     post:
       tags: [recipient-request]
@@ -382,6 +436,15 @@ components:
         listingId: { type: integer }
         donorId: { type: integer }
         status: { type: string, example: AVAILABLE }
+    RecipientLocation:
+      type: object
+      description: At least one of addressLine or suburb is required.
+      properties:
+        addressLine: { type: string, nullable: true, example: 1 King William St }
+        suburb: { type: string, nullable: true, example: Adelaide }
+        region: { type: string, nullable: true, example: SA }
+        latitude: { type: number, nullable: true, minimum: -90, maximum: 90, example: -34.9285 }
+        longitude: { type: number, nullable: true, minimum: -180, maximum: 180, example: 138.6007 }
     RequestSubmission:
       type: object
       description: The recipient is taken from the bearer token, not the body.

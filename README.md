@@ -63,14 +63,37 @@ export SPRING_DATASOURCE_PASSWORD='your-password'
 
 > **Note:** the development configuration uses `spring.jpa.hibernate.ddl-auto=create`, which recreates the schema when the backend starts. Do not use this setting with data you need to keep.
 
-### 2. Configure JWT signing
+### 2. Configure environment variables
 
-The backend requires a base64-encoded JWT secret of at least 32 bytes:
+| Variable | Used by | Required | Purpose |
+| --- | --- | --- | --- |
+| `JWT_SECRET` | Backend | **Yes** — the API will not start without it | Base64-encoded key (at least 32 bytes) for signing login tokens |
+| `MAPBOX_ACCESS_TOKEN` | Backend | For distances | Looks up coordinates for listing pickup addresses. Without it, listings are saved without coordinates and `distanceKm` is always `null` |
+| `JWT_EXPIRATION_MS` | Backend | No (default `3600000`, 1 hour) | Login token lifetime |
+| `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Backend | No | Override the MySQL connection (see step 1) |
+| `VITE_MAPBOX_TOKEN` | Frontend | For address autocomplete | Public Mapbox token (`pk.…`) for the address search boxes. Without it, the location box on the browse page only filters by suburb name |
+| `API_PROXY_TARGET`, `VITE_API_BASE_URL` | Frontend | No | Point the frontend at a different API server (see step 4) |
+
+Backend variables must be set in the environment that starts the API:
 
 ```bash
+# Generate a secret once, e.g.: openssl rand -base64 48
 export JWT_SECRET='replace-with-a-base64-encoded-secret'
-export JWT_EXPIRATION_MS=3600000
+export MAPBOX_ACCESS_TOKEN='pk.your-mapbox-token'
 ```
+
+If you run the backend from IntelliJ, add these under **Run → Edit Configurations → WebappApplication → Environment variables** instead; IntelliJ does not read your shell's `export`s.
+
+Frontend variables go in `frontend/.env.local` (git-ignored); copy `frontend/.env.example` to get started:
+
+```bash
+cp frontend/.env.example frontend/.env.local
+# then set VITE_MAPBOX_TOKEN=pk.your-mapbox-token
+```
+
+The same public Mapbox token can be used for both `MAPBOX_ACCESS_TOKEN` and `VITE_MAPBOX_TOKEN`. Create one at <https://account.mapbox.com/access-tokens/>.
+
+> **Distances not showing?** Check that the backend was started with `MAPBOX_ACCESS_TOKEN`. On startup without it, the log shows `mapbox.access-token is not set; listing distances are disabled.` Listings created while it was missing have no coordinates. Restart with the token set and recreate them (the development `ddl-auto=create` setting wipes data on restart; with a persistent schema, existing listings are filled in automatically at startup).
 
 ### 3. Start the backend
 
@@ -101,7 +124,7 @@ Vite proxies `/api` requests to `http://localhost:8080`. To use another API serv
 | `frontend/` | `npm run build` | Create a production frontend build |
 | `frontend/` | `npm run preview` | Preview the production build |
 | `backend/webapp/` | `mvn compile` | Compile the API |
-| `backend/webapp/` | `mvn test` | Run backend tests |
+| `backend/webapp/` | `mvn test` | Run backend tests (uses an in-memory database; no MySQL or environment variables needed) |
 | `backend/webapp/` | `mvn spring-boot:run` | Start the API |
 
 ## API overview

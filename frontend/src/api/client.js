@@ -77,6 +77,19 @@ export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' })
 }
 
+// The signed-in recipient's saved location, used to show distance to listings (null if none saved)
+export function getMyLocation(signal) {
+  return apiRequest('/recipients/me/location', { signal })
+}
+
+export function saveMyLocation(location) {
+  return apiRequest('/recipients/me/location', { method: 'PUT', body: location })
+}
+
+export function clearMyLocation() {
+  return apiRequest('/recipients/me/location', { method: 'DELETE' })
+}
+
 // Fetch one page of live listings. `page` is zero-based, matching Spring's PageRequest.
 export async function getListingsPage({
   page = 0, size = 6, foodName, categoryId, tagIds = [], suburb, region, latitude, longitude,
@@ -94,6 +107,8 @@ export async function getListingsPage({
   }
 
   const result = await apiRequest(`/listings?${params}`, { signal })
+
+  console.log('result', result)
   if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
       || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid listings response from the API.')
   return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }

@@ -4,11 +4,13 @@ import foodbank.webapp.dto.ListingResponse;
 import foodbank.webapp.dto.CatalogueItemResponse;
 import foodbank.webapp.service.GeocodingService;
 import foodbank.webapp.service.ListingService;
+import foodbank.webapp.service.RecipientLocationService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PagedModel;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,6 +25,7 @@ import java.util.List;
 public class ListingController {
 
     private final ListingService listingService;
+    private final RecipientLocationService recipientLocationService;
 
     @GetMapping
     public PagedModel<ListingResponse> getListings(
@@ -34,7 +37,8 @@ public class ListingController {
             @RequestParam(required = false) String suburb,
             @RequestParam(required = false) String region,
             @RequestParam(required = false) Double latitude,
-            @RequestParam(required = false) Double longitude
+            @RequestParam(required = false) Double longitude,
+            Authentication authentication
     ) {
         Pageable pageable = PageRequest.of(page, size);
         if ((latitude == null) != (longitude == null)) {
@@ -46,9 +50,19 @@ public class ListingController {
                 throw new IllegalArgumentException("latitude or longitude is out of range");
             }
             origin = new GeocodingService.Coordinates(latitude, longitude);
+        } else if (isRecipient(authentication)) {
+            // No location given: use the one the signed-in recipient saved, if any
+            origin = recipientLocationService
+                    .findSavedCoordinates(Integer.valueOf(authentication.getName()))
+                    .orElse(null);
         }
 
         return new PagedModel<>(listingService.searchListingResponses(foodName, categoryId, tagIds, suburb, region, origin, pageable));
+    }
+
+    private static boolean isRecipient(Authentication authentication) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_RECIPIENT".equals(authority.getAuthority()));
     }
 
     @GetMapping("/categories")
