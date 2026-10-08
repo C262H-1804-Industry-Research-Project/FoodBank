@@ -103,6 +103,11 @@ public class SecurityConfig {
                                 "RECIPIENT"
                         )
 
+                        // Pickup requests are made and viewed by recipients.
+                        .requestMatchers(
+                                "/api/requests"
+                        ).hasRole("RECIPIENT")
+
                         // suggestions for searching
                         .requestMatchers("/api/suggestions/*").permitAll()
 

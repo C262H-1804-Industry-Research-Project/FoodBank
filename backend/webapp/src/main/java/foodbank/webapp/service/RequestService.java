@@ -7,6 +7,7 @@ import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
 import foodbank.webapp.exceptions.ConflictException;
+import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
@@ -62,9 +63,9 @@ public class RequestService {
     }
 
     @Transactional
-    public RequestResponse createRequest(RequestSubmission req) {
-        if (req.timeslotId() == null || req.recipientId() == null) {
-            throw new IllegalArgumentException("timeslotId and recipientId are required");
+    public RequestResponse createRequest(RequestSubmission req, Integer userId) {
+        if (req.timeslotId() == null) {
+            throw new IllegalArgumentException("timeslotId is required");
         }
         if (req.quantityRequested() == null || req.quantityRequested() <= 0) {
             throw new IllegalArgumentException("quantityRequested must be greater than zero");
@@ -77,8 +78,8 @@ public class RequestService {
         Timeslot timeslot = timeslotRepository.findById(req.timeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
 
-        Recipient recipient = recipientRepository.findById(req.recipientId())
-                .orElseThrow(() -> new NoSuchElementException("Recipient not found"));
+        Recipient recipient = findRecipientForUser(userId);
+        Integer recipientId = recipient.getRecipientId();
 
         Listing listing = timeslot.getListing();
 
@@ -91,7 +92,7 @@ public class RequestService {
         }
 
         boolean alreadyRequested = requestRepository.existsByTimeslotIdAndRecipientId(
-                req.timeslotId(), req.recipientId());
+                req.timeslotId(), recipientId);
         if (alreadyRequested) {
             throw new ConflictException("You have already submitted a request for this timeslot");
         }
@@ -103,7 +104,7 @@ public class RequestService {
         Integer listingLimit = listing.getMaxDailyCapacity();
         if (listingLimit != null) {
             Double usedForListing = requestRepository.sumActiveQuantityForListing(
-                    req.recipientId(), listing.getListingId(), dayStart, dayEnd);
+                    recipientId, listing.getListingId(), dayStart, dayEnd);
             double totalForListing = (usedForListing == null ? 0 : usedForListing) + req.quantityRequested();
             if (totalForListing > listingLimit) {
                 throw new IllegalArgumentException(
@@ -114,7 +115,7 @@ public class RequestService {
         Integer personalLimit = recipient.getClaimLimit();
         if (personalLimit != null) {
             Double usedForDay = requestRepository.sumActiveQuantityForDay(
-                    req.recipientId(), dayStart, dayEnd);
+                    recipientId, dayStart, dayEnd);
             double totalForDay = (usedForDay == null ? 0 : usedForDay) + req.quantityRequested();
             if (totalForDay > personalLimit) {
                 throw new IllegalArgumentException(
@@ -127,7 +128,7 @@ public class RequestService {
 
         Request request = Request.builder()
                 .timeslotId(req.timeslotId())
-                .recipientId(req.recipientId())
+                .recipientId(recipientId)
                 .quantityRequested(req.quantityRequested())
                 .status(autoApproved ? "APPROVED" : "PENDING")
                 .pickupCode(autoApproved && needsPickupCode ? generatePickupCode() : null)
@@ -146,10 +147,16 @@ public class RequestService {
         return String.format("%06d", new Random().nextInt(999999));
     }
 
-    public List<RequestResponse> getMyRequests(Integer recipientId) {
+    public List<RequestResponse> getMyRequests(Integer userId) {
+        Integer recipientId = findRecipientForUser(userId).getRecipientId();
         return requestRepository.findByRecipientId(recipientId).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    private Recipient findRecipientForUser(Integer userId) {
+        return recipientRepository.findByUserId(userId)
+                .orElseThrow(() -> new ForbiddenException("Recipient profile does not exist"));
     }
 
     private RequestResponse toResponse(Request request) {

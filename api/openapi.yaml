@@ -197,7 +197,7 @@ paths:
   /api/requests:
     post:
       tags: [recipient-request]
-      summary: Submit a pickup request for a timeslot
+      summary: Submit a pickup request for a timeslot as the signed-in recipient
       requestBody:
         required: true
         content:
@@ -213,18 +213,18 @@ paths:
                 $ref: '#/components/schemas/RequestResponse'
         '400':
           description: Missing fields, non-positive quantity, note too long, or daily limit exceeded
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
         '404':
-          description: Timeslot or recipient not found
+          description: Timeslot not found
         '409':
           description: Listing not live, timeslot fully booked, or recipient already requested this timeslot
     get:
       tags: [recipient-request]
-      summary: Get a recipient's pickup requests
-      parameters:
-        - name: recipientId
-          in: query
-          required: true
-          schema: { type: integer }
+      summary: Get the signed-in recipient's pickup requests
+      description: The recipient is identified from the bearer token.
       responses:
         '200':
           description: Recipient's requests
@@ -234,6 +234,10 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/RequestResponse'
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
 
 
 
@@ -362,10 +366,10 @@ components:
         status: { type: string, example: AVAILABLE }
     RequestSubmission:
       type: object
-      required: [timeslotId, recipientId, quantityRequested]
+      description: The recipient is taken from the bearer token, not the body.
+      required: [timeslotId, quantityRequested]
       properties:
         timeslotId: { type: integer }
-        recipientId: { type: integer }
         quantityRequested: { type: number, format: float, minimum: 0, exclusiveMinimum: true, example: 2 }
         note:
           type: string
