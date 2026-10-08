@@ -30,4 +30,10 @@ public class RecipientRequestController {
     public List<RequestResponse> getMyRequests(Authentication authentication) {
         return requestService.getMyRequests(Integer.valueOf(authentication.getName()));
     }
+
+    @DeleteMapping("/{requestId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelRequest(@PathVariable Integer requestId, Authentication authentication) {
+        requestService.cancelRequest(requestId, Integer.valueOf(authentication.getName()));
+    }
 }
