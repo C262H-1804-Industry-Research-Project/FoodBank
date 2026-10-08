@@ -293,6 +293,7 @@ components:
     TimeSlot:
       type: object
       properties:
+        timeslotId: { type: integer }
         startTime: { type: string }
         endTime: { type: string }
         remainingSlot: { type: integer }
