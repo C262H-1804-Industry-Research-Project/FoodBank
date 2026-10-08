@@ -56,8 +56,7 @@ public class ListingService {
             String foodName,
             Integer categoryId,
             List<Integer> tagIds,
-            String suburb,
-            String region,
+            List<String> suburbs,
             GeocodingService.Coordinates origin,
             Pageable pageable
     ) {
@@ -86,20 +85,38 @@ public class ListingService {
                 return builder.exists(matchingTag);
             });
         }
-        if (suburb != null && !suburb.isBlank()) {
-            String normalisedSuburb = suburb.trim().toLowerCase();
-            specification = specification.and((root, query, builder) ->
-                    builder.equal(builder.lower(builder.trim(root.get("suburb"))), normalisedSuburb));
-        }
-        if (region != null && !region.isBlank()) {
-            String normalisedRegion = region.trim().toLowerCase();
-            specification = specification.and((root, query, builder) ->
-                    builder.equal(builder.lower(builder.trim(root.get("region"))), normalisedRegion));
+        if (suburbs != null && !suburbs.isEmpty()) {
+            specification = specification.and(inAnySuburb(suburbs));
         }
         if (origin != null) {
             specification = specification.and(nearestFirst(origin));
         }
         return listingRepository.findAll(specification, pageable).map(listing -> toListingResponse(listing, origin));
+    }
+
+    /**
+     * Matches listings in any of the given suburbs. Each entry is "Suburb|REGION", or just "Suburb"
+     * to match that suburb name in any region. Comparison ignores case and surrounding spaces.
+     */
+    private Specification<Listing> inAnySuburb(List<String> suburbs) {
+        return (root, query, builder) -> {
+            var listingSuburb = builder.lower(builder.trim(root.<String>get("suburb")));
+            var listingRegion = builder.lower(builder.trim(root.<String>get("region")));
+            var matches = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            for (String entry : suburbs) {
+                if (entry == null || entry.isBlank()) continue;
+                String[] parts = entry.split("\\|", 2);
+                String suburb = parts[0].trim().toLowerCase();
+                String region = parts.length > 1 ? parts[1].trim().toLowerCase() : "";
+                if (suburb.isEmpty()) continue;
+                matches.add(region.isEmpty()
+                        ? builder.equal(listingSuburb, suburb)
+                        : builder.and(builder.equal(listingSuburb, suburb), builder.equal(listingRegion, region)));
+            }
+            return matches.isEmpty()
+                    ? builder.conjunction()
+                    : builder.or(matches.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
     }
 
     /**

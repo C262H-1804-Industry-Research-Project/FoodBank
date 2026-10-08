@@ -30,14 +30,16 @@ paths:
             type: array
             items: { type: integer }
           description: Repeated tag ID parameter. A listing with any selected tag matches.
-        - name: suburb
+        - name: suburbs
           in: query
-          schema: { type: string }
-          description: Case-insensitive exact match against the pickup suburb.
-        - name: region
-          in: query
-          schema: { type: string }
-          description: Case-insensitive exact match against the pickup state code, e.g. SA.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, example: Glenelg|SA }
+          description: >-
+            Repeated suburb parameter, each "Suburb|STATE" (or just "Suburb" to match any state).
+            Case-insensitive. A listing in any selected suburb matches.
         - name: latitude
           in: query
           schema: { type: number, minimum: -90, maximum: 90 }

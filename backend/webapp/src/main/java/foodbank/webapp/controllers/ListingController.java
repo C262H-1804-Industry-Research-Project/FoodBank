@@ -34,8 +34,7 @@ public class ListingController {
             @RequestParam(required = false) String foodName,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) List<Integer> tagIds,
-            @RequestParam(required = false) String suburb,
-            @RequestParam(required = false) String region,
+            @RequestParam(required = false) List<String> suburbs,
             @RequestParam(required = false) Double latitude,
             @RequestParam(required = false) Double longitude,
             Authentication authentication
@@ -57,7 +56,7 @@ public class ListingController {
                     .orElse(null);
         }
 
-        return new PagedModel<>(listingService.searchListingResponses(foodName, categoryId, tagIds, suburb, region, origin, pageable));
+        return new PagedModel<>(listingService.searchListingResponses(foodName, categoryId, tagIds, suburbs, origin, pageable));
     }
 
     private static boolean isRecipient(Authentication authentication) {

@@ -1,7 +1,7 @@
 <template>
   <section class="panel-section">
     <!-- Recipient's location: listings are sorted and labelled by distance from here -->
-    <div class="location-bar">
+    <div v-if="isAddressLookupEnabled" class="location-bar">
       <template v-if="showLocationInput">
         <span class="lb-label">📍 Your location</span>
         <AddressAutocomplete
@@ -52,17 +52,8 @@
         </span>
       </div>
 
-      <!-- Optionally limit results to the recipient's own suburb -->
-      <button
-        v-if="mySuburbLabel"
-        type="button"
-        class="chip"
-        :class="{ active: onlyMySuburb }"
-        :aria-pressed="onlyMySuburb"
-        @click="onlyMySuburb = !onlyMySuburb"
-      >
-        Only in {{ mySuburbLabel }}
-      </button>
+      <!-- Limit results to the selected suburbs -->
+      <SuburbPicker v-model="selectedSuburbs" />
 
       <button 
         v-if="hasActiveFilters" 
@@ -170,6 +161,7 @@ import {
 import { formatDistance, toListingCard } from '../../api/listingAdapter'
 import { isAddressLookupEnabled } from '../../api/mapbox'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
+import SuburbPicker from '../../components/SuburbPicker.vue'
 
 const emit = defineEmits(['request'])
 
@@ -180,7 +172,7 @@ const activeTagIds = ref([])
 const locationQuery = ref('')
 const myLocation = ref(null) // { label, suburb, stateRegion, latitude, longitude }
 const isEditingLocation = ref(false)
-const onlyMySuburb = ref(false)
+const selectedSuburbs = ref([]) // [{ suburb, region }]
 const isLoadingCatalogue = ref(true)
 const catalogueError = ref('')
 const categories = ref([])
@@ -196,7 +188,6 @@ const currentPage = ref(1)
 const pageSize = 6
 let listingsController = null
 let searchTimer = null
-let locationTimer = null
 
 async function loadListings() {
   listingsController?.abort()
@@ -211,8 +202,7 @@ async function loadListings() {
       foodName: searchKeyword.value,
       categoryId: filterCategory.value,
       tagIds: activeTagIds.value,
-      suburb: onlyMySuburb.value ? myLocation.value?.suburb : '',
-      region: onlyMySuburb.value ? myLocation.value?.stateRegion : '',
+      suburbs: selectedSuburbs.value,
       latitude: myLocation.value?.latitude,
       longitude: myLocation.value?.longitude,
     }, controller.signal)
@@ -284,7 +274,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   listingsController?.abort()
   clearTimeout(searchTimer)
-  clearTimeout(locationTimer)
 })
 
 function toggleTag(tag) {
@@ -296,24 +285,17 @@ function toggleTag(tag) {
   }
 }
 
-const mySuburbLabel = computed(() => {
-  if (!myLocation.value?.suburb) return ''
-  return [myLocation.value.suburb, myLocation.value.stateRegion].filter(Boolean).join(', ')
-})
-
-// Without Mapbox there are no suggestions to pick, so keep the text box open
-const showLocationInput = computed(() => !myLocation.value || isEditingLocation.value || !isAddressLookupEnabled)
+const showLocationInput = computed(() => !myLocation.value || isEditingLocation.value)
 
 function applyLocation(address) {
   myLocation.value = {
-    label: address.label || [address.addressLine, mySuburbLabel.value].filter(Boolean).join(', '),
+    label: address.label || locationLabel(address),
     addressLine: address.addressLine,
     suburb: address.suburb,
     stateRegion: address.stateRegion,
     latitude: address.latitude,
     longitude: address.longitude,
   }
-  if (!myLocation.value.suburb) onlyMySuburb.value = false
   locationQuery.value = ''
   isEditingLocation.value = false
   if (canSaveLocation) {
@@ -340,28 +322,17 @@ function cancelLocationChange() {
 function clearLocation() {
   locationQuery.value = ''
   myLocation.value = null
-  onlyMySuburb.value = false
   isEditingLocation.value = false
   if (canSaveLocation) {
     clearMyLocation().catch(error => console.warn('Unable to clear saved location:', error.message))
   }
 }
 
-// Without Mapbox, the typed text can only be used as a suburb name (no distances)
-watch(locationQuery, query => {
-  if (isAddressLookupEnabled) return
-  clearTimeout(locationTimer)
-  locationTimer = setTimeout(() => {
-    myLocation.value = query.trim() ? { label: query.trim(), suburb: query.trim(), stateRegion: '' } : null
-    onlyMySuburb.value = Boolean(myLocation.value)
-  }, 300)
-})
-
 function resetFilters() {
   filterCategory.value = ''
   searchKeyword.value = ''
   activeTagIds.value = []
-  onlyMySuburb.value = false
+  selectedSuburbs.value = []
 }
 
 const hasActiveFilters = computed(() => {
@@ -369,7 +340,7 @@ const hasActiveFilters = computed(() => {
     filterCategory.value !== '' ||
     searchKeyword.value.trim() !== '' ||
     activeTagIds.value.length > 0 ||
-    onlyMySuburb.value
+    selectedSuburbs.value.length > 0
   )
 })
 
@@ -379,7 +350,7 @@ function applyFilters() {
   else currentPage.value = 1
 }
 
-watch([filterCategory, activeTagIds, myLocation, onlyMySuburb], applyFilters, { deep: true })
+watch([filterCategory, activeTagIds, myLocation, selectedSuburbs], applyFilters, { deep: true })
 
 // Wait for the user to stop typing before searching
 watch(searchKeyword, () => {
