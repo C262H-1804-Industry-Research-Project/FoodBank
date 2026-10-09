@@ -27,12 +27,32 @@
       </header>
 
       <main class="app-content">
+        <!-- 1. Browse Donations Panel -->
         <BrowseDonations 
           v-if="currentPanel === 'browse'" 
           :listings="availableListings"
           @request="openRequestModal" 
         />
 
+        <!-- 2. My Requests Panel -->
+        <MyRequests 
+          v-else-if="currentPanel === 'myrequests'"
+          :requests="myRequestsList"
+          @cancel="handleCancelRequest"
+        />
+
+        <!-- 3. Collection History Panel -->
+        <CollectionHistory 
+          v-else-if="currentPanel === 'history'"
+          :history-list="myHistoryList"
+        />
+
+        <!-- 4. Report an Issue Panel -->
+        <ReportIssue 
+          v-else-if="currentPanel === 'report'"
+        />
+
+        <!-- Fallback Placeholder -->
         <section v-else class="placeholder-container">
           <div class="placeholder-card">
             <div class="placeholder-icon">🚧</div>
@@ -95,9 +115,13 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+
 import BrowseDonations from './BrowseDonations.vue'
-import { getAllListings } from '../../api/client'
-import { clearSession, logout } from '../../api/client'
+import MyRequests from './MyRequests.vue'
+import CollectionHistory from './CollectionHistory.vue'
+import ReportIssue from './ReportIssue.vue'
+
+import { getAllListings, clearSession, logout } from '../../api/client'
 import { formatPickupSlot, toListingCard } from '../../api/listingAdapter'
 
 const router = useRouter()
@@ -136,6 +160,7 @@ const availableListings = ref([
     urgencyClass: 'urgent',
     addressLine: '14 Rundle Mall',
     suburb: 'Adelaide',
+    postcode: '5000',
     stateRegion: 'SA',
     pickupWindow: 'Today, 5:30–6:00pm',
     timeType: 'today',
@@ -152,6 +177,7 @@ const availableListings = ref([
     urgencyClass: 'soon',
     addressLine: '82 The Parade',
     suburb: 'Norwood',
+    postcode: '5067',
     stateRegion: 'SA',
     pickupWindow: 'Tomorrow, 9:00–9:30am',
     timeType: 'tomorrow',
@@ -168,6 +194,7 @@ const availableListings = ref([
     urgencyClass: 'ok',
     addressLine: '10 King William St',
     suburb: 'Kent Town',
+    postcode: '5067',
     stateRegion: 'SA',
     pickupWindow: 'Sat, 10:00–10:30am',
     timeType: 'weekend',
@@ -184,6 +211,7 @@ const availableListings = ref([
     urgencyClass: 'urgent',
     addressLine: '45 Unley Rd',
     suburb: 'Unley',
+    postcode: '5061',
     stateRegion: 'SA',
     pickupWindow: 'Today, 4:00–5:00pm',
     timeType: 'today',
@@ -200,6 +228,7 @@ const availableListings = ref([
     urgencyClass: 'urgent',
     addressLine: '120 O\'Connell St',
     suburb: 'North Adelaide',
+    postcode: '5006',
     stateRegion: 'SA',
     pickupWindow: 'Today, 6:00–6:30pm',
     timeType: 'today',
@@ -216,6 +245,7 @@ const availableListings = ref([
     urgencyClass: 'ok',
     addressLine: '3 Mount Barker Rd',
     suburb: 'Stirling',
+    postcode: '5152',
     stateRegion: 'SA',
     pickupWindow: 'Sat, 9:00–11:00am',
     timeType: 'weekend',
@@ -232,6 +262,7 @@ const availableListings = ref([
     urgencyClass: 'soon',
     addressLine: '18 Jetty Rd',
     suburb: 'Glenelg',
+    postcode: '5045',
     stateRegion: 'SA',
     pickupWindow: 'Today, 5:00–5:30pm',
     timeType: 'today',
@@ -241,8 +272,70 @@ const availableListings = ref([
   }
 ])
 
+// My active and pending requests list
+const myRequestsList = ref([
+  {
+    id: 101,
+    foodItem: 'Sourdough loaves (4 units)',
+    donor: 'Green Leaf Café',
+    pickupSlot: 'Today, 5:30–6:00pm',
+    pickupTime: 'Today, 5:30–6:00pm',
+    address: '14 Rundle Mall, Adelaide',
+    status: 'Reserved',
+    statusClass: 'status-reserved',
+    code: 'SEC-4891'
+  },
+  {
+    id: 102,
+    foodItem: 'Mixed vegetable crates (2 boxes)',
+    donor: 'Norwood Fresh Markets',
+    pickupSlot: 'Tomorrow, 9:00–9:30am',
+    pickupTime: 'Tomorrow, 9:00–9:30am',
+    address: null,
+    status: 'Requested',
+    statusClass: 'status-requested',
+    code: null
+  }
+])
+
+function handleCancelRequest(id) {
+  const confirmed = window.confirm('Are you sure you want to cancel this request?')
+  if (confirmed) {
+    myRequestsList.value = myRequestsList.value.filter(r => r.id !== id)
+  }
+}
+
+// Historical collections dataset
+const myHistoryList = ref([
+  {
+    id: 201,
+    foodName: 'Sourdough loaves (8 units)',
+    category: 'Bakery',
+    quantity: '8 units',
+    donor: 'Green Leaf Café',
+    collectedDate: '2026-09-28 17:45'
+  },
+  {
+    id: 202,
+    foodName: 'Mixed vegetable crates (3 boxes)',
+    category: 'Produce',
+    quantity: '3 boxes',
+    donor: 'Norwood Fresh Markets',
+    collectedDate: '2026-09-22 10:15'
+  },
+  {
+    id: 203,
+    foodName: 'Pantry staples hamper',
+    category: 'Pantry',
+    quantity: '4 boxes',
+    donor: 'Kent Town IGA',
+    collectedDate: '2026-09-15 11:30'
+  }
+])
+
 const showModal = ref(false)
 const listingsController = new AbortController()
+
 onMounted(async () => {
   try {
     const rows = await getAllListings(listingsController.signal)
@@ -253,7 +346,9 @@ onMounted(async () => {
     }
   }
 })
+
 onBeforeUnmount(() => listingsController.abort())
+
 const modalItem = ref(null)
 const modalForm = reactive({
   slot: 'Today, 5:30–6:00pm · 4 spots left',
@@ -273,9 +368,22 @@ function closeModal() {
 
 function confirmRequest() {
   if (modalItem.value) {
-    const requestedId = modalItem.value.id
-    availableListings.value = availableListings.value.filter(item => item.id !== requestedId)
-    alert(`Request for "${modalItem.value.name}" submitted successfully!`)
+    const requestedItem = modalItem.value
+    availableListings.value = availableListings.value.filter(item => item.id !== requestedItem.id)
+
+    myRequestsList.value.unshift({
+      id: Date.now(),
+      foodItem: `${requestedItem.name} (${modalForm.qty} units)`,
+      donor: requestedItem.donor,
+      pickupSlot: modalForm.slot.split('·')[0].trim(),
+      pickupTime: modalForm.slot.split('·')[0].trim(),
+      address: null,
+      status: 'Requested',
+      statusClass: 'status-requested',
+      code: null
+    })
+
+    alert(`Request for "${requestedItem.name}" submitted successfully!`)
     closeModal()
   }
 }
