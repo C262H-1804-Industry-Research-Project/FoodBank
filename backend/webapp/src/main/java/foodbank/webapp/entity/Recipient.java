@@ -21,4 +21,11 @@ public class Recipient {
     private String orgName;
     private String approvalStatus;
     private Integer claimLimit;
+
+    // Location the recipient entered on the browse page, used to show distance to listings
+    private String addressLine;
+    private String suburb;
+    private String region;
+    private Double latitude;
+    private Double longitude;
 }

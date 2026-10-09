@@ -92,7 +92,7 @@ public class UserService {
                         .name(request.name().trim())
                         .orgName(orgName)
                         .approvalStatus(approvalStatus)
-                        .claimLimit(0)
+                        .claimLimit(100)
                         .build()
         );
         return new RecipientResponse(

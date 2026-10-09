@@ -30,7 +30,7 @@
         <!-- 1. Browse Donations Panel -->
         <BrowseDonations 
           v-if="currentPanel === 'browse'" 
-          :listings="availableListings"
+          ref="browseRef"
           @request="openRequestModal" 
         />
 
@@ -113,7 +113,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 import BrowseDonations from './BrowseDonations.vue'
@@ -271,6 +271,7 @@ const availableListings = ref([
     notes: 'Contains dairy butter.'
   }
 ])
+const browseRef = ref(null)
 
 // My active and pending requests list
 const myRequestsList = ref([
@@ -384,6 +385,8 @@ function confirmRequest() {
     })
 
     alert(`Request for "${requestedItem.name}" submitted successfully!`)
+    browseRef.value?.reload()
+    alert(`Request for "${modalItem.value.name}" submitted successfully!`)
     closeModal()
   }
 }

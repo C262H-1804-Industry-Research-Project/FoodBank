@@ -197,14 +197,22 @@
                 <div class="address-fieldset">
                   <label class="field-label">Pickup Address</label>
                   <div class="field">
-                    <input v-model="signupForm.donorStreet" type="text" placeholder="Street address & unit (e.g. 14 Rundle St)" required>
+                    <AddressAutocomplete
+                      v-model="signupForm.donorStreet"
+                      placeholder="Start typing the street address (e.g. 14 Rundle St)"
+                      required
+                      @select="applyDonorAddress"
+                    />
                   </div>
                   <div class="field-row">
                     <div class="field">
-                      <input v-model="signupForm.donorCityPostcode" type="text" placeholder="City / Suburb, Postcode (e.g. Adelaide, 5000)" required>
+                      <input v-model="signupForm.donorSuburb" type="text" placeholder="Suburb (e.g. Adelaide)" required>
                     </div>
                     <div class="field">
-                      <input v-model="signupForm.donorCountry" type="text" placeholder="Country (e.g. Australia)" required>
+                      <select v-model="signupForm.donorState" required>
+                        <option value="" disabled>State / territory</option>
+                        <option v-for="state in australianStates" :key="state" :value="state">{{ state }}</option>
+                      </select>
                     </div>
                   </div>
                   <div class="field-hint">Your exact pickup address can be adjusted per listing.</div>
@@ -298,8 +306,10 @@ import {
   registerRecipient,
   storeSession,
 } from '../../api/client'
+import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const router = useRouter()
+const australianStates = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA']
 const currentTab = ref('signin')
 const loginRole = ref('recipient')
 const signupStep = ref(1)
@@ -324,14 +334,19 @@ const signupForm = reactive({
   role: 'recipient',
   donorOrg: '',
   donorStreet: '',
-  donorCityPostcode: '',
-  donorCountry: 'Australia',
+  donorSuburb: '',
+  donorState: '',
   recipientName: '',
   recipientOrg: '',
   phone: '',
   email: '',
   password: ''
 })
+
+function applyDonorAddress(address) {
+  if (address.suburb) signupForm.donorSuburb = address.suburb
+  if (address.stateRegion) signupForm.donorState = address.stateRegion
+}
 
 async function handleLogin() {
   try {
@@ -355,8 +370,8 @@ async function handleRegister() {
         phone: signupForm.phone,
         orgName: signupForm.donorOrg,
         addressLine: signupForm.donorStreet,
-        suburb: signupForm.donorCityPostcode,
-        region: signupForm.donorCountry,
+        suburb: signupForm.donorSuburb,
+        region: signupForm.donorState,
       })
     } else {
       await registerRecipient({
@@ -583,7 +598,7 @@ function handleAdminLogin() {
   margin-bottom: 6px;
   display: block;
 }
-.field input, .field select, .field textarea {
+.field input, .field :deep(.address-autocomplete input), .field select, .field textarea {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -593,7 +608,7 @@ function handleAdminLogin() {
   font-size: 14.5px;
   box-sizing: border-box;
 }
-.field input:focus, .field select:focus, .field textarea:focus {
+.field input:focus, .field :deep(.address-autocomplete input:focus), .field select:focus, .field textarea:focus {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
   border-color: var(--primary);

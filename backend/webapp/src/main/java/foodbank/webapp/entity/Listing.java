@@ -34,6 +34,9 @@ public class Listing {
     private String addressLine;
     private String suburb;
     private String region;
+    // Pickup point coordinates, looked up from the address when the listing is saved
+    private Double latitude;
+    private Double longitude;
     private String status;
     private Integer maxDailyCapacity;
     private String photoUrl;

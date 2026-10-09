@@ -1,0 +1,19 @@
+# Store text files with LF line endings in the repository. Git converts them to the
+# platform's native line endings on checkout (CRLF on Windows, LF elsewhere), so
+# editors on any OS no longer turn whole files into line-ending-only diffs.
+* text=auto
+
+# Scripts that must keep specific line endings (see also backend/webapp/.gitattributes)
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files: never convert
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.jar binary

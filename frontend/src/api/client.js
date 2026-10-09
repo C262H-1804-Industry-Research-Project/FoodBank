@@ -77,21 +77,46 @@ export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' })
 }
 
-// Fetch all pages so the existing client-side filters and six-item pagination
-// continue to operate on the full collection, including donor-name searches.
-export async function getAllListings(signal) {
-  const items = []
-  let page = 0
-  let totalPages
-  do {
-    const result = await apiRequest(`/listings?page=${page}&size=10`, { signal })
-    if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
-        || result.page.totalPages < 0) throw new Error('Invalid listings response from the API.')
-    items.push(...result.content)
-    totalPages = result.page.totalPages
-    page++
-  } while (page < totalPages)
-  return items
+// The signed-in recipient's saved location, used to show distance to listings (null if none saved)
+export function getMyLocation(signal) {
+  return apiRequest('/recipients/me/location', { signal })
+}
+
+export function saveMyLocation(location) {
+  return apiRequest('/recipients/me/location', { method: 'PUT', body: location })
+}
+
+export function clearMyLocation() {
+  return apiRequest('/recipients/me/location', { method: 'DELETE' })
+}
+
+// Fetch one page of live listings. `page` is zero-based, matching Spring's PageRequest.
+export async function getListingsPage({
+  page = 0, size = 6, foodName, categoryId, tagIds = [], suburbs = [], latitude, longitude,
+} = {}, signal) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (foodName?.trim()) params.set('foodName', foodName.trim())
+  if (categoryId != null && categoryId !== '') params.set('categoryId', String(categoryId))
+  tagIds.forEach(tagId => params.append('tagIds', String(tagId)))
+  // Each selected suburb is sent as "Suburb|REGION"; listings in any of them match
+  suburbs.forEach(({ suburb, region }) => params.append('suburbs', region ? `${suburb}|${region}` : suburb))
+  // With a location, the backend sorts nearest-first and returns each listing's distanceKm
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    params.set('latitude', String(latitude))
+    params.set('longitude', String(longitude))
+  }
+
+  const result = await apiRequest(`/listings?${params}`, { signal })
+
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid listings response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
+}
+
+export async function getDonorSettings(donorId, signal) {
+  const settings = await apiRequest(`/donors/${donorId}/settings`, { signal })
+  if (settings?.donorId == null) throw new Error('Invalid donor settings response from the API.')
+  return settings
 }
 
 export async function getDonorListings(donorId, signal) {

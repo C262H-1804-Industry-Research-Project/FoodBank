@@ -9,5 +9,18 @@ export default defineConfig(({ mode }) => {
     '/api': { target: apiTarget, changeOrigin: true },
     '/uploads': { target: apiTarget, changeOrigin: true },
   }
-  return { plugins: [vue()], server: { proxy }, preview: { proxy } }
+  return {
+    plugins: [vue()],
+    server: { proxy },
+    preview: { proxy },
+    test: {
+      environment: 'jsdom',
+      include: ['src/**/*.test.js'],
+      // Ignore any developer token in .env.local so tests never call Mapbox; tests opt in with vi.stubEnv
+      env: { VITE_MAPBOX_TOKEN: '' },
+      restoreMocks: true,
+      unstubEnvs: true,
+      unstubGlobals: true,
+    },
+  }
 })

@@ -30,6 +30,28 @@ paths:
             type: array
             items: { type: integer }
           description: Repeated tag ID parameter. A listing with any selected tag matches.
+        - name: suburbs
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string, example: Glenelg|SA }
+          description: >-
+            Repeated suburb parameter, each "Suburb|STATE" (or just "Suburb" to match any state).
+            Case-insensitive. A listing in any selected suburb matches.
+        - name: latitude
+          in: query
+          schema: { type: number, minimum: -90, maximum: 90 }
+          description: >-
+            The recipient's latitude. Must be sent with longitude. Results are then sorted
+            nearest-first (listings without coordinates last) and include distanceKm.
+        - name: longitude
+          in: query
+          schema: { type: number, minimum: -180, maximum: 180 }
+          description: >-
+            The recipient's longitude. Must be sent with latitude. If both are omitted and the
+            caller is a signed-in recipient, their saved location (/api/recipients/me/location) is used.
         - name: page
           in: query
           schema: { type: integer, default: 0, minimum: 0 }
@@ -194,6 +216,102 @@ paths:
                 $ref: '#/components/schemas/LoginResponse'
         '401':
           description: Invalid email or password
+  /api/recipients/me/location:
+    get:
+      tags: [recipient-location]
+      summary: Get the signed-in recipient's saved location
+      responses:
+        '200':
+          description: Saved location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipientLocation'
+        '204':
+          description: No location saved
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+    put:
+      tags: [recipient-location]
+      summary: Save the signed-in recipient's location
+      description: >-
+        Used to show distance to listings. If latitude/longitude are omitted the server tries
+        to geocode the address; they stay null if that fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipientLocation'
+      responses:
+        '200':
+          description: Location saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipientLocation'
+        '400':
+          description: No addressLine or suburb, only one coordinate, or coordinates out of range
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+    delete:
+      tags: [recipient-location]
+      summary: Clear the signed-in recipient's saved location
+      responses:
+        '204':
+          description: Location cleared
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+  /api/requests:
+    post:
+      tags: [recipient-request]
+      summary: Submit a pickup request for a timeslot as the signed-in recipient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestSubmission'
+      responses:
+        '201':
+          description: Request created (PENDING, or APPROVED if the listing auto-approves)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+        '400':
+          description: Missing fields, non-positive quantity, note too long, or daily limit exceeded
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
+        '404':
+          description: Timeslot not found
+        '409':
+          description: Listing not live, timeslot fully booked, or recipient already requested this timeslot
+    get:
+      tags: [recipient-request]
+      summary: Get the signed-in recipient's pickup requests
+      description: The recipient is identified from the bearer token.
+      responses:
+        '200':
+          description: Recipient's requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequestResponse'
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not a recipient
 
 
 
@@ -253,6 +371,7 @@ components:
     TimeSlot:
       type: object
       properties:
+        timeslotId: { type: integer }
         startTime: { type: string }
         endTime: { type: string }
         remainingSlot: { type: integer }
@@ -319,6 +438,40 @@ components:
         listingId: { type: integer }
         donorId: { type: integer }
         status: { type: string, example: AVAILABLE }
+    RecipientLocation:
+      type: object
+      description: At least one of addressLine or suburb is required.
+      properties:
+        addressLine: { type: string, nullable: true, example: 1 King William St }
+        suburb: { type: string, nullable: true, example: Adelaide }
+        region: { type: string, nullable: true, example: SA }
+        latitude: { type: number, nullable: true, minimum: -90, maximum: 90, example: -34.9285 }
+        longitude: { type: number, nullable: true, minimum: -180, maximum: 180, example: 138.6007 }
+    RequestSubmission:
+      type: object
+      description: The recipient is taken from the bearer token, not the body.
+      required: [timeslotId, quantityRequested]
+      properties:
+        timeslotId: { type: integer }
+        quantityRequested: { type: number, format: float, minimum: 0, exclusiveMinimum: true, example: 2 }
+        note:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Optional message to the donor. Trimmed; blank is stored as null.
+          example: Will arrive a bit late
+    RequestResponse:
+      type: object
+      properties:
+        requestId: { type: integer }
+        recipientName: { type: string }
+        listingName: { type: string }
+        timeslotStart: { type: string }
+        timeslotEnd: { type: string }
+        quantityRequested: { type: number, format: float }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        pickupCode: { type: string, nullable: true }
+        note: { type: string, nullable: true }
     CatalogueItemResponse:
       type: object
       required: [id, name]

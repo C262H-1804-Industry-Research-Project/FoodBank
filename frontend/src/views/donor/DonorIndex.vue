@@ -30,6 +30,8 @@
         <!-- 1. My Listings Panel -->
         <MyListings 
           v-if="currentPanel === 'listings'" 
+          :donor-id="donorId"
+          :donor-address="donorAddress"
           :listings="listingsData"
           @create-new="currentPanel = 'newlisting'"
           @update-listing="handleUpdateListing"
@@ -40,6 +42,7 @@
         <NewListing
           v-else-if="currentPanel === 'newlisting'" 
           :donor-id="donorId"
+          :donor-address="donorAddress"
           @add-listing="handleAddListing"
         />
 
@@ -89,8 +92,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearSession, getDonorListings, getStoredSession, logout } from '../../api/client'
-import { formatPickupSlot } from '../../api/listingAdapter'
+import { clearSession, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
+import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -132,27 +135,6 @@ const donorId = Number(session?.user?.donorId)
 const listingsData = ref([])
 const listingsController = new AbortController()
 
-function toListingRow(listing) {
-  const timeslots = [...(listing.timeslots || [])]
-    .sort((first, second) => first.startTime.localeCompare(second.startTime))
-  const firstSlot = timeslots[0]
-  const status = listing.status || 'Draft'
-
-  return {
-    id: listing.listingId,
-    name: listing.name,
-    category: listing.category,
-    quantity: listing.quantity,
-    deadline: listing.collectionDeadline || listing.expiryDate || '—',
-    suburb: listing.suburb || '',
-    stateRegion: listing.region || '',
-    slots: firstSlot ? formatPickupSlot(firstSlot) : 'Not yet published',
-    booked: firstSlot ? firstSlot.maxRecipients - firstSlot.remainingSlot : '—',
-    status,
-    statusClass: status.toLowerCase() === 'live' ? 'status-live' : 'status-draft',
-  }
-}
-
 async function loadListings() {
   try {
     const listings = await getDonorListings(donorId, listingsController.signal)
@@ -166,12 +148,31 @@ async function loadListings() {
   }
 }
 
-onMounted(loadListings)
+// The donor's own address, used by "same as my organisation's address" on listings
+const donorAddress = ref(null)
+
+async function loadDonorAddress() {
+  try {
+    const settings = await getDonorSettings(donorId, listingsController.signal)
+    if (!listingsController.signal.aborted) donorAddress.value = toDonorAddress(settings)
+  } catch (error) {
+    if (!listingsController.signal.aborted) {
+      console.error('Unable to load the donor address.', error)
+    }
+  }
+}
+
+onMounted(() => {
+  loadListings()
+  loadDonorAddress()
+})
 onBeforeUnmount(() => listingsController.abort())
 
 function handleAddListing(newItem) {
   listingsData.value.unshift(newItem)
   currentPanel.value = 'listings'
+  // Reload so fields the backend filled in (e.g. the donor's own pickup address) are shown
+  loadListings()
 }
 
 function handleUpdateListing(updatedItem) {
