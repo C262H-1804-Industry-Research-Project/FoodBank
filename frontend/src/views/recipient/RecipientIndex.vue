@@ -121,8 +121,8 @@ import MyRequests from './MyRequests.vue'
 import CollectionHistory from './CollectionHistory.vue'
 import ReportIssue from './ReportIssue.vue'
 
-import { getAllListings, clearSession, logout } from '../../api/client'
-import { formatPickupSlot, toListingCard } from '../../api/listingAdapter'
+import { clearSession, logout } from '../../api/client'
+import { formatPickupSlot } from '../../api/listingAdapter'
 
 const router = useRouter()
 
@@ -149,128 +149,6 @@ async function handleLogout() {
   }
 }
 
-// Global available donation listings
-const availableListings = ref([
-  {
-    id: 1,
-    emoji: '🥖',
-    name: 'Sourdough loaves (12)',
-    category: 'Bakery',
-    timeLeft: '2h left',
-    urgencyClass: 'urgent',
-    addressLine: '14 Rundle Mall',
-    suburb: 'Adelaide',
-    postcode: '5000',
-    stateRegion: 'SA',
-    pickupWindow: 'Today, 5:30–6:00pm',
-    timeType: 'today',
-    tags: ['Contains gluten', 'Vegetarian'],
-    donor: 'Green Leaf Café',
-    notes: 'Freshly baked this morning; best consumed within 48h or kept refrigerated.'
-  },
-  {
-    id: 2,
-    emoji: '🥗',
-    name: 'Mixed vegetable crates (5)',
-    category: 'Produce',
-    timeLeft: '18h left',
-    urgencyClass: 'soon',
-    addressLine: '82 The Parade',
-    suburb: 'Norwood',
-    postcode: '5067',
-    stateRegion: 'SA',
-    pickupWindow: 'Tomorrow, 9:00–9:30am',
-    timeType: 'tomorrow',
-    tags: ['Vegetarian', 'No pork'],
-    donor: 'Norwood Fresh Markets',
-    notes: 'Includes potatoes, carrots, and broccoli. Keep chilled in a cool environment.'
-  },
-  {
-    id: 3,
-    emoji: '🥫',
-    name: 'Pantry staples box (8)',
-    category: 'Pantry',
-    timeLeft: '2 days left',
-    urgencyClass: 'ok',
-    addressLine: '10 King William St',
-    suburb: 'Kent Town',
-    postcode: '5067',
-    stateRegion: 'SA',
-    pickupWindow: 'Sat, 10:00–10:30am',
-    timeType: 'weekend',
-    tags: ['Halal', 'Nut-free', 'No pork'],
-    donor: 'Kent Town IGA',
-    notes: 'Non-perishable canned tomatoes and dried pasta; room temperature storage.'
-  },
-  {
-    id: 4,
-    emoji: '🥛',
-    name: 'Whole milk cartons (15)',
-    category: 'Dairy',
-    timeLeft: '6h left',
-    urgencyClass: 'urgent',
-    addressLine: '45 Unley Rd',
-    suburb: 'Unley',
-    postcode: '5061',
-    stateRegion: 'SA',
-    pickupWindow: 'Today, 4:00–5:00pm',
-    timeType: 'today',
-    tags: ['Vegetarian', 'Nut-free'],
-    donor: 'Unley Organic Co',
-    notes: 'Must be transported using an esky or cooler bag.'
-  },
-  {
-    id: 5,
-    emoji: '🥐',
-    name: 'Croissant bundles (20)',
-    category: 'Bakery',
-    timeLeft: '4h left',
-    urgencyClass: 'urgent',
-    addressLine: '120 O\'Connell St',
-    suburb: 'North Adelaide',
-    postcode: '5006',
-    stateRegion: 'SA',
-    pickupWindow: 'Today, 6:00–6:30pm',
-    timeType: 'today',
-    tags: ['Contains gluten', 'Vegetarian'],
-    donor: 'Torrens Bakehouse',
-    notes: 'Baked fresh daily. Ready to eat or reheat.'
-  },
-  {
-    id: 6,
-    emoji: '🍎',
-    name: 'Organic Pink Lady Apples (30kg)',
-    category: 'Produce',
-    timeLeft: '3 days left',
-    urgencyClass: 'ok',
-    addressLine: '3 Mount Barker Rd',
-    suburb: 'Stirling',
-    postcode: '5152',
-    stateRegion: 'SA',
-    pickupWindow: 'Sat, 9:00–11:00am',
-    timeType: 'weekend',
-    tags: ['Halal', 'Nut-free', 'Vegetarian'],
-    donor: 'Hills Orchard',
-    notes: 'Store in cool dry conditions.'
-  },
-  {
-    id: 7,
-    emoji: '🥪',
-    name: 'Gourmet Baguettes (10)',
-    category: 'Bakery',
-    timeLeft: '5h left',
-    urgencyClass: 'soon',
-    addressLine: '18 Jetty Rd',
-    suburb: 'Glenelg',
-    postcode: '5045',
-    stateRegion: 'SA',
-    pickupWindow: 'Today, 5:00–5:30pm',
-    timeType: 'today',
-    tags: ['Contains gluten', 'No pork'],
-    donor: 'Bay Deli',
-    notes: 'Contains dairy butter.'
-  }
-])
 const browseRef = ref(null)
 
 // My active and pending requests list
@@ -335,21 +213,6 @@ const myHistoryList = ref([
 ])
 
 const showModal = ref(false)
-const listingsController = new AbortController()
-
-onMounted(async () => {
-  try {
-    const rows = await getAllListings(listingsController.signal)
-    if (!listingsController.signal.aborted) availableListings.value = rows.map(row => toListingCard(row))
-  } catch (error) {
-    if (!listingsController.signal.aborted) {
-      window.alert(`${error.message} The original preview data is still displayed; it is not a successful API result.`)
-    }
-  }
-})
-
-onBeforeUnmount(() => listingsController.abort())
-
 const modalItem = ref(null)
 const modalForm = reactive({
   slot: 'Today, 5:30–6:00pm · 4 spots left',
@@ -370,7 +233,6 @@ function closeModal() {
 function confirmRequest() {
   if (modalItem.value) {
     const requestedItem = modalItem.value
-    availableListings.value = availableListings.value.filter(item => item.id !== requestedItem.id)
 
     myRequestsList.value.unshift({
       id: Date.now(),
@@ -386,7 +248,6 @@ function confirmRequest() {
 
     alert(`Request for "${requestedItem.name}" submitted successfully!`)
     browseRef.value?.reload()
-    alert(`Request for "${modalItem.value.name}" submitted successfully!`)
     closeModal()
   }
 }
