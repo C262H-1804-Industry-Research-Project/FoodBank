@@ -3,13 +3,13 @@
     <div class="content-head">
       <div>
         <h2>File a report</h2>
-        <div class="sub">Report issues or discrepancies regarding your food donations and specific recipients</div>
+        <div class="sub">Report issues or discrepancies regarding your food donations, collection timeslots, and specific recipients</div>
       </div>
     </div>
 
     <div class="card report-card">
       <form @submit.prevent="handleSubmitReport">
-        <!-- 1. Select Food Listing / Order -->
+        <!-- 1. Select Food Listing -->
         <div class="field">
           <label class="field-label">Select food listing</label>
           <select v-model="form.selectedOrder" @change="handleListingChange" required>
@@ -24,12 +24,38 @@
           </select>
         </div>
 
-        <!-- 2. Select Recipient Organisation (Linked to the food) -->
+        <!-- 2. Select Timeslot (Inserted between Food Listing and Recipient) -->
+        <div class="field">
+          <label class="field-label">Select pickup timeslot</label>
+          <select 
+            v-model="form.selectedTimeslot" 
+            :disabled="!availableTimeslots.length" 
+            @change="handleTimeslotChange"
+            required
+          >
+            <option value="" disabled>
+              {{ availableTimeslots.length ? 'Choose the relevant pickup timeslot…' : 'Please select a food listing first' }}
+            </option>
+            <option 
+              v-for="slot in availableTimeslots" 
+              :key="slot.time" 
+              :value="slot.time"
+            >
+              {{ slot.time }}
+            </option>
+          </select>
+        </div>
+
+        <!-- 3. Select Recipient Organisation (Filtered by chosen timeslot) -->
         <div class="field">
           <label class="field-label">Select recipient to report</label>
-          <select v-model="form.selectedRecipient" :disabled="!availableRecipients.length" required>
+          <select 
+            v-model="form.selectedRecipient" 
+            :disabled="!availableRecipients.length" 
+            required
+          >
             <option value="" disabled>
-              {{ availableRecipients.length ? 'Choose the recipient organisation…' : 'Please select a food listing first' }}
+              {{ availableRecipients.length ? 'Choose the recipient organisation…' : 'Please select a timeslot first' }}
             </option>
             <option 
               v-for="r in availableRecipients" 
@@ -41,27 +67,17 @@
           </select>
         </div>
 
-        <!-- 3. Actual Transaction Date & Time -->
-        <div class="form-grid-row">
-          <div class="field">
-            <label class="field-label">Actual transaction date</label>
-            <input 
-              v-model="form.actualDate" 
-              type="date" 
-              required
-            >
-          </div>
-          <div class="field">
-            <label class="field-label">Actual transaction time</label>
-            <input 
-              v-model="form.actualTime" 
-              type="time" 
-              required
-            >
-          </div>
+        <!-- 4. Actual Transaction Time (Date widget removed) -->
+        <div class="field">
+          <label class="field-label">Actual transaction time</label>
+          <input 
+            v-model="form.actualTime" 
+            type="time" 
+            required
+          >
         </div>
 
-        <!-- 4. Reason / Description Textarea -->
+        <!-- 5. Reason / Description Textarea -->
         <div class="field">
           <label class="field-label">Reason / details of the issue</label>
           <textarea 
@@ -72,9 +88,9 @@
           ></textarea>
         </div>
 
-        <!-- 5. Photo Proof Upload -->
+        <!-- 6. Photo Proof Upload -->
         <div class="field">
-          <label class="field-label">Upload photo proof <span class="opt-label">(optional)</span></label>
+          <label class="field-label">* Upload photo proof <span class="opt-label">(optional)</span></label>
           <div
             class="upload-box"
             :class="{ 'has-image': uploadedPhoto, 'drag-over': isDragOver }"
@@ -126,41 +142,74 @@ import { ref, reactive, computed } from 'vue'
 
 const emit = defineEmits(['report-submitted'])
 
-// Food listing options with recipients who claimed/requested slots
+// Food listing options with nested timeslots and their assigned recipients
 const orderOptions = [
   {
     id: 1,
     name: 'Sourdough loaves (12 units)',
-    recipients: ['Community Kitchen East', 'Norwood Youth Refuge', 'Salvation Army Centre']
+    slots: [
+      {
+        time: 'Today, 5:30–6:00pm',
+        recipients: ['Community Kitchen East', 'Salvation Army Centre']
+      },
+      {
+        time: 'Today, 6:00–6:30pm',
+        recipients: ['Norwood Youth Refuge']
+      }
+    ]
   },
   {
     id: 2,
     name: 'Pantry staples box (8 boxes)',
-    recipients: ['St. Vincent de Paul Adelaide', 'Adelaide City Mission']
+    slots: [
+      {
+        time: 'Sat, 10:00–10:30am',
+        recipients: ['St. Vincent de Paul Adelaide']
+      },
+      {
+        time: 'Sat, 10:30–11:00am',
+        recipients: ['Adelaide City Mission']
+      }
+    ]
   },
   {
     id: 3,
     name: 'Dairy bundle (10 units)',
-    recipients: ['Norwood Youth Refuge', 'Sturt Community Centre']
+    slots: [
+      {
+        time: 'Today, 4:00–4:30pm',
+        recipients: ['Norwood Youth Refuge', 'Sturt Community Centre']
+      }
+    ]
   }
 ]
 
-const todayStr = new Date().toISOString().split('T')[0]
-
 const form = reactive({
   selectedOrder: '',
+  selectedTimeslot: '',
   selectedRecipient: '',
-  actualDate: todayStr,
   actualTime: '17:30',
   reason: ''
 })
 
-const availableRecipients = computed(() => {
+// Timeslots computed based on selected food listing
+const availableTimeslots = computed(() => {
   const match = orderOptions.find(o => o.name === form.selectedOrder)
+  return match ? match.slots : []
+})
+
+// Recipients computed based on selected timeslot
+const availableRecipients = computed(() => {
+  const match = availableTimeslots.value.find(s => s.time === form.selectedTimeslot)
   return match ? match.recipients : []
 })
 
 function handleListingChange() {
+  form.selectedTimeslot = ''
+  form.selectedRecipient = ''
+}
+
+function handleTimeslotChange() {
   form.selectedRecipient = ''
 }
 
@@ -200,28 +249,29 @@ function removeUpload() {
 
 function resetForm() {
   form.selectedOrder = ''
+  form.selectedTimeslot = ''
   form.selectedRecipient = ''
-  form.actualDate = todayStr
   form.actualTime = '17:30'
   form.reason = ''
   removeUpload()
 }
 
 function handleSubmitReport() {
-  if (!form.selectedOrder || !form.selectedRecipient || !form.reason.trim()) return
+  if (!form.selectedOrder || !form.selectedTimeslot || !form.selectedRecipient || !form.reason.trim()) return
 
   const newReport = {
     id: Date.now(),
     foodName: form.selectedOrder,
+    timeslot: form.selectedTimeslot,
     recipient: form.selectedRecipient,
-    actualDate: `${form.actualDate} ${form.actualTime}`,
+    actualDate: `${form.selectedTimeslot.split(',')[0] || 'Today'} ${form.actualTime}`,
     reason: form.reason,
     status: 'Under Review',
     statusClass: 'status-pending'
   }
 
   emit('report-submitted', newReport)
-  alert(`Report regarding "${form.selectedRecipient}" for "${form.selectedOrder}" submitted successfully!`)
+  alert(`Report regarding "${form.selectedRecipient}" for timeslot "${form.selectedTimeslot}" submitted successfully!`)
   resetForm()
 }
 </script>
@@ -257,6 +307,7 @@ function handleSubmitReport() {
   background: var(--surface);
   color: var(--text);
   font-size: 14px;
+  box-sizing: border-box;
 }
 .field select:disabled {
   background: var(--surface-2);
@@ -267,12 +318,6 @@ function handleSubmitReport() {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
   border-color: var(--primary);
-}
-
-.form-grid-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
 }
 
 .upload-box {
@@ -341,8 +386,4 @@ function handleSubmitReport() {
   cursor: pointer;
 }
 .btn-outline:hover { border-color: var(--primary); color: var(--primary-dark); }
-
-@media (max-width: 600px) {
-  .form-grid-row { grid-template-columns: 1fr; }
-}
 </style>

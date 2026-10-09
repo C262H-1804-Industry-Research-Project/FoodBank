@@ -11,7 +11,7 @@
         <tr>
           <th>Food item</th>
           <th>Donor</th>
-          <th>Pickup time</th>
+          <th>Pickup slot (start – end)</th>
           <th>Pickup address</th>
           <th>Status</th>
           <th>Pickup code</th>
@@ -22,7 +22,7 @@
         <tr v-for="req in requests" :key="req.id">
           <td>{{ req.foodItem }}</td>
           <td>{{ req.donor }}</td>
-          <td>{{ req.pickupTime }}</td>
+          <td>{{ req.pickupSlot || req.pickupTime || '—' }}</td>
           <td>
             <span v-if="req.status === 'Requested'" style="color:var(--text-soft);">Available once approved</span>
             <span v-else>{{ req.address || '—' }}</span>
