@@ -31,7 +31,8 @@
           <tr>
             <th>Food listing</th>
             <th>Reported recipient</th>
-            <th>Transaction date & time</th>
+            <th>Timeslot / Time</th>
+            <th>Attachment</th>
             <th>Reason</th>
             <th>Status</th>
           </tr>
@@ -44,7 +45,15 @@
             <td>
               <span class="recipient-name">{{ r.recipient }}</span>
             </td>
-            <td>{{ r.actualDate }}</td>
+            <td>{{ r.actualDate || r.timeslot }}</td>
+            <!-- Attachment Column -->
+            <td>
+              <div v-if="r.photo && r.photo.url" class="attach-thumb-wrap" @click="previewPhoto(r.photo.url)" title="Click to view full image">
+                <img :src="r.photo.url" alt="Evidence proof" class="attach-thumb">
+                <span class="attach-badge">View</span>
+              </div>
+              <span v-else class="text-soft">None</span>
+            </td>
             <td>
               <div class="reason-text" :title="r.reason">{{ r.reason }}</div>
             </td>
@@ -94,6 +103,17 @@
     <div v-else class="empty-note">
       No submitted reports match your search criteria.
     </div>
+
+    <!-- 4. Photo Preview Modal -->
+    <div class="modal-backdrop" :class="{ show: showPhotoModal }" @click.self="showPhotoModal = false">
+      <div class="modal-photo-box" v-if="previewUrl">
+        <div class="modal-photo-head">
+          <span>Evidence Attachment Preview</span>
+          <button type="button" class="btn-close" @click="showPhotoModal = false">✕</button>
+        </div>
+        <img :src="previewUrl" alt="Enlarged evidence" class="enlarged-img">
+      </div>
+    </div>
   </section>
 </template>
 
@@ -112,6 +132,15 @@ const emit = defineEmits(['create-report'])
 const searchKeyword = ref('')
 const filterStatus = ref('')
 
+// Image preview modal state
+const showPhotoModal = ref(false)
+const previewUrl = ref('')
+
+function previewPhoto(url) {
+  previewUrl.value = url
+  showPhotoModal.value = true
+}
+
 const filteredReports = computed(() => {
   return props.reports.filter(r => {
     if (filterStatus.value && r.status !== filterStatus.value) {
@@ -119,9 +148,9 @@ const filteredReports = computed(() => {
     }
     if (searchKeyword.value.trim()) {
       const q = searchKeyword.value.trim().toLowerCase()
-      const matchFood = r.foodName.toLowerCase().includes(q)
-      const matchRecipient = r.recipient.toLowerCase().includes(q)
-      const matchReason = r.reason.toLowerCase().includes(q)
+      const matchFood = (r.foodName || '').toLowerCase().includes(q)
+      const matchRecipient = (r.recipient || '').toLowerCase().includes(q)
+      const matchReason = (r.reason || '').toLowerCase().includes(q)
       if (!matchFood && !matchRecipient && !matchReason) return false
     }
     return true
@@ -220,10 +249,82 @@ tbody tr:hover { background: #FBFAF6; }
 .reason-text {
   font-size: 12px;
   color: var(--text-muted);
-  max-width: 260px;
+  max-width: 220px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.text-soft { color: var(--text-soft); font-size: 12px; }
+
+/* Attachment thumbnail */
+.attach-thumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  transition: .15s;
+}
+.attach-thumb-wrap:hover {
+  border-color: var(--primary);
+  background: var(--primary-tint);
+}
+.attach-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.attach-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+/* Modal for image preview */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,20,17,.6);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.show { display: flex; }
+.modal-photo-box {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-photo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.enlarged-img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
 }
 
 .badge-status {
