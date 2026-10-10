@@ -6,6 +6,7 @@ public record CreateReportRequest(
         Integer pickupRequestId,
         Integer reportedUserId,
         String reason,
-        String details
+        String details,
+        String evidenceImageUrl
 ) {
 }

@@ -189,6 +189,9 @@ public class ReportService {
                         .details(
                                 blankToNull(request.details())
                         )
+                        .evidenceImageUrl(
+                                blankToNull(request.evidenceImageUrl())
+                        )
                         .build()
         );
 

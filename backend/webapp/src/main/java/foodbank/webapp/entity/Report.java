@@ -46,6 +46,9 @@ public class Report {
     // Additional explanation entered by the user.
     private String details;
 
+    // Optional evidence photo URL, uploaded via /api/uploads/photo.
+    private String evidenceImageUrl;
+
     // PENDING, IN_REVIEW, RESOLVED or DISMISSED.
     private String status;
 
