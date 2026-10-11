@@ -94,6 +94,13 @@ public class SecurityConfig {
                                 "/api/admin/**"
                         ).hasRole("ADMIN")
 
+                        // Admin account lists.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/donors",
+                                "/api/recipients"
+                        ).hasRole("ADMIN")
+
                         // Report submission requires a Donor or Recipient JWT.
                         .requestMatchers(
                                 HttpMethod.POST,
@@ -125,7 +132,8 @@ public class SecurityConfig {
 
                         // Donor listing management requires donor role.
                         .requestMatchers(
-                                "/api/donors/*/listings/**"
+                                "/api/donors/*/listings/**",
+                                "/api/donors/*/reports"
                         ).hasRole("DONOR")
 
                         // Future APIs are protected by default.
