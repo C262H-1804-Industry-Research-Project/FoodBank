@@ -262,6 +262,14 @@ public class ListingService {
         if (!listing.getDonor().getId().equals(donorId)) {
             throw new java.util.NoSuchElementException("Listing not found for donor");
         }
+
+        // An admin-banned listing cannot be edited or reactivated by its donor.
+        if ("BANNED".equalsIgnoreCase(listing.getStatus())) {
+            throw new foodbank.webapp.exceptions.ConflictException(
+                    "Banned listing cannot be updated"
+            );
+        }
+
         if (request == null) throw new IllegalArgumentException("request body is required");
         requireText(request.name(), "name");
         // A blank address means "use the donor's own address", as when creating a listing
