@@ -294,7 +294,7 @@ paths:
         '404':
           description: Timeslot not found
         '409':
-          description: Listing not live, timeslot fully booked, or recipient already requested this timeslot
+          description: Listing not live, timeslot fully booked or started, or recipient already requested this timeslot
     get:
       tags: [recipient-request]
       summary: Get the signed-in recipient's pickup requests
@@ -319,6 +319,176 @@ paths:
 
 
 
+  /api/requests/{requestId}:
+    delete:
+      tags: [recipient-request]
+      summary: Cancel your own PENDING or APPROVED request before pickup starts
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '204': { description: Cancelled; pickup place restored }
+        '401': { description: Authentication required }
+        '403': { description: Not your recipient request }
+        '404': { description: Request not found }
+        '409': { description: Request inactive or pickup has started }
+  /api/donors/{donorId}/requests:
+    get:
+      tags: [donor-request]
+      summary: Read all request statuses for your donor account
+      parameters:
+        - { name: donorId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: All donor requests; clients may filter by status
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/RequestResponse' } }
+        '401': { description: Authentication required }
+        '403': { description: Not your donor account }
+        '404': { description: Donor not found }
+  /api/donors/{donorId}/requests/{requestId}/approve:
+    patch:
+      tags: [donor-request]
+      summary: Approve a pending request belonging to your donor account
+      parameters:
+        - { name: donorId, in: path, required: true, schema: { type: integer } }
+        - { name: requestId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Updated request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequestResponse' }
+        '401': { description: Authentication required }
+        '403': { description: Not your donor account or request }
+        '404': { description: Donor or request not found }
+        '409': { description: Request has already been processed or cancelled }
+  /api/donors/{donorId}/requests/{requestId}/reject:
+    patch:
+      tags: [donor-request]
+      summary: Reject a pending request belonging to your donor account
+      parameters:
+        - { name: donorId, in: path, required: true, schema: { type: integer } }
+        - { name: requestId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Updated request and pickup place restored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequestResponse' }
+        '401': { description: Authentication required }
+        '403': { description: Not your donor account or request }
+        '404': { description: Donor or request not found }
+        '409': { description: Request has already been processed or cancelled }
+
+  /admin/listings:
+    get:
+      tags: [admin]
+      summary: List all food listings including draft and banned listings
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Paginated listings with status and quantity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        listing: { type: object, description: Existing ListingResponse fields }
+                        status: { type: string }
+                        quantity: { type: number }
+                  page: { type: object, properties: { totalPages: { type: integer }, totalElements: { type: integer } } }
+        '400': { description: Invalid pagination }
+        '401': { description: Authentication required }
+        '403': { description: Admin role required }
+  /admin/listings/{listingId}/ban:
+    post:
+      tags: [admin]
+      summary: Set listing status to BANNED without deleting it
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: listingId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Listing banned }
+        '404': { description: Listing not found }
+        '409': { description: Listing already banned }
+  /admin/reports:
+    get:
+      tags: [admin]
+      summary: List reports with names and prior ban count
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Array of AdminReportResponse records }
+  /admin/reports/{reportId}:
+    get:
+      tags: [admin]
+      summary: View report details
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: Report details }
+        '404': { description: Report not found }
+    patch:
+      tags: [admin]
+      summary: Process report and optionally apply a user ban atomically
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [IN_REVIEW, RESOLVED, DISMISSED] }
+                adminNote: { type: string, nullable: true }
+                outcome: { type: string, nullable: true }
+                action:
+                  type: string
+                  enum: [REVIEW, WARNING, BAN, DEACTIVATE, DISMISS]
+                  description: Optional for legacy callers. REVIEW requires IN_REVIEW; DISMISS requires DISMISSED; other actions require RESOLVED. WARNING records a warning without sending a notification; DEACTIVATE applies a permanent ban.
+                banDays: { type: integer, minimum: 1, maximum: 365, description: Required for BAN }
+      responses:
+        '200': { description: Updated report with processing metadata and ban count }
+        '400': { description: Invalid status, action or duration }
+        '404': { description: Report or reported user not found }
+        '409': { description: Report already processed or user already banned }
+  /settings/ban-days:
+    get:
+      tags: [admin]
+      summary: Read persisted default ban durations
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Object with integer first, second and third durations }
+    put:
+      tags: [admin]
+      summary: Save default ban durations
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first, second, third]
+              properties:
+                first: { type: integer, minimum: 1, maximum: 365 }
+                second: { type: integer, minimum: 1, maximum: 365 }
+                third: { type: integer, minimum: 1, maximum: 365 }
+      responses:
+        '200': { description: Saved durations }
+        '400': { description: Invalid duration }
 components:
   schemas:
     LoginRequest:
@@ -469,9 +639,17 @@ components:
         timeslotStart: { type: string }
         timeslotEnd: { type: string }
         quantityRequested: { type: number, format: float }
-        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED] }
         pickupCode: { type: string, nullable: true }
         note: { type: string, nullable: true }
+        donorName: { type: string }
+        pickupAddress:
+          type: string
+          nullable: true
+          description: Exact address; returned only when the request is APPROVED
+        recipientOrg: { type: string, nullable: true }
+        recipientPhone: { type: string, nullable: true }
+        listingQuantity: { type: number, format: float, nullable: true }
     CatalogueItemResponse:
       type: object
       required: [id, name]
