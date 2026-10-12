@@ -1,0 +1,71 @@
+import { apiRequest } from './client'
+import { formatPickupSlot } from './listingAdapter'
+
+async function requestList(path, signal) {
+  const result = await apiRequest(path, { signal })
+  if (!Array.isArray(result)) throw new Error('The pickup requests API returned an invalid list.')
+  return result
+}
+
+export const fetchRecipientRequests = signal => requestList('/requests', signal)
+export function fetchDonorRequests(donorId, signal) {
+  if (!Number.isInteger(donorId) || donorId < 1) throw new Error('Please sign in with a donor account.')
+  return requestList(`/donors/${donorId}/requests`, signal)
+}
+export const createPickupRequest = body => apiRequest('/requests', { method: 'POST', body })
+export const cancelPickupRequest = id => apiRequest(`/requests/${id}`, { method: 'DELETE' })
+export function changePickupRequest(donorId, id, action) {
+  if (!['approve', 'reject'].includes(action)) throw new Error('Invalid pickup request action.')
+  return apiRequest(`/donors/${donorId}/requests/${id}/${action}`, { method: 'PATCH' })
+}
+
+export function isPickupOpen(slot, now = Date.now()) {
+  return Number.isInteger(slot?.timeslotId) && slot.timeslotId > 0
+    && slot.remainingSlot > 0 && new Date(slot.startTime).getTime() > now
+}
+
+export function canCancelPickup(row, now = Date.now()) {
+  return ['PENDING', 'APPROVED'].includes(row.statusCode)
+    && new Date(row.pickupStart).getTime() > now
+}
+
+function checked(request) {
+  if (!Number.isInteger(request?.requestId) || typeof request.status !== 'string') {
+    throw new Error('The pickup requests API returned an invalid request.')
+  }
+  return request
+}
+
+export function recipientRequestRow(response) {
+  const r = checked(response)
+  const approved = r.status === 'APPROVED'
+  return {
+    id: r.requestId,
+    foodItem: `${r.listingName || '—'} (${r.quantityRequested} units)`,
+    donor: r.donorName || '—',
+    pickupSlot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
+    pickupStart: r.timeslotStart,
+    statusCode: r.status,
+    status: { PENDING: 'Requested', APPROVED: 'Reserved', REJECTED: 'Declined', CANCELLED: 'Cancelled' }[r.status] || r.status,
+    statusClass: approved ? 'status-reserved' : r.status === 'PENDING' ? 'status-requested' : 'status-expired',
+    address: approved ? r.pickupAddress : null,
+    code: approved ? r.pickupCode : null,
+  }
+}
+
+export function donorRequestRow(response) {
+  const r = checked(response)
+  return {
+    id: r.requestId,
+    foodName: r.listingName || '—',
+    totalStock: r.listingQuantity == null ? '—' : `${r.listingQuantity} units`,
+    recipientOrg: r.recipientOrg || r.recipientName || '—',
+    contactName: r.recipientName || '—',
+    phone: r.recipientPhone || '—',
+    quantity: `${r.quantityRequested} units`,
+    slot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
+    notes: r.note || '',
+    status: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Declined', CANCELLED: 'Cancelled' }[r.status] || r.status,
+    statusClass: r.status === 'PENDING' ? 'status-pending' : r.status === 'APPROVED' ? 'status-approved' : 'status-declined',
+  }
+}
