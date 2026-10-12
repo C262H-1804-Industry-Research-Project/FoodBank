@@ -155,7 +155,6 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getReportableRequests, submitReport, uploadPhoto } from '../../api/client'
 import { formatPickupSlot } from '../../api/listingAdapter'
-import { REPORT_REASONS } from '../../api/donorReportAdapter'
 
 const props = defineProps({
   donorId: { type: Number, required: true }
@@ -165,7 +164,13 @@ const emit = defineEmits(['report-submitted'])
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
-const reasonOptions = REPORT_REASONS
+const reasonOptions = [
+  'Recipient no-show',
+  'Late collection',
+  'Collected incorrect quantity',
+  'Disrespectful behaviour',
+  'Other'
+]
 
 // Approved pickup requests on this donor's listings, from the API
 const reportableRequests = ref([])

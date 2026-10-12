@@ -20,32 +20,16 @@ describe('toReportRow', () => {
       id: 7,
       foodName: 'Bread rolls',
       recipient: 'Test Recipient',
-      timeslot: '2026-10-12 17:30-18:00: 17:45',
+      timeslot: '2026-10-12 17:30-18:00 (17:45)',
       reason: 'Recipient no-show: Did not arrive',
       photo: { name: 'Evidence', url: '/uploads/evidence.jpg' },
       status: 'Under Review',
       statusClass: 'status-pending',
-      canChange: true,
-      edit: {
-        reason: 'Recipient no-show',
-        details: 'Did not arrive',
-        actualDate: '2026-10-12',
-        actualTime: '17:45',
-        evidenceImageUrl: '/uploads/evidence.jpg',
-      },
     })
   })
 
-  it('only lets reports no admin has picked up be changed', () => {
-    expect(toReportRow({ ...report, status: 'IN_REVIEW' }).canChange).toBe(false)
-    expect(toReportRow({ ...report, status: 'RESOLVED' }).canChange).toBe(false)
-    expect(toReportRow({ ...report, status: 'CANCELLED' })).toMatchObject({ status: 'Cancelled', canChange: false })
-  })
-
-  it('falls back to the timeslot date when there is no actual time', () => {
-    const row = toReportRow({ ...report, actualTransactionTime: null })
-    expect(row.timeslot).toBe('2026-10-12 17:30-18:00')
-    expect(row.edit).toMatchObject({ actualDate: '2026-10-12', actualTime: '' })
+  it('shows only the timeslot when there is no actual time', () => {
+    expect(toReportRow({ ...report, actualTransactionTime: null }).timeslot).toBe('2026-10-12 17:30-18:00')
   })
 
   it('shows IN_REVIEW as being reviewed and RESOLVED as resolved', () => {

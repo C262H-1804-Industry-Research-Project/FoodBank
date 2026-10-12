@@ -3,7 +3,6 @@ package foodbank.webapp.service;
 import foodbank.webapp.dto.ProcessReportRequest;
 import foodbank.webapp.dto.AdminReportResponse;
 import foodbank.webapp.entity.Report;
-import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.repositories.ReportRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -88,12 +87,6 @@ public class AdminReportService {
                                 "Report does not exist"
                         )
                 );
-
-        if ("CANCELLED".equals(report.getStatus())) {
-            throw new ConflictException(
-                    "Report was cancelled by the reporter"
-            );
-        }
 
         report.setStatus(status);
         report.setAdminNote(

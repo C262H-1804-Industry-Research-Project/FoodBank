@@ -183,11 +183,3 @@ export async function getDonorReports(donorId, signal) {
   if (!Array.isArray(reports)) throw new Error('Invalid reports response from the API.')
   return reports
 }
-
-export function updateDonorReport(donorId, reportId, report, signal) {
-  return apiRequest(`/donors/${donorId}/reports/${reportId}`, { method: 'PUT', body: report, signal })
-}
-
-export function cancelDonorReport(donorId, reportId, signal) {
-  return apiRequest(`/donors/${donorId}/reports/${reportId}/cancel`, { method: 'PATCH', signal })
-}

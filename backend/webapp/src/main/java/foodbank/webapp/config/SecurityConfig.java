@@ -133,8 +133,7 @@ public class SecurityConfig {
                         // Donor listing management requires donor role.
                         .requestMatchers(
                                 "/api/donors/*/listings/**",
-                                "/api/donors/*/reports",
-                                "/api/donors/*/reports/**"
+                                "/api/donors/*/reports"
                         ).hasRole("DONOR")
 
                         // Future APIs are protected by default.
