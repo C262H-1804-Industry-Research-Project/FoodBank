@@ -45,7 +45,7 @@ public class UserService {
                 .email(email)
                 .password(passwordEncoder.encode(request.password()))
                 .phone(blankToNull(request.phone()))
-                .status("PENDING")
+                .status("ACTIVE")
                 .build());
         Donor donor = donorRepository.save(Donor.builder()
                 .userId(user.getUserId())
@@ -53,7 +53,7 @@ public class UserService {
                 .addressLine(request.addressLine().trim())
                 .suburb(request.suburb().trim())
                 .region(request.region().trim())
-                .approvalStatus("PENDING")
+                .approvalStatus("APPROVED")
                 .hideContact(Boolean.FALSE)
                 .build());
 
@@ -78,13 +78,13 @@ public class UserService {
                 .email(email)
                 .password(passwordEncoder.encode(request.password()))
                 .phone(request.phone().trim())
-                .status("PENDING")
+                .status("ACTIVE")
                 .build());
 
         String orgName = blankToNull(request.orgName());
 
         String approvalStatus =
-                orgName == null ? null : "PENDING";
+                orgName == null ? null : "APPROVED";
 
         Recipient recipient = recipientRepository.save(
                 Recipient.builder()

@@ -2,6 +2,7 @@ package foodbank.webapp.service;
 
 import foodbank.webapp.dto.BanUserRequest;
 import foodbank.webapp.dto.BanUserResponse;
+import foodbank.webapp.dto.UnbanUserResponse;
 import foodbank.webapp.entity.BanRecord;
 import foodbank.webapp.entity.Report;
 import foodbank.webapp.entity.User;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -113,6 +115,41 @@ public class AdminBanService {
                 banRecord.getBanCount(),
                 banRecord.getStartDate(),
                 banRecord.getEndDate(),
+                user.getStatus()
+        );
+    }
+
+    @Transactional
+    public UnbanUserResponse unbanUser(Integer userId) {
+        User user = userRepository
+                .findById(userId)
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "User does not exist"
+                        )
+                );
+
+        if (!"BANNED".equalsIgnoreCase(user.getStatus())) {
+            throw new ConflictException(
+                    "User is not banned"
+            );
+        }
+
+        // Close every active ban so the ban expiry job does not touch this user again.
+        List<BanRecord> activeBans =
+                banRecordRepository.findByUserIdAndActiveTrueOrderByStartDateAsc(userId);
+
+        for (BanRecord banRecord : activeBans) {
+            banRecord.setActive(Boolean.FALSE);
+        }
+        banRecordRepository.saveAll(activeBans);
+
+        user.setStatus("ACTIVE");
+        userRepository.save(user);
+
+        return new UnbanUserResponse(
+                "User unbanned successfully",
+                user.getUserId(),
                 user.getStatus()
         );
     }

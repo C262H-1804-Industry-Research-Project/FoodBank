@@ -39,13 +39,8 @@
           @ban-listing="handleBanListing"
         />
 
-        <!-- 2. Account Management Panel (with userId & Deactivate action) -->
-        <AccountManagement
-          v-else-if="currentPanel === 'users'"
-          :users-list="adminUsers"
-          @deactivate-user="handleDeactivateUser"
-          @reactivate-user="handleReactivateUser"
-        />
+        <!-- 2. Account Management Panel -->
+        <AccountManagement v-else-if="currentPanel === 'users'" />
 
         <!-- 3. Misuse Reports & Penalty Policy Panel -->
         <MisuseReports
@@ -135,69 +130,6 @@ async function handleBanListing(id) {
     await loadListings()
   } catch (error) { window.alert(error.message) }
   finally { listingBusy.value = null }
-}
-
-// Global Users Data for Account Management
-const adminUsers = ref([
-  {
-    userId: 'U1001',
-    name: 'Sophie Martin',
-    orgName: 'Green Leaf Café',
-    role: 'Donor',
-    email: 'greenleaf@cafe.com',
-    phone: '0412 889 001',
-    status: 'Active'
-  },
-  {
-    userId: 'U1002',
-    name: 'Priya Nair',
-    orgName: 'Community Kitchen East',
-    role: 'Recipient',
-    email: 'priya@kitcheneast.org',
-    phone: '0412 345 678',
-    status: 'Active'
-  },
-  {
-    userId: 'U1003',
-    name: 'Mark Higgins',
-    orgName: 'St. Vincent de Paul Adelaide',
-    role: 'Recipient',
-    email: 'mark.h@vinnies.org.au',
-    phone: '0423 789 012',
-    status: 'Active'
-  },
-  {
-    userId: 'U1004',
-    name: 'Daniel Croft',
-    orgName: 'Rustic Loaf Bakery',
-    role: 'Donor',
-    email: 'daniel@rusticloaf.com.au',
-    phone: '0433 112 334',
-    status: 'Deactivated'
-  },
-  {
-    userId: 'U1005',
-    name: 'Elena Rostova',
-    orgName: 'Norwood Youth Refuge',
-    role: 'Recipient',
-    email: 'elena@norwoodyouth.org',
-    phone: '0455 667 889',
-    status: 'Active'
-  }
-])
-
-function handleDeactivateUser(userId) {
-  const user = adminUsers.value.find(u => u.userId === userId)
-  if (user) {
-    user.status = 'Deactivated'
-  }
-}
-
-function handleReactivateUser(userId) {
-  const user = adminUsers.value.find(u => u.userId === userId)
-  if (user) {
-    user.status = 'Active'
-  }
 }
 </script>
 
