@@ -19,8 +19,10 @@
       <select v-model="filterStatus">
         <option value="">All statuses</option>
         <option value="Under Review">Under Review</option>
+        <option value="Being Reviewed">Being Reviewed</option>
         <option value="Resolved">Resolved</option>
         <option value="Dismissed">Dismissed</option>
+        <option value="Cancelled">Cancelled</option>
       </select>
     </div>
 
@@ -38,6 +40,7 @@
             <th>Attachment</th>
             <th>Reason</th>
             <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -48,7 +51,7 @@
             <td>
               <span class="recipient-name">{{ r.recipient }}</span>
             </td>
-            <td :title="r.timeslot">{{ r.actualDate || r.timeslot }}</td>
+            <td>{{ r.timeslot }}</td>
             <!-- Attachment Column -->
             <td>
               <div v-if="r.photo && r.photo.url" class="attach-thumb-wrap" @click="previewPhoto(r.photo.url)" title="Click to view full image">
@@ -62,6 +65,13 @@
             </td>
             <td>
               <span class="badge-status" :class="r.statusClass">{{ r.status }}</span>
+            </td>
+            <td>
+              <div v-if="r.canChange" class="row-actions">
+                <button type="button" class="btn-row" @click="openEdit(r)">Edit</button>
+                <button type="button" class="btn-row btn-row-danger" @click="openCancel(r)">Cancel</button>
+              </div>
+              <span v-else class="text-soft">—</span>
             </td>
           </tr>
         </tbody>
@@ -107,7 +117,62 @@
       {{ reports.length ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
     </div>
 
-    <!-- 4. Photo Preview Modal -->
+    <!-- 4. Edit Report Modal -->
+    <div class="modal-backdrop" :class="{ show: editingReport }" @click.self="closeEdit">
+      <form v-if="editingReport" class="modal-form-box" @submit.prevent="saveEdit">
+        <div class="modal-photo-head">
+          <span>Edit report: {{ editingReport.foodName }} · {{ editingReport.recipient }}</span>
+          <button type="button" class="btn-close" @click="closeEdit">✕</button>
+        </div>
+
+        <label class="field-label">Reason</label>
+        <select v-model="editForm.reason" required>
+          <option v-for="reason in reasonOptions" :key="reason" :value="reason">{{ reason }}</option>
+        </select>
+
+        <label class="field-label">Actual transaction time <span class="text-soft">({{ editForm.actualDate }})</span></label>
+        <input type="time" v-model="editForm.actualTime">
+
+        <label class="field-label">Details of the issue <span class="text-soft">(optional)</span></label>
+        <textarea v-model="editForm.details" rows="4"></textarea>
+
+        <label class="field-label">Photo proof <span class="text-soft">(optional)</span></label>
+        <div class="edit-photo">
+          <img v-if="editPhotoPreview" :src="editPhotoPreview" alt="Evidence proof" class="attach-thumb">
+          <span v-else class="text-soft">No photo</span>
+          <input ref="editFileInput" type="file" accept="image/*" hidden @change="handleEditPhoto">
+          <button type="button" class="btn-row" @click="editFileInput.click()">{{ editPhotoPreview ? 'Replace' : 'Add photo' }}</button>
+          <button v-if="editPhotoPreview" type="button" class="btn-row" @click="removeEditPhoto">Remove</button>
+        </div>
+
+        <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-row" :disabled="isSaving" @click="closeEdit">Close</button>
+          <button type="submit" class="btn-accent" :disabled="isSaving">{{ isSaving ? 'Saving…' : 'Save changes' }}</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 5. Cancel Report Confirmation -->
+    <div class="modal-backdrop" :class="{ show: cancellingReport }" @click.self="closeCancel">
+      <div v-if="cancellingReport" class="modal-form-box">
+        <div class="modal-photo-head">
+          <span>Cancel this report?</span>
+          <button type="button" class="btn-close" @click="closeCancel">✕</button>
+        </div>
+        <p class="confirm-text">
+          Your report about <strong>{{ cancellingReport.recipient }}</strong> for
+          <strong>{{ cancellingReport.foodName }}</strong> will be withdrawn and no longer reviewed. This cannot be undone.
+        </p>
+        <p v-if="actionError" class="form-error" role="alert">{{ actionError }}</p>
+        <div class="modal-actions">
+          <button type="button" class="btn-row" :disabled="isSaving" @click="closeCancel">Keep report</button>
+          <button type="button" class="btn-danger" :disabled="isSaving" @click="confirmCancel">{{ isSaving ? 'Cancelling…' : 'Cancel report' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Photo Preview Modal -->
     <div class="modal-backdrop" :class="{ show: showPhotoModal }" @click.self="showPhotoModal = false">
       <div class="modal-photo-box" v-if="previewUrl">
         <div class="modal-photo-head">
@@ -122,8 +187,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { getDonorReports } from '../../api/client'
-import { toReportRow } from '../../api/donorReportAdapter'
+import { cancelDonorReport, getDonorReports, updateDonorReport, uploadPhoto } from '../../api/client'
+import { REPORT_REASONS, toReportRow } from '../../api/donorReportAdapter'
 
 const props = defineProps({
   donorId: { type: Number, required: true }
@@ -137,17 +202,117 @@ const isLoading = ref(true)
 const loadError = ref('')
 const loadController = new AbortController()
 
-onMounted(async () => {
+async function loadReports() {
   try {
     const data = await getDonorReports(props.donorId, loadController.signal)
     reports.value = data.map(toReportRow)
+    loadError.value = ''
   } catch (error) {
     if (!loadController.signal.aborted) loadError.value = error.message || 'Unable to load your reports.'
   } finally {
     isLoading.value = false
   }
-})
+}
+onMounted(loadReports)
 onBeforeUnmount(() => loadController.abort())
+
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+const reasonOptions = REPORT_REASONS
+const isSaving = ref(false)
+const actionError = ref('')
+
+// Edit dialog state
+const editingReport = ref(null)
+const editForm = ref({})
+const editFileInput = ref(null)
+const editPhotoFile = ref(null)
+const editPhotoPreview = ref('')
+
+function openEdit(report) {
+  editingReport.value = report
+  editForm.value = { ...report.edit }
+  editPhotoFile.value = null
+  editPhotoPreview.value = report.edit.evidenceImageUrl
+  actionError.value = ''
+}
+
+function closeEdit() {
+  if (isSaving.value) return
+  editingReport.value = null
+}
+
+function handleEditPhoto(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file || !file.type.startsWith('image/')) return
+  if (file.size > MAX_PHOTO_BYTES) {
+    actionError.value = 'Photo must be 5MB or smaller.'
+    return
+  }
+  actionError.value = ''
+  editPhotoFile.value = file
+  const reader = new FileReader()
+  reader.onload = (e) => { editPhotoPreview.value = e.target.result }
+  reader.readAsDataURL(file)
+}
+
+function removeEditPhoto() {
+  editPhotoFile.value = null
+  editPhotoPreview.value = ''
+}
+
+async function saveEdit() {
+  if (isSaving.value || !editForm.value.reason) return
+  isSaving.value = true
+  actionError.value = ''
+  try {
+    // Upload a replacement photo first; otherwise keep the current one unless it was removed
+    const evidenceImageUrl = editPhotoFile.value
+      ? await uploadPhoto(editPhotoFile.value)
+      : editPhotoPreview.value || null
+    const { actualDate, actualTime } = editForm.value
+    await updateDonorReport(props.donorId, editingReport.value.id, {
+      reason: editForm.value.reason,
+      details: editForm.value.details.trim(),
+      evidenceImageUrl,
+      actualTransactionTime: actualDate && actualTime ? `${actualDate}T${actualTime}:00` : null
+    })
+    editingReport.value = null
+    await loadReports()
+  } catch (error) {
+    actionError.value = error.message || 'Unable to save the report.'
+  } finally {
+    isSaving.value = false
+  }
+}
+
+// Cancel confirmation state
+const cancellingReport = ref(null)
+
+function openCancel(report) {
+  cancellingReport.value = report
+  actionError.value = ''
+}
+
+function closeCancel() {
+  if (isSaving.value) return
+  cancellingReport.value = null
+}
+
+async function confirmCancel() {
+  if (isSaving.value) return
+  isSaving.value = true
+  actionError.value = ''
+  try {
+    await cancelDonorReport(props.donorId, cancellingReport.value.id)
+    cancellingReport.value = null
+    await loadReports()
+  } catch (error) {
+    actionError.value = error.message || 'Unable to cancel the report.'
+  } finally {
+    isSaving.value = false
+  }
+}
 
 const searchKeyword = ref('')
 const filterStatus = ref('')
@@ -354,6 +519,7 @@ tbody tr:hover { background: #FBFAF6; }
   border-radius: 20px;
 }
 .status-pending { background: var(--amber-tint); color: var(--amber); }
+.status-reviewing { background: var(--primary-tint); color: var(--primary-dark); }
 .status-resolved { background: var(--success-tint); color: var(--success); }
 .status-dismissed { background: var(--surface-2); color: var(--text-soft); }
 
@@ -388,6 +554,57 @@ tbody tr:hover { background: #FBFAF6; }
   color: #fff;
 }
 .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.row-actions { display: flex; gap: 6px; }
+.btn-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-row:hover:not(:disabled) { border-color: var(--primary); color: var(--primary-dark); }
+.btn-row-danger { color: var(--danger); }
+.btn-row-danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); background: var(--danger-tint); }
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: var(--r-sm);
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.btn-row:disabled, .btn-accent:disabled, .btn-danger:disabled { opacity: .6; cursor: not-allowed; }
+
+.modal-form-box {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  width: min(480px, 92vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.modal-form-box .field-label { font-size: 12.5px; font-weight: 700; margin-top: 8px; }
+.modal-form-box select,
+.modal-form-box input[type="time"],
+.modal-form-box textarea {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-family: inherit;
+}
+.edit-photo { display: flex; align-items: center; gap: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.confirm-text { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; margin: 0; }
 
 .form-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
 

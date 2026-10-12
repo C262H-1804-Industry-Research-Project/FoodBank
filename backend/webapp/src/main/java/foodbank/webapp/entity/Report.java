@@ -52,7 +52,7 @@ public class Report {
     // When the pickup actually happened, as recorded by the reporter (optional).
     private LocalDateTime actualTransactionTime;
 
-    // PENDING, IN_REVIEW, RESOLVED or DISMISSED.
+    // PENDING, IN_REVIEW, RESOLVED, DISMISSED or CANCELLED (withdrawn by the reporter).
     private String status;
 
     // Internal note written by the administrator.

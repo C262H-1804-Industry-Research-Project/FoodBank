@@ -3,12 +3,15 @@ package foodbank.webapp.service;
 import foodbank.webapp.dto.CreateReportRequest;
 import foodbank.webapp.dto.CreatedReportResponse;
 import foodbank.webapp.dto.DonorReportResponse;
+import foodbank.webapp.dto.ReportResponse;
+import foodbank.webapp.dto.UpdateReportRequest;
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Report;
 import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
+import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.DonorRepository;
 import foodbank.webapp.repositories.ListingRepository;
@@ -24,6 +27,7 @@ import java.util.Locale;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +49,79 @@ public class ReportService {
                 );
 
         return reportRepository.findDonorReports(donor.getUserId());
+    }
+
+    // A reporter may change or withdraw a report only until an admin picks it up.
+    private static final Set<String> CHANGEABLE_STATUSES =
+            Set.of("PENDING");
+
+    @Transactional
+    public ReportResponse updateDonorReport(
+            Integer donorId,
+            Integer reportId,
+            UpdateReportRequest request
+    ) {
+        if (request == null) {
+            throw new IllegalArgumentException(
+                    "Request body is required"
+            );
+        }
+
+        requireText(request.reason(), "reason");
+
+        Report report = findChangeableDonorReport(donorId, reportId);
+        report.setReason(request.reason().trim());
+        report.setDetails(blankToNull(request.details()));
+        report.setEvidenceImageUrl(
+                blankToNull(request.evidenceImageUrl())
+        );
+        report.setActualTransactionTime(
+                request.actualTransactionTime()
+        );
+
+        Report saved = reportRepository.save(report);
+        return new ReportResponse(saved.getReportId(), saved.getStatus());
+    }
+
+    @Transactional
+    public ReportResponse cancelDonorReport(
+            Integer donorId,
+            Integer reportId
+    ) {
+        Report report = findChangeableDonorReport(donorId, reportId);
+        report.setStatus("CANCELLED");
+
+        Report saved = reportRepository.save(report);
+        return new ReportResponse(saved.getReportId(), saved.getStatus());
+    }
+
+    private Report findChangeableDonorReport(
+            Integer donorId,
+            Integer reportId
+    ) {
+        Donor donor = donorRepository.findById(donorId)
+                .orElseThrow(() ->
+                        new NoSuchElementException("Donor not found")
+                );
+
+        // Someone else's report is reported as missing, not forbidden,
+        // so report IDs cannot be probed.
+        Report report = reportRepository.findById(reportId)
+                .filter(found -> Objects.equals(
+                        found.getReporterId(),
+                        donor.getUserId()
+                ))
+                .orElseThrow(() ->
+                        new NoSuchElementException("Report does not exist")
+                );
+
+        if (!CHANGEABLE_STATUSES.contains(report.getStatus())) {
+            throw new ConflictException(
+                    "Only reports an admin has not started reviewing can be changed"
+            );
+        }
+
+        return report;
     }
 
     @Transactional
