@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearMyLocation, getListingsPage, getMyLocation, saveMyLocation, storeSession } from './client'
+import { clearMyLocation, getDonorReports, getListingsPage, getMyLocation, saveMyLocation, storeSession } from './client'
 
 // A fetch stand-in that records each request and answers with `body` (or an empty body)
 function mockFetch(body, status = 200) {
@@ -117,5 +117,34 @@ describe('recipient location', () => {
     mockFetch({ error: 'addressLine or suburb is required' }, 400)
 
     await expect(saveMyLocation({})).rejects.toThrow('addressLine or suburb is required')
+  })
+})
+
+describe('getDonorReports', () => {
+  it('asks for the first 10 reports by default, with no filters', async () => {
+    const fetchMock = mockFetch(emptyPage)
+
+    await getDonorReports(3)
+
+    const url = requestedUrl(fetchMock)
+    expect(url.pathname).toMatch(/\/donors\/3\/reports$/)
+    expect(Object.fromEntries(url.searchParams)).toEqual({ page: '0', size: '10' })
+  })
+
+  it('sends the page, status and trimmed search', async () => {
+    const fetchMock = mockFetch(emptyPage)
+
+    await getDonorReports(3, { page: 2, status: 'RESOLVED', search: '  bread ' })
+
+    const params = requestedUrl(fetchMock).searchParams
+    expect(params.get('page')).toBe('2')
+    expect(params.get('status')).toBe('RESOLVED')
+    expect(params.get('q')).toBe('bread')
+  })
+
+  it('returns the reports with the page totals', async () => {
+    mockFetch({ content: [{ reportId: 1 }], page: { totalPages: 4, totalElements: 31 } })
+
+    await expect(getDonorReports(3)).resolves.toEqual({ items: [{ reportId: 1 }], totalElements: 31, totalPages: 4 })
   })
 })

@@ -116,14 +116,14 @@ class ReportApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
                         .header("Authorization", donorToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].reason").value("Recipient no-show"))
-                .andExpect(jsonPath("$[0].status").value("PENDING"))
-                .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))
-                .andExpect(jsonPath("$[0].reportedName").value("Test Recipient"))
-                .andExpect(jsonPath("$[0].timeslotStart").value(startsWith(timeslot.getStartTime().toLocalDate().toString())))
-                .andExpect(jsonPath("$[0].evidenceImageUrl").value("/uploads/evidence.jpg"))
-                .andExpect(jsonPath("$[0].actualTransactionTime").value("2026-10-12T17:45:00"));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].reason").value("Recipient no-show"))
+                .andExpect(jsonPath("$.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.content[0].listingName").value("Bread rolls"))
+                .andExpect(jsonPath("$.content[0].reportedName").value("Test Recipient"))
+                .andExpect(jsonPath("$.content[0].timeslotStart").value(startsWith(timeslot.getStartTime().toLocalDate().toString())))
+                .andExpect(jsonPath("$.content[0].evidenceImageUrl").value("/uploads/evidence.jpg"))
+                .andExpect(jsonPath("$.content[0].actualTransactionTime").value("2026-10-12T17:45:00"));
     }
 
     @Test
@@ -146,20 +146,84 @@ class ReportApiTest extends ApiTestSupport {
                         .param("status", "resolved")
                         .header("Authorization", donorToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].reportId").value(resolved.getReportId()))
-                .andExpect(jsonPath("$[0].status").value("RESOLVED"));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].reportId").value(resolved.getReportId()))
+                .andExpect(jsonPath("$.content[0].status").value("RESOLVED"));
 
         // No status means every report
         mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
                         .header("Authorization", donorToken()))
-                .andExpect(jsonPath("$", hasSize(2)));
+                .andExpect(jsonPath("$.content", hasSize(2)));
     }
 
     @Test
     void unknownStatusFilterIsRejected() throws Exception {
         mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
                         .param("status", "ARCHIVED")
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void donorReportListIsPaginatedNewestFirst() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            submitDonorReport("null").andExpect(status().isCreated());
+        }
+        Integer newestId = reportRepository.findAll().stream()
+                .map(Report::getReportId)
+                .max(Integer::compare)
+                .orElseThrow();
+
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.content[0].reportId").value(newestId))
+                .andExpect(jsonPath("$.page.size").value(2))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
+
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .param("page", "1")
+                        .param("size", "2")
+                        .header("Authorization", donorToken()))
+                .andExpect(jsonPath("$.content", hasSize(1)));
+    }
+
+    @Test
+    void donorReportListDefaultsToTenPerPage() throws Exception {
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.size").value(10))
+                .andExpect(jsonPath("$.page.number").value(0));
+    }
+
+    @Test
+    void donorReportListSearchesListingRecipientAndReason() throws Exception {
+        submitDonorReport("null").andExpect(status().isCreated());
+
+        for (String term : new String[] {"bread", "TEST RECIP", "no-show", "did not"}) {
+            mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                            .param("q", term)
+                            .header("Authorization", donorToken()))
+                    .andExpect(jsonPath("$.content", hasSize(1)));
+        }
+
+        // LIKE wildcards in the search are matched literally
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .param("q", "%")
+                        .header("Authorization", donorToken()))
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+    }
+
+    @Test
+    void invalidPageSizeIsRejected() throws Exception {
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .param("size", "0")
                         .header("Authorization", donorToken()))
                 .andExpect(status().isBadRequest());
     }

@@ -18,6 +18,8 @@ import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -36,10 +38,13 @@ public class ReportService {
     private final DonorRepository donorRepository;
     private final RecipientRepository recipientRepository;
 
-    // status is optional; when given, only reports with that status are returned.
-    public List<DonorReportResponse> getReportsByDonor(
+    // status and search are optional; search matches the listing name,
+    // recipient name, reason or details, ignoring case.
+    public Page<DonorReportResponse> getReportsByDonor(
             Integer donorId,
-            String status
+            String status,
+            String search,
+            Pageable pageable
     ) {
         String statusFilter = blankToNull(status);
         if (statusFilter != null) {
@@ -56,7 +61,17 @@ public class ReportService {
                         new NoSuchElementException("Donor not found")
                 );
 
-        return reportRepository.findDonorReports(donor.getUserId(), statusFilter);
+        String searchTerm = blankToNull(search);
+        // Escape LIKE wildcards so the search matches the text literally
+        String searchPattern = searchTerm == null ? null
+                : "%" + searchTerm.toLowerCase(Locale.ROOT)
+                        .replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_") + "%";
+
+        return reportRepository.findDonorReports(
+                donor.getUserId(), statusFilter, searchPattern, pageable
+        );
     }
 
     @Transactional

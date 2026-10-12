@@ -174,16 +174,21 @@ export function submitReport(report, signal) {
   return apiRequest('/reports', { method: 'POST', body: report, signal })
 }
 
-// status is a backend status code such as 'PENDING'; leave it empty for every report
-export async function getDonorReports(donorId, { status = '' } = {}, signal) {
+// page is 0-based. status is a backend status code such as 'PENDING' and search matches
+// the listing, recipient, reason or details; leave either empty to not filter by it.
+export async function getDonorReports(donorId, { page = 0, size = 10, status, search } = {}, signal) {
   if (!Number.isInteger(donorId) || donorId <= 0) {
     throw new Error('The signed-in donor is missing an ID.')
   }
 
-  const query = status ? `?status=${encodeURIComponent(status)}` : ''
-  const reports = await apiRequest(`/donors/${donorId}/reports${query}`, { signal })
-  if (!Array.isArray(reports)) throw new Error('Invalid reports response from the API.')
-  return reports
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (status) params.set('status', status)
+  if (search?.trim()) params.set('q', search.trim())
+
+  const result = await apiRequest(`/donors/${donorId}/reports?${params}`, { signal })
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid reports response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
 }
 
 export async function getReportStatuses(signal) {

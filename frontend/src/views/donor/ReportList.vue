@@ -27,8 +27,9 @@
     <p v-if="loadError" class="form-error" role="alert">{{ loadError }}</p>
 
     <!-- 2. Report History Table -->
-    <div v-if="isLoading" class="empty-note">Loading your reports…</div>
-    <div v-else-if="paginatedReports.length > 0">
+    <!-- Keep the current page on screen while the next one loads -->
+    <div v-if="isLoading && !reports.length" class="empty-note">Loading your reports…</div>
+    <div v-else-if="reports.length > 0" :class="{ 'is-refreshing': isLoading }">
       <table>
         <thead>
           <tr>
@@ -41,7 +42,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in paginatedReports" :key="r.id">
+          <tr v-for="r in reports" :key="r.id">
             <td>
               <strong>{{ r.foodName }}</strong>
             </td>
@@ -70,7 +71,7 @@
       <!-- 3. Pagination Controls -->
       <div class="pagination-bar">
         <div class="pagination-info">
-          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ filteredReports.length }}</strong> reports
+          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ totalElements }}</strong> reports
         </div>
         <div class="pagination-controls">
           <button 
@@ -104,7 +105,7 @@
 
     <!-- Empty State -->
     <div v-else-if="!loadError" class="empty-note">
-      {{ reports.length || filterStatus ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
+      {{ isFiltered ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
     </div>
 
     <!-- 4. Photo Preview Modal -->
@@ -131,33 +132,65 @@ const props = defineProps({
 
 const emit = defineEmits(['create-report'])
 
+const PAGE_SIZE = 10
+
+// Search, status filtering and paging all happen on the server
 const searchKeyword = ref('')
-// Backend status code; '' means all statuses. Filtering by status happens on the server.
+// Backend status code; '' means all statuses
 const filterStatus = ref('')
 const statusOptions = ref([])
+const currentPage = ref(1)
 
-// Reports this donor has submitted, newest first, from the API
+// The current page of this donor's reports, newest first, from the API
 const reports = ref([])
+const totalElements = ref(0)
+const totalPages = ref(1)
 const isLoading = ref(true)
 const loadError = ref('')
 let loadController = null
 
 async function loadReports() {
-  // Abort an older request so a slow response cannot overwrite a newer filter's results
+  // Abort an older request so a slow response cannot overwrite newer results
   loadController?.abort()
   const controller = new AbortController()
   loadController = controller
   isLoading.value = true
   loadError.value = ''
   try {
-    const data = await getDonorReports(props.donorId, { status: filterStatus.value }, controller.signal)
-    reports.value = data.map(toReportRow)
+    const result = await getDonorReports(props.donorId, {
+      page: currentPage.value - 1,
+      size: PAGE_SIZE,
+      status: filterStatus.value,
+      search: searchKeyword.value
+    }, controller.signal)
+    // The page can fall off the end if reports changed since the last load
+    if (!result.items.length && result.totalPages > 0 && currentPage.value > result.totalPages) {
+      currentPage.value = result.totalPages
+      return
+    }
+    reports.value = result.items.map(toReportRow)
+    totalElements.value = result.totalElements
+    totalPages.value = Math.max(result.totalPages, 1)
   } catch (error) {
     if (!controller.signal.aborted) loadError.value = error.message || 'Unable to load your reports.'
   } finally {
-    if (!controller.signal.aborted) isLoading.value = false
+    if (!controller.signal.aborted && loadController === controller) isLoading.value = false
   }
 }
+
+// A new filter or search starts again from page 1; changing currentPage triggers the load
+function reloadFromFirstPage() {
+  if (currentPage.value === 1) loadReports()
+  else currentPage.value = 1
+}
+
+let searchTimer = null
+watch(searchKeyword, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reloadFromFirstPage, 300)
+})
+watch(filterStatus, reloadFromFirstPage)
+watch(currentPage, loadReports)
 
 const statusController = new AbortController()
 
@@ -174,11 +207,15 @@ onMounted(() => {
   loadStatuses()
   loadReports()
 })
-watch(filterStatus, loadReports)
 onBeforeUnmount(() => {
+  clearTimeout(searchTimer)
   loadController?.abort()
   statusController.abort()
 })
+
+const isFiltered = computed(() => Boolean(searchKeyword.value.trim() || filterStatus.value))
+const paginationStart = computed(() => totalElements.value === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1)
+const paginationEnd = computed(() => Math.min(currentPage.value * PAGE_SIZE, totalElements.value))
 
 // Image preview modal state
 const showPhotoModal = ref(false)
@@ -188,34 +225,6 @@ function previewPhoto(url) {
   previewUrl.value = url
   showPhotoModal.value = true
 }
-
-const filteredReports = computed(() => {
-  return reports.value.filter(r => {
-    if (searchKeyword.value.trim()) {
-      const q = searchKeyword.value.trim().toLowerCase()
-      const matchFood = (r.foodName || '').toLowerCase().includes(q)
-      const matchRecipient = (r.recipient || '').toLowerCase().includes(q)
-      const matchReason = (r.reason || '').toLowerCase().includes(q)
-      if (!matchFood && !matchRecipient && !matchReason) return false
-    }
-    return true
-  })
-})
-
-const currentPage = ref(1)
-const pageSize = ref(5)
-
-watch([searchKeyword, filterStatus], () => {
-  currentPage.value = 1
-})
-
-const totalPages = computed(() => Math.ceil(filteredReports.value.length / pageSize.value) || 1)
-const paginationStart = computed(() => filteredReports.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
-const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredReports.value.length))
-const paginatedReports = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredReports.value.slice(start, start + pageSize.value)
-})
 </script>
 
 <style scoped>
@@ -416,6 +425,8 @@ tbody tr:hover { background: #FBFAF6; }
 .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .form-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
+
+.is-refreshing { opacity: .6; transition: opacity .15s; }
 
 .empty-note {
   font-size: 12.5px;
