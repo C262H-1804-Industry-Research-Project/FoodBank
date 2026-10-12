@@ -19,6 +19,11 @@ public record AdminReportResponse(
         Integer processedBy,
         LocalDateTime processedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String reporterName,
+        String reportedName,
+        String reportedRole,
+        String foodName,
+        long banCount
 ) {
 }

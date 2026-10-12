@@ -35,6 +35,7 @@
         <ManageListings 
           v-if="currentPanel === 'listings'" 
           :listings="adminListings"
+          :loading="listingsLoading" :error="listingsError" :busy="listingBusy" @reload="loadListings"
           @ban-listing="handleBanListing"
         />
 
@@ -68,8 +69,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { logout, clearSession } from '../../api/client'
+import { fetchAdminListings, banFoodListing } from '../../api/adminModeration'
 import ManageListings from './ManageListings.vue'
 import AccountManagement from './AccountManagement.vue'
 import MisuseReports from './MisuseReports.vue'
@@ -90,100 +93,48 @@ const currentPanelTitle = computed(() => {
   return navItems.find(item => item.key === currentPanel.value)?.name || ''
 })
 
-function handleLogout() {
-  router.push('/auth')
+async function handleLogout() {
+  try {
+    await logout()
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    clearSession()
+    router.push('/auth')
+  }
 }
 
 // Global Listings for Admin Moderation
-const adminListings = ref([
-  {
-    id: 1,
-    emoji: '🥖',
-    name: 'Sourdough loaves (12)',
-    donor: 'Green Leaf Café',
-    category: 'Bakery',
-    quantity: '12 units',
-    suburb: 'Adelaide',
-    stateRegion: 'SA',
-    timeType: 'today',
-    tags: ['Contains gluten', 'Vegetarian']
-  },
-  {
-    id: 2,
-    emoji: '🥗',
-    name: 'Mixed vegetable crates (5)',
-    donor: 'Norwood Fresh Markets',
-    category: 'Produce',
-    quantity: '5 crates',
-    suburb: 'Norwood',
-    stateRegion: 'SA',
-    timeType: 'tomorrow',
-    tags: ['Vegetarian', 'No pork']
-  },
-  {
-    id: 3,
-    emoji: '🥫',
-    name: 'Pantry staples box (8)',
-    donor: 'Kent Town IGA',
-    category: 'Pantry',
-    quantity: '8 boxes',
-    suburb: 'Kent Town',
-    stateRegion: 'SA',
-    timeType: 'weekend',
-    tags: ['Halal', 'Nut-free', 'No pork']
-  },
-  {
-    id: 4,
-    emoji: '🥛',
-    name: 'Whole milk cartons (15)',
-    donor: 'Unley Organic Co',
-    category: 'Dairy',
-    quantity: '15 cartons',
-    suburb: 'Unley',
-    stateRegion: 'SA',
-    timeType: 'today',
-    tags: ['Vegetarian', 'Nut-free']
-  },
-  {
-    id: 5,
-    emoji: '🥐',
-    name: 'Croissant bundles (20)',
-    donor: 'Torrens Bakehouse',
-    category: 'Bakery',
-    quantity: '20 units',
-    suburb: 'North Adelaide',
-    stateRegion: 'SA',
-    timeType: 'today',
-    tags: ['Contains gluten', 'Vegetarian']
-  },
-  {
-    id: 6,
-    emoji: '🍎',
-    name: 'Organic Pink Lady Apples (30kg)',
-    donor: 'Hills Orchard',
-    category: 'Produce',
-    quantity: '30 kg',
-    suburb: 'Stirling',
-    stateRegion: 'SA',
-    timeType: 'weekend',
-    tags: ['Halal', 'Nut-free', 'Vegetarian']
-  },
-  {
-    id: 7,
-    emoji: '🥪',
-    name: 'Gourmet Baguettes (10)',
-    donor: 'Bay Deli',
-    category: 'Bakery',
-    quantity: '10 units',
-    suburb: 'Glenelg',
-    stateRegion: 'SA',
-    timeType: 'today',
-    tags: ['Contains gluten', 'No pork']
+const adminListings = ref([])
+const listingsLoading = ref(false)
+const listingsError = ref('')
+const listingBusy = ref(null)
+let loadGeneration = 0
+async function loadListings() {
+  const generation = ++loadGeneration
+  listingsLoading.value = true
+  listingsError.value = ''
+  try {
+    const rows = await fetchAdminListings()
+    if (generation === loadGeneration) adminListings.value = rows
+  } catch (error) {
+    if (generation === loadGeneration) listingsError.value = error.message
+  } finally {
+    if (generation === loadGeneration) listingsLoading.value = false
   }
-])
-
-function handleBanListing(id) {
-  adminListings.value = adminListings.value.filter(item => item.id !== id)
+}
+watch(currentPanel, panel => { if (panel === 'listings') loadListings() }, { immediate: true })
+async function handleBanListing(id) {
+  if (listingBusy.value !== null) return
+  listingBusy.value = id
+  try {
+    const response = await banFoodListing(id)
+    if (response?.status !== 'BANNED') throw new Error('Invalid ban response')
+    const row = adminListings.value.find(item => item.id === id)
+    if (row) row.status = 'BANNED'
+    await loadListings()
+  } catch (error) { window.alert(error.message) }
+  finally { listingBusy.value = null }
 }
 
 // Global Users Data for Account Management

@@ -39,7 +39,9 @@
     </div>
 
     <!-- 2. Requests Table -->
-    <div v-if="paginatedRequests.length > 0">
+    <p v-if="loading" role="status">Loading requests…</p>
+    <p v-else-if="error" role="alert">{{ error }} <button @click="emit('reload')">Retry</button></p>
+    <div v-else-if="paginatedRequests.length > 0">
       <table>
         <thead>
           <tr>
@@ -78,12 +80,14 @@
               <div v-if="item.status === 'Pending'" class="action-btns">
                 <button 
                   class="btn-approve btn-sm" 
+                   :disabled="busy"
                   @click="handleApprove(item)"
                 >
                   Approve
                 </button>
                 <button 
                   class="btn-decline btn-sm" 
+                   :disabled="busy"
                   @click="handleDecline(item)"
                 >
                   Decline
@@ -141,13 +145,16 @@
 import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
+  loading: Boolean,
+  error: { type: String, default: '' },
+  busy: Boolean,
   requestsList: {
     type: Array,
     required: true
   }
 })
 
-const emit = defineEmits(['approve-request', 'decline-request'])
+const emit = defineEmits(['approve-request', 'decline-request', 'reload'])
 
 // Tab filter & Search keyword
 const currentTab = ref('pending') // default to Pending
@@ -185,6 +192,7 @@ watch([currentTab, searchKeyword], () => {
 })
 
 const totalPages = computed(() => Math.ceil(filteredRequests.value.length / pageSize.value) || 1)
+watch(totalPages, count => { if (currentPage.value > count) currentPage.value = count })
 const paginationStart = computed(() => filteredRequests.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
 const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredRequests.value.length))
 const paginatedRequests = computed(() => {

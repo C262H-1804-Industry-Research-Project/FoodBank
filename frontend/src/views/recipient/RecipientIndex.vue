@@ -38,6 +38,10 @@
         <MyRequests 
           v-else-if="currentPanel === 'myrequests'"
           :requests="myRequestsList"
+          :loading="myRequestsLoading"
+          :error="myRequestsError"
+          :busy="cancellationPending"
+          @reload="loadMyRequests"
           @cancel="handleCancelRequest"
         />
 
@@ -82,8 +86,9 @@
 
         <div class="field">
           <label class="field-label">Pickup timeslot</label>
-          <select v-model="modalForm.slot">
-            <option v-for="slot in modalItem.timeslots" :key="slot.startTime">
+          <select v-model="modalForm.slot" :disabled="submissionPending">
+            <option value="" disabled>Select a pickup timeslot</option>
+            <option v-for="slot in modalItem.timeslots" :key="slot.timeslotId" :value="slot.timeslotId" :disabled="!isPickupOpen(slot)">
               {{ formatPickupSlot(slot) }} · {{ slot.remainingSlot }} spots left
             </option>
           </select>
@@ -91,12 +96,12 @@
         
         <div class="field">
           <label class="field-label">Quantity <span style="font-weight:500;color:var(--text-soft);">(max {{ modalItem.capacity }} per recipient)</span></label>
-          <input type="text" v-model="modalForm.qty" placeholder="e.g. 4">
+          <input type="number" min="0" step="any" v-model="modalForm.qty" :disabled="submissionPending" placeholder="e.g. 4">
         </div>
         
         <div class="field">
-          <label class="field-label">Note <span style="font-weight:500;color:var(--text-soft);">(optional — e.g. request extra beyond the limit)</span></label>
-          <textarea v-model="modalForm.note" rows="3" placeholder="Add context for the donor…"></textarea>
+          <label class="field-label">Note <span style="font-weight:500;color:var(--text-soft);">(optional)</span></label>
+          <textarea v-model="modalForm.note" :disabled="submissionPending" maxlength="500" rows="3" placeholder="Add context for the donor…"></textarea>
         </div>
         
         <div class="field-hint" style="margin-bottom:6px;">
@@ -104,8 +109,8 @@
         </div>
         
         <div class="modal-close-row">
-          <button class="btn-outline" @click="closeModal">Cancel</button>
-          <button class="btn-primary" style="width:auto; padding:10px 22px;" @click="confirmRequest">Submit request</button>
+          <button class="btn-outline" :disabled="submissionPending" @click="closeModal">Cancel</button>
+          <button class="btn-primary" style="width:auto; padding:10px 22px;" :disabled="submissionPending" @click="confirmRequest">{{ submissionPending ? 'Submitting…' : 'Submit request' }}</button>
         </div>
       </div>
     </div>
@@ -113,7 +118,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 
 import BrowseDonations from './BrowseDonations.vue'
@@ -122,6 +127,7 @@ import CollectionHistory from './CollectionHistory.vue'
 import ReportIssue from './ReportIssue.vue'
 
 import { clearSession, logout } from '../../api/client'
+import { fetchRecipientRequests, createPickupRequest, cancelPickupRequest, recipientRequestRow, isPickupOpen, canCancelPickup } from '../../api/pickupRequests'
 import { formatPickupSlot } from '../../api/listingAdapter'
 
 const router = useRouter()
@@ -151,36 +157,46 @@ async function handleLogout() {
 
 const browseRef = ref(null)
 
-// My active and pending requests list
-const myRequestsList = ref([
-  {
-    id: 101,
-    foodItem: 'Sourdough loaves (4 units)',
-    donor: 'Green Leaf Café',
-    pickupSlot: 'Today, 5:30–6:00pm',
-    pickupTime: 'Today, 5:30–6:00pm',
-    address: '14 Rundle Mall, Adelaide',
-    status: 'Reserved',
-    statusClass: 'status-reserved',
-    code: 'SEC-4891'
-  },
-  {
-    id: 102,
-    foodItem: 'Mixed vegetable crates (2 boxes)',
-    donor: 'Norwood Fresh Markets',
-    pickupSlot: 'Tomorrow, 9:00–9:30am',
-    pickupTime: 'Tomorrow, 9:00–9:30am',
-    address: null,
-    status: 'Requested',
-    statusClass: 'status-requested',
-    code: null
-  }
-])
+// Server data for the currently signed-in recipient.
+const myRequestsList = ref([])
+const myRequestsLoading = ref(false)
+const myRequestsError = ref('')
+const cancellationPending = ref(false)
+const requestController = new AbortController()
+onBeforeUnmount(() => requestController.abort())
 
-function handleCancelRequest(id) {
-  const confirmed = window.confirm('Are you sure you want to cancel this request?')
-  if (confirmed) {
-    myRequestsList.value = myRequestsList.value.filter(r => r.id !== id)
+async function loadMyRequests() {
+  if (myRequestsLoading.value) return
+  myRequestsLoading.value = true
+  myRequestsError.value = ''
+  try {
+    const result = await fetchRecipientRequests(requestController.signal)
+    if (!requestController.signal.aborted) myRequestsList.value = result.map(recipientRequestRow)
+  } catch (error) {
+    if (!requestController.signal.aborted) myRequestsError.value = error.message
+  } finally {
+    myRequestsLoading.value = false
+  }
+}
+watch(currentPanel, panel => { if (panel === 'myrequests') loadMyRequests() })
+
+async function handleCancelRequest(id) {
+  if (cancellationPending.value || myRequestsLoading.value) return
+  const row = myRequestsList.value.find(request => request.id === id)
+  if (!row || !canCancelPickup(row)) {
+    window.alert('This request can no longer be cancelled before pickup.')
+    return
+  }
+  if (!window.confirm('Are you sure you want to cancel this request?')) return
+  cancellationPending.value = true
+  try {
+    await cancelPickupRequest(id)
+    Object.assign(row, { statusCode: 'CANCELLED', status: 'Cancelled', statusClass: 'status-expired', address: null, code: null })
+    await loadMyRequests()
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    cancellationPending.value = false
   }
 }
 
@@ -214,41 +230,57 @@ const myHistoryList = ref([
 
 const showModal = ref(false)
 const modalItem = ref(null)
-const modalForm = reactive({
-  slot: 'Today, 5:30–6:00pm · 4 spots left',
-  qty: '4',
-  note: ''
-})
+const submissionPending = ref(false)
+const modalForm = reactive({ slot: '', qty: '', note: '' })
 
 function openRequestModal(item) {
   modalItem.value = item
+  modalForm.slot = item.timeslots?.find(slot => isPickupOpen(slot))?.timeslotId ?? ''
+  modalForm.qty = ''
+  modalForm.note = ''
   showModal.value = true
 }
 
 function closeModal() {
+  if (submissionPending.value) return
   showModal.value = false
   modalItem.value = null
 }
 
-function confirmRequest() {
-  if (modalItem.value) {
-    const requestedItem = modalItem.value
-
-    myRequestsList.value.unshift({
-      id: Date.now(),
-      foodItem: `${requestedItem.name} (${modalForm.qty} units)`,
-      donor: requestedItem.donor,
-      pickupSlot: modalForm.slot.split('·')[0].trim(),
-      pickupTime: modalForm.slot.split('·')[0].trim(),
-      address: null,
-      status: 'Requested',
-      statusClass: 'status-requested',
-      code: null
-    })
-
-    alert(`Request for "${requestedItem.name}" submitted successfully!`)
+async function confirmRequest() {
+  if (submissionPending.value || !modalItem.value) return
+  const selected = modalItem.value.timeslots?.find(slot => slot.timeslotId === modalForm.slot)
+  const quantity = Number(modalForm.qty)
+  if (!isPickupOpen(selected)) {
+    window.alert('Choose a future pickup timeslot with available places.')
+    return
+  }
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    window.alert('Enter a quantity greater than zero.')
+    return
+  }
+  if (Number.isFinite(modalItem.value.capacity) && quantity > modalItem.value.capacity) {
+    window.alert(`The daily limit for this listing is ${modalItem.value.capacity}.`)
+    return
+  }
+  const note = modalForm.note.trim()
+  if (note.length > 500) {
+    window.alert('The note must contain at most 500 characters.')
+    return
+  }
+  submissionPending.value = true
+  try {
+    const saved = await createPickupRequest({ timeslotId: selected.timeslotId, quantityRequested: quantity, note: note || null })
+    const row = recipientRequestRow(saved)
+    myRequestsList.value = [row, ...myRequestsList.value.filter(existing => existing.id !== row.id)]
+    window.alert('Pickup request submitted successfully.')
+    showModal.value = false
+    modalItem.value = null
     browseRef.value?.reload()
-    closeModal()
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    submissionPending.value = false
   }
 }
 </script>

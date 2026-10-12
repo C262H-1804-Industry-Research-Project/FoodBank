@@ -3,6 +3,8 @@ package foodbank.webapp.controllers;
 import foodbank.webapp.dto.ReportableRequestResponse;
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.service.RequestService;
+import foodbank.webapp.service.ListingService;
+import org.springframework.security.core.Authentication;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -15,10 +17,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DonorRequestController {
     private final RequestService requestService;
+    private final ListingService listingService;
 
     @GetMapping
-    public List<RequestResponse> getPendingRequests(@PathVariable Integer donorId) {
-        return requestService.getPendingRequests(donorId);
+    public List<RequestResponse> getRequests(@PathVariable Integer donorId, Authentication authentication) {
+        listingService.requireDonorOwner(donorId, authentication.getName());
+        return requestService.getDonorRequests(donorId);
     }
 
     @GetMapping("/reportable")
@@ -27,12 +31,16 @@ public class DonorRequestController {
     }
 
     @PatchMapping("/{requestId}/approve")
-    public RequestResponse approveRequest(@PathVariable Integer donorId, @PathVariable Integer requestId) {
-        return requestService.approveRequest(requestId);
+    public RequestResponse approveRequest(@PathVariable Integer donorId, @PathVariable Integer requestId,
+                                          Authentication authentication) {
+        listingService.requireDonorOwner(donorId, authentication.getName());
+        return requestService.approveRequest(donorId, requestId);
     }
 
     @PatchMapping("/{requestId}/reject")
-    public RequestResponse rejectRequest(@PathVariable Integer donorId, @PathVariable Integer requestId) {
-        return requestService.rejectRequest(requestId);
+    public RequestResponse rejectRequest(@PathVariable Integer donorId, @PathVariable Integer requestId,
+                                         Authentication authentication) {
+        listingService.requireDonorOwner(donorId, authentication.getName());
+        return requestService.rejectRequest(donorId, requestId);
     }
 }

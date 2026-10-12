@@ -6,7 +6,10 @@
         <div class="sub">Track every request from submitted to collected — the exact pickup address appears here once a donor approves you</div>
       </div>
     </div>
-    <table>
+    <p v-if="loading" role="status">Loading requests…</p>
+    <p v-else-if="error" role="alert">{{ error }} <button @click="emit('reload')">Retry</button></p>
+    <p v-else-if="requests.length === 0">No pickup requests yet.</p>
+    <table v-else>
       <thead>
         <tr>
           <th>Food item</th>
@@ -33,7 +36,7 @@
             <span v-else>—</span>
           </td>
           <td>
-            <button v-if="req.status === 'Requested'" class="btn-outline btn-sm" @click="emit('cancel', req.id)">Cancel</button>
+            <button v-if="canCancelPickup(req, now)" :disabled="busy" class="btn-outline btn-sm" @click="emit('cancel', req.id)">{{ busy ? 'Cancelling…' : 'Cancel' }}</button>
             <button v-else class="btn-outline btn-sm">Details</button>
           </td>
         </tr>
@@ -43,14 +46,24 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { canCancelPickup } from '../../api/pickupRequests'
+const now = ref(Date.now())
+let timer
+onMounted(() => { timer = setInterval(() => { now.value = Date.now() }, 1000) })
+onBeforeUnmount(() => clearInterval(timer))
+
 defineProps({
+  loading: Boolean,
+  error: { type: String, default: '' },
+  busy: Boolean,
   requests: {
     type: Array,
     required: true
   }
 })
 
-const emit = defineEmits(['cancel'])
+const emit = defineEmits(['cancel', 'reload'])
 </script>
 
 <style scoped>
