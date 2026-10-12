@@ -135,25 +135,16 @@ public class AdminBanService {
             );
         }
 
-        // Restore the status from before the first active ban, then close every active ban
-        // so the ban expiry job does not touch this user again.
+        // Close every active ban so the ban expiry job does not touch this user again.
         List<BanRecord> activeBans =
                 banRecordRepository.findByUserIdAndActiveTrueOrderByStartDateAsc(userId);
-
-        String restoredStatus = activeBans.stream()
-                .map(BanRecord::getPreviousStatus)
-                .filter(status -> status != null
-                        && !status.isBlank()
-                        && !"BANNED".equalsIgnoreCase(status))
-                .findFirst()
-                .orElse("ACTIVE");
 
         for (BanRecord banRecord : activeBans) {
             banRecord.setActive(Boolean.FALSE);
         }
         banRecordRepository.saveAll(activeBans);
 
-        user.setStatus(restoredStatus);
+        user.setStatus("ACTIVE");
         userRepository.save(user);
 
         return new UnbanUserResponse(
