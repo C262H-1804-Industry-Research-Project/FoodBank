@@ -50,6 +50,10 @@
         <ApproveRequests 
           v-else-if="currentPanel === 'requests'"
           :requests-list="requestsData"
+          :loading="requestLoading"
+          :error="requestError"
+          :busy="requestBusy"
+          @reload="loadRequestList"
           @approve-request="handleApproveRequest"
           @decline-request="handleDeclineRequest"
         />
@@ -91,9 +95,10 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { clearSession, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
+import { fetchDonorRequests, changePickupRequest, donorRequestRow } from '../../api/pickupRequests'
 import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
 
 import MyListings from './MyListings.vue'
@@ -187,51 +192,44 @@ function handleDeleteListing(id) {
   listingsData.value = listingsData.value.filter(item => item.id !== id)
 }
 
-// Requests to Approve state
-const requestsData = ref([
-  {
-    id: 201,
-    foodName: 'Sourdough loaves',
-    totalStock: '12 units',
-    recipientOrg: 'Community Kitchen East',
-    contactName: 'Priya Nair',
-    phone: '0412 345 678',
-    quantity: '4 units',
-    slot: 'Today, 5:30–6:00pm',
-    notes: 'Serving dinner for 20 community members tonight.',
-    status: 'Pending',
-    statusClass: 'status-pending'
-  },
-  {
-    id: 202,
-    foodName: 'Pantry staples box',
-    totalStock: '8 boxes',
-    recipientOrg: 'St. Vincent de Paul Adelaide',
-    contactName: 'Mark Higgins',
-    phone: '0423 789 012',
-    quantity: '2 boxes',
-    slot: 'Sat, 10:00–10:30am',
-    notes: 'Weekly food hamper distribution.',
-    status: 'Pending',
-    statusClass: 'status-pending'
-  }
-])
+// This panel uses the donor's persisted requests.
+const requestsData = ref([])
+const requestLoading = ref(false)
+const requestError = ref('')
+const requestBusy = ref(false)
 
-function handleApproveRequest(id) {
-  const target = requestsData.value.find(r => r.id === id)
-  if (target) {
-    target.status = 'Approved'
-    target.statusClass = 'status-approved'
+async function loadRequestList() {
+  if (requestLoading.value) return
+  requestLoading.value = true
+  requestError.value = ''
+  try {
+    const rows = await fetchDonorRequests(donorId, listingsController.signal)
+    if (!listingsController.signal.aborted) requestsData.value = rows.map(donorRequestRow)
+  } catch (error) {
+    if (!listingsController.signal.aborted) requestError.value = error.message
+  } finally {
+    requestLoading.value = false
   }
 }
+watch(currentPanel, panel => { if (panel === 'requests') loadRequestList() })
 
-function handleDeclineRequest(id) {
-  const target = requestsData.value.find(r => r.id === id)
-  if (target) {
-    target.status = 'Declined'
-    target.statusClass = 'status-declined'
+async function processPickup(id, action) {
+  if (requestBusy.value || requestLoading.value) return
+  const index = requestsData.value.findIndex(row => row.id === id && row.status === 'Pending')
+  if (index < 0) return
+  requestBusy.value = true
+  try {
+    const result = await changePickupRequest(donorId, id, action)
+    requestsData.value[index] = donorRequestRow(result)
+    await loadRequestList()
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    requestBusy.value = false
   }
 }
+function handleApproveRequest(id) { return processPickup(id, 'approve') }
+function handleDeclineRequest(id) { return processPickup(id, 'reject') }
 
 // Donation history state
 const historyData = ref([

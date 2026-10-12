@@ -3,6 +3,7 @@ import AuthIndex from '../views/auth/AuthIndex.vue'
 import RecipientIndex from '../views/recipient/RecipientIndex.vue'
 import DonorIndex from '../views/donor/DonorIndex.vue'
 import AdminIndex from '../views/admin/AdminIndex.vue'
+import { getStoredSession } from '../api/client'
 
 const routes = [
   {
@@ -34,6 +35,12 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+router.beforeEach(to => {
+  if (to.name !== 'Admin') return
+  const session = getStoredSession()
+  if (!session?.accessToken || session?.user?.role !== 'admin') return { name: 'Auth' }
 })
 
 export default router

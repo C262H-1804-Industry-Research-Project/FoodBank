@@ -7,6 +7,8 @@
       </div>
     </div>
 
+    <p v-if="loading">Loading listings…</p>
+    <p v-if="error" role="alert">{{ error }} <button @click="emit('reload')">Retry</button></p>
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
       <select v-model="filterCategory">
@@ -75,7 +77,7 @@
           <tr v-for="item in paginatedListings" :key="item.id">
             <td>
               <div class="food-clickable-name" @click="openDetailsModal(item)" title="Click to view details">
-                {{ item.name }} <span class="view-link-ic">ℹ️</span>
+                {{ item.name }} <small>{{ item.status }}</small> <span class="view-link-ic">ℹ️</span>
               </div>
               <div class="food-cat-sub">{{ item.category }}</div>
             </td>
@@ -89,11 +91,11 @@
               📍 {{ item.suburb }}, {{ item.stateRegion }}
             </td>
             <td>
-              <span class="badge-status status-live">Live</span>
+              <span class="badge-status" :class="item.status === 'LIVE' ? 'status-live' : 'status-expired'">{{ item.status }}</span>
             </td>
             <td style="text-align:right;">
               <button 
-                class="btn-ban btn-sm" 
+                class="btn-ban btn-sm" :disabled="busy != null || loading || item.status === 'BANNED'" 
                 @click="handleBanListing(item)"
               >
                 Ban
@@ -148,7 +150,7 @@
       <div class="modal-box" v-if="selectedItem">
         <div class="modal-head">
           <h3>{{ selectedItem.name }}</h3>
-          <span class="badge-status status-live">Live</span>
+          <span class="badge-status" :class="item.status === 'LIVE' ? 'status-live' : 'status-expired'">{{ item.status }}</span>
         </div>
         <div class="modal-sub">Listed by {{ selectedItem.donor }} · {{ selectedItem.category }}</div>
 
@@ -182,7 +184,7 @@
 
         <div class="modal-close-row">
           <button class="btn-outline" @click="closeModal">Close</button>
-          <button class="btn-ban btn-sm" @click="handleBanListing(selectedItem); closeModal();">
+          <button class="btn-ban btn-sm" :disabled="busy != null || selectedItem.status === 'BANNED'" @click="handleBanListing(selectedItem)">
             Ban this listing
           </button>
         </div>
@@ -195,13 +197,16 @@
 import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
+  loading: Boolean,
+  error: String,
+  busy: Number,
   listings: {
     type: Array,
     required: true
   }
 })
 
-const emit = defineEmits(['ban-listing'])
+const emit = defineEmits(['ban-listing', 'reload'])
 
 const filterCategory = ref('')
 const filterLocation = ref('')
@@ -286,6 +291,7 @@ watch([filterCategory, filterLocation, filterTime, searchKeyword, activeTags], (
 })
 
 const totalPages = computed(() => Math.ceil(filteredListings.value.length / pageSize.value) || 1)
+watch(totalPages, pages => { currentPage.value = Math.min(currentPage.value, pages) })
 const paginationStart = computed(() => filteredListings.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
 const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredListings.value.length))
 const paginatedListings = computed(() => {
@@ -308,7 +314,8 @@ function closeModal() {
 }
 
 function handleBanListing(item) {
-  const confirmed = window.confirm(`Are you sure you want to BAN and permanently remove "${item.name}" listed by ${item.donor}?`)
+  if (props.busy != null || item.status === 'BANNED') return
+  const confirmed = window.confirm(`Are you sure you want to ban "${item.name}" listed by ${item.donor}?`)
   if (confirmed) {
     emit('ban-listing', item.id)
   }

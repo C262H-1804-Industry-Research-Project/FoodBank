@@ -17,7 +17,7 @@
             <div class="pw-sub">Default suspension period applied when enforcing bans for repeated offences</div>
           </div>
         </div>
-        <button class="btn-save-policy" @click="savePolicy">
+        <button class="btn-save-policy" @click="savePolicy" :disabled="policyBusy || !policyReady">
           {{ policySaved ? '✓ Saved' : 'Save policy' }}
         </button>
       </div>
@@ -26,7 +26,7 @@
         <div class="pw-card">
           <div class="pw-badge badge-1st">1st Offence</div>
           <div class="pw-input-wrap">
-            <input type="number" v-model.number="banPolicy.first" min="1" max="365">
+            <input type="number" :disabled="policyBusy || !policyReady" @input="policySaved = false" v-model.number="banPolicy.first" min="1" max="365">
             <span class="pw-unit">days ban</span>
           </div>
           <div class="pw-desc">Minor infractions (e.g. slight delay, unnotified cancellation)</div>
@@ -35,7 +35,7 @@
         <div class="pw-card">
           <div class="pw-badge badge-2nd">2nd Offence</div>
           <div class="pw-input-wrap">
-            <input type="number" v-model.number="banPolicy.second" min="1" max="365">
+            <input type="number" :disabled="policyBusy || !policyReady" @input="policySaved = false" v-model.number="banPolicy.second" min="1" max="365">
             <span class="pw-unit">days ban</span>
           </div>
           <div class="pw-desc">Repeated no-shows or collection discrepancies</div>
@@ -44,7 +44,7 @@
         <div class="pw-card">
           <div class="pw-badge badge-3rd">3rd Offence</div>
           <div class="pw-input-wrap">
-            <input type="number" v-model.number="banPolicy.third" min="1" max="365">
+            <input type="number" :disabled="policyBusy || !policyReady" @input="policySaved = false" v-model.number="banPolicy.third" min="1" max="365">
             <span class="pw-unit">days ban</span>
           </div>
           <div class="pw-desc">Chronic misconduct or abusive behavior (account deactivation)</div>
@@ -52,6 +52,10 @@
       </div>
     </div>
 
+    <p v-if="policyError" role="alert">{{ policyError }} <button @click="loadPolicy">Retry policy</button></p>
+    <p v-if="loading">Loading reports…</p>
+    <p v-if="loadError" role="alert">{{ loadError }} <button @click="loadReports">Retry</button></p>
+    <p v-if="processError" role="alert">{{ processError }}</p>
     <!-- 2. Search & Filter Bar -->
     <div class="filter-bar">
       <input 
@@ -63,6 +67,7 @@
       <select v-model="filterStatus">
         <option value="">All statuses</option>
         <option value="Pending">Pending Review</option>
+        <option value="In review">In review</option>
         <option value="Resolved">Resolved / Actioned</option>
         <option value="Dismissed">Dismissed</option>
       </select>
@@ -90,7 +95,7 @@
             </td>
             <td>
               <span class="offence-count-badge" :class="getOffenceClass(r.offenceCount)">
-                {{ r.offenceCount }} {{ r.offenceCount === 1 ? 'offence' : 'offences' }}
+                {{ r.offenceCount }} prior ban(s)
               </span>
             </td>
             <td>
@@ -107,11 +112,11 @@
               <span class="badge-status" :class="getStatusClass(r.status)">{{ r.status }}</span>
             </td>
             <td style="text-align:right;">
-              <div v-if="r.status === 'Pending'" class="action-btns">
-                <button class="btn-process btn-sm" @click="openProcessModal(r)">
+              <div v-if="r.status === 'Pending' || r.status === 'In review'" class="action-btns">
+                <button class="btn-process btn-sm" :disabled="processing || loading" @click="openProcessModal(r)">
                   Process
                 </button>
-                <button class="btn-dismiss btn-sm" @click="handleDismiss(r)">
+                <button class="btn-dismiss btn-sm" :disabled="processing || loading" @click="handleDismiss(r)">
                   Dismiss
                 </button>
               </div>
@@ -147,45 +152,48 @@
     </div>
 
     <!-- 5. Process & Ban Enforcement Modal -->
-    <div class="modal-backdrop" :class="{ show: showProcessModal }" @click.self="showProcessModal = false">
+    <div class="modal-backdrop" :class="{ show: showProcessModal }" @click.self="!processing && (showProcessModal = false)">
       <div class="modal-card" v-if="activeReport">
         <div class="modal-head">
           <h3>Enforce Penalty</h3>
           <span class="offence-count-badge" :class="getOffenceClass(activeReport.offenceCount)">
-            Current Record: {{ activeReport.offenceCount }} Offence(s)
+            Prior bans: {{ activeReport.offenceCount }}
           </span>
         </div>
 
         <div class="modal-summary">
           <div><strong>Target:</strong> {{ activeReport.reportedUser }} ({{ activeReport.reportedRole }})</div>
+          <div><strong>Details:</strong> {{ activeReport.details || 'None' }}</div>
+          <div v-if="activeReport.evidenceImageUrl"><strong>Evidence:</strong> <a :href="activeReport.evidenceImageUrl" target="_blank" rel="noopener noreferrer">View evidence</a></div>
           <div><strong>Reported For:</strong> {{ activeReport.reason }}</div>
         </div>
 
         <div class="field">
           <label class="field-label">Penalty Action</label>
-          <select v-model="processAction">
+          <select v-model="processAction" :disabled="processing">
+            <option value="review">Mark as In Review</option>
             <option value="ban">Apply Temporary Suspension</option>
-            <option value="warning">Issue Official Warning (No Suspension)</option>
-            <option value="deactivate">Permanent Deactivation</option>
+            <option value="warning">Record Warning (No Suspension)</option>
+            <option value="deactivate">Permanent Suspension</option>
           </select>
         </div>
 
         <div v-if="processAction === 'ban'" class="field">
           <label class="field-label">
             Suspension Duration (Days) 
-            <span class="policy-hint">• Auto-suggested from {{ getOffenceStage(activeReport.offenceCount) }} policy</span>
+            <span class="policy-hint">• Auto-suggested from {{ getOffenceStage(activeReport.offenceCount + 1) }} policy</span>
           </label>
-          <input type="number" v-model.number="banDaysInput" min="1" max="365">
+          <input type="number" :disabled="processing" v-model.number="banDaysInput" min="1" max="365">
         </div>
 
         <div class="field">
           <label class="field-label">Admin Resolution Note</label>
-          <textarea v-model="adminNote" rows="3" placeholder="Explain the rationale for this moderation action (sent to user notification log)…"></textarea>
+          <textarea :disabled="processing" v-model="adminNote" rows="3" placeholder="Explain the rationale for this moderation action (saved with the report)…"></textarea>
         </div>
 
         <div class="modal-foot">
-          <button type="button" class="btn-outline" @click="showProcessModal = false">Cancel</button>
-          <button type="button" class="btn-danger-confirm" @click="confirmProcess">
+          <button type="button" class="btn-outline" :disabled="processing" @click="showProcessModal = false">Cancel</button>
+          <button type="button" class="btn-danger-confirm" :disabled="processing" @click="confirmProcess">
             Confirm & Apply Penalty
           </button>
         </div>
@@ -195,7 +203,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+
+import { fetchAdminReports, processAdminReport, fetchBanPolicy, saveBanPolicy, adminReportRow } from '../../api/adminModeration'
 
 const emit = defineEmits(['report-actioned'])
 
@@ -207,52 +217,40 @@ const banPolicy = reactive({
 })
 
 const policySaved = ref(false)
-function savePolicy() {
-  policySaved.value = true
-  setTimeout(() => {
-    policySaved.value = false
-  }, 2000)
+const reports = ref([])
+const loading = ref(false)
+const loadError = ref('')
+const policyError = ref('')
+const policyBusy = ref(false)
+const policyReady = ref(false)
+const processing = ref(false)
+const processError = ref('')
+async function loadReports() {
+  loading.value = true; loadError.value = ''
+  try {
+    const rows = await fetchAdminReports()
+    if (!Array.isArray(rows)) throw new Error('Invalid report response')
+    reports.value = rows.map(adminReportRow)
+  } catch (error) { loadError.value = error.message }
+  finally { loading.value = false }
 }
-
-// 2. Misuse Reports Data
-const reports = ref([
-  {
-    id: 1,
-    reportedUser: 'Community Kitchen East',
-    reportedRole: 'Recipient',
-    reportedId: 'U1002',
-    offenceCount: 1, // 1st offence
-    foodName: 'Sourdough loaves (12 units)',
-    timeslot: 'Today, 5:30–6:00pm',
-    reporter: 'Green Leaf Café',
-    reason: 'Recipient arrived 45 minutes late past closing window and was disrespectful.',
-    status: 'Pending'
-  },
-  {
-    id: 2,
-    reportedUser: 'Daniel Croft',
-    reportedRole: 'Donor',
-    reportedId: 'U1004',
-    offenceCount: 2, // 2nd offence
-    foodName: 'Artisan Pastries (15 units)',
-    timeslot: 'Yesterday, 6:00pm',
-    reporter: 'Norwood Youth Refuge',
-    reason: 'Food provided was expired by 3 days contrary to description.',
-    status: 'Pending'
-  },
-  {
-    id: 3,
-    reportedUser: 'Metro Food Hub',
-    reportedRole: 'Recipient',
-    reportedId: 'U1009',
-    offenceCount: 3, // 3rd offence
-    foodName: 'Pantry staples box (8 boxes)',
-    timeslot: 'Last week',
-    reporter: 'Torrens Bakehouse',
-    reason: 'Persistent no-show for 3 reserved collections without prior notification.',
-    status: 'Resolved'
+async function loadPolicy() {
+  policyError.value = ''; policyReady.value = false
+  try { Object.assign(banPolicy, await fetchBanPolicy()); policyReady.value = true }
+  catch (error) { policyError.value = error.message }
+}
+onMounted(() => { loadReports(); loadPolicy() })
+async function savePolicy() {
+  if (policyBusy.value || !policyReady.value) return
+  policySaved.value = false; policyError.value = ''
+  if (!Object.values(banPolicy).every(value => Number.isInteger(value) && value >= 1 && value <= 365)) {
+    policyError.value = 'Each duration must be an integer between 1 and 365'; return
   }
-])
+  policyBusy.value = true
+  try { Object.assign(banPolicy, await saveBanPolicy({ ...banPolicy })); policySaved.value = true }
+  catch (error) { policyError.value = error.message }
+  finally { policyBusy.value = false }
+}
 
 const searchKeyword = ref('')
 const filterStatus = ref('')
@@ -280,6 +278,7 @@ watch([searchKeyword, filterStatus], () => {
 })
 
 const totalPages = computed(() => Math.ceil(filteredReports.value.length / pageSize.value) || 1)
+watch(totalPages, pages => { currentPage.value = Math.min(currentPage.value, pages) })
 const paginationStart = computed(() => filteredReports.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
 const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredReports.value.length))
 const paginatedReports = computed(() => {
@@ -294,7 +293,7 @@ function getOffenceClass(count) {
 }
 
 function getStatusClass(status) {
-  if (status === 'Pending') return 'status-pending'
+  if (status === 'Pending' || status === 'In review') return 'status-pending'
   if (status === 'Resolved') return 'status-resolved'
   return 'status-dismissed'
 }
@@ -313,14 +312,16 @@ const banDaysInput = ref(3)
 const adminNote = ref('')
 
 function openProcessModal(report) {
+  if (processing.value) return
+  processError.value = ''
   activeReport.value = report
   adminNote.value = ''
   processAction.value = 'ban'
 
   // Automatically suggest days according to the policy widget configuration
-  if (report.offenceCount === 1) {
+  if (report.offenceCount === 0) {
     banDaysInput.value = banPolicy.first
-  } else if (report.offenceCount === 2) {
+  } else if (report.offenceCount === 1) {
     banDaysInput.value = banPolicy.second
   } else {
     banDaysInput.value = banPolicy.third
@@ -329,19 +330,35 @@ function openProcessModal(report) {
   showProcessModal.value = true
 }
 
-function handleDismiss(report) {
-  const confirmed = window.confirm(`Dismiss report against ${report.reportedUser}? No disciplinary action will be taken.`)
-  if (confirmed) {
-    report.status = 'Dismissed'
-  }
+async function applyAction(report, body) {
+  if (processing.value) return false
+  processing.value = true; processError.value = ''
+  try {
+    const result = await processAdminReport(report.id, body)
+    if (result?.reportId !== report.id || result.status !== body.status) throw new Error('Invalid process response')
+    const index = reports.value.findIndex(item => item.id === report.id)
+    if (index >= 0) reports.value[index] = adminReportRow(result)
+    emit('report-actioned', result)
+    await loadReports()
+    return true
+  } catch (error) { processError.value = error.message; return false }
+  finally { processing.value = false }
 }
-
-function confirmProcess() {
-  if (!activeReport.value) return
-  const daysText = processAction.value === 'ban' ? `${banDaysInput.value} days ban` : processAction.value
-  activeReport.value.status = 'Resolved'
-  showProcessModal.value = false
-  alert(`Disciplinary action (${daysText}) applied to ${activeReport.value.reportedUser}.`)
+async function handleDismiss(report) {
+  if (processing.value || !window.confirm(`Dismiss report against ${report.reportedUser}?`)) return
+  await applyAction(report, { status: 'DISMISSED', action: 'DISMISS', adminNote: null, outcome: 'Dismissed' })
+}
+async function confirmProcess() {
+  if (!activeReport.value || processing.value) return
+  if (processAction.value === 'ban' && (!Number.isInteger(banDaysInput.value) || banDaysInput.value < 1 || banDaysInput.value > 365)) {
+    processError.value = 'Duration must be an integer between 1 and 365'; return
+  }
+  const action = processAction.value.toUpperCase()
+  const body = { status: action === 'REVIEW' ? 'IN_REVIEW' : 'RESOLVED', action,
+    adminNote: adminNote.value.trim() || null,
+    outcome: action === 'BAN' ? `Temporary suspension: ${banDaysInput.value} days` : action === 'DEACTIVATE' ? 'Permanent suspension' : action === 'WARNING' ? 'Warning recorded' : 'Under review',
+    ...(action === 'BAN' ? { banDays: banDaysInput.value } : {}) }
+  if (await applyAction(activeReport.value, body)) showProcessModal.value = false
 }
 </script>
 

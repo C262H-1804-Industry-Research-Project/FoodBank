@@ -9,5 +9,10 @@ public record RequestResponse(
         Float quantityRequested,
         String status,
         String pickupCode,
-        String note
+        String note,
+        String donorName,
+        String pickupAddress,
+        String recipientOrg,
+        String recipientPhone,
+        Float listingQuantity
 ) {}

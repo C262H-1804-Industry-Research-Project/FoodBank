@@ -18,6 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminListingController {
 
     private final AdminListingService adminListingService;
+    private final foodbank.webapp.service.ListingService listingService;
+
+    @org.springframework.web.bind.annotation.GetMapping
+    public org.springframework.data.web.PagedModel<foodbank.webapp.dto.AdminListingResponse> getListings(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "50") int size) {
+        if (page < 0 || size < 1 || size > 100) throw new IllegalArgumentException("Invalid page or size");
+        return new org.springframework.data.web.PagedModel<>(listingService.findAdminListings(
+                org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by("listingId"))));
+    }
 
     @PostMapping("/{listingId}/ban")
     @ResponseStatus(HttpStatus.OK)

@@ -12,6 +12,7 @@ import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
+import foodbank.webapp.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,9 +31,10 @@ public class RequestService {
     private final RequestRepository requestRepository;
     private final TimeslotRepository timeslotRepository;
     private final RecipientRepository recipientRepository;
+    private final UserRepository userRepository;
 
-    public List<RequestResponse> getPendingRequests(Integer donorId) {
-        return requestRepository.findPendingByDonor(donorId, "PENDING").stream()
+    public List<RequestResponse> getDonorRequests(Integer donorId) {
+        return requestRepository.findAllByDonor(donorId).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -44,12 +46,13 @@ public class RequestService {
     }
 
     @Transactional
-    public RequestResponse approveRequest(Integer requestId) {
+    public RequestResponse approveRequest(Integer donorId, Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
 
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        checkDonorRequest(donorId, request, timeslot);
         Listing listing = timeslot.getListing();
 
         request.setStatus("APPROVED");
@@ -62,11 +65,25 @@ public class RequestService {
     }
 
     @Transactional
-    public RequestResponse rejectRequest(Integer requestId) {
+    public RequestResponse rejectRequest(Integer donorId, Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
+        Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        checkDonorRequest(donorId, request, timeslot);
         request.setStatus("REJECTED");
+        timeslot.setRemainingSlot(timeslot.getRemainingSlot() + 1);
+        timeslotRepository.save(timeslot);
         return toResponse(requestRepository.save(request));
+    }
+
+    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot) {
+        if (!donorId.equals(timeslot.getListing().getDonor().getId())) {
+            throw new ForbiddenException("The pickup request belongs to a different donor");
+        }
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new ConflictException("The pickup request has already been processed or cancelled");
+        }
     }
 
     @Transactional
@@ -74,7 +91,7 @@ public class RequestService {
         if (req.timeslotId() == null) {
             throw new IllegalArgumentException("timeslotId is required");
         }
-        if (req.quantityRequested() == null || req.quantityRequested() <= 0) {
+        if (req.quantityRequested() == null || !Float.isFinite(req.quantityRequested()) || req.quantityRequested() <= 0) {
             throw new IllegalArgumentException("quantityRequested must be greater than zero");
         }
         String note = req.note() == null || req.note().isBlank() ? null : req.note().strip();
@@ -84,6 +101,10 @@ public class RequestService {
 
         Timeslot timeslot = timeslotRepository.findById(req.timeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+
+        if (!timeslot.getStartTime().isAfter(LocalDateTime.now())) {
+            throw new ConflictException("The pickup timeslot has already started");
+        }
 
         Recipient recipient = findRecipientForUser(userId);
         Integer recipientId = recipient.getRecipientId();
@@ -191,6 +212,14 @@ public class RequestService {
                 .orElseThrow(() -> new ForbiddenException("Recipient profile does not exist"));
     }
 
+    private String formatAddress(Listing listing) {
+        String street = listing.getAddressLine();
+        if (street == null || street.isBlank()) street = listing.getDonor().getAddressLine();
+        return java.util.stream.Stream.of(street, listing.getSuburb(), listing.getRegion())
+                .filter(part -> part != null && !part.isBlank())
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
     private RequestResponse toResponse(Request request) {
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
@@ -207,7 +236,12 @@ public class RequestService {
                 request.getQuantityRequested(),
                 request.getStatus(),
                 request.getPickupCode(),
-                request.getNote()
+                request.getNote(),
+                listing.getDonor().getOrgName(),
+                "APPROVED".equals(request.getStatus()) ? formatAddress(listing) : null,
+                recipient.getOrgName(),
+                userRepository.findById(recipient.getUserId()).map(user -> user.getPhone()).orElse(null),
+                listing.getQuantity()
         );
     }
 

@@ -116,6 +116,10 @@ public class SecurityConfig {
                                 "/api/recipients/me/**"
                         ).hasRole("RECIPIENT")
 
+                        // Only donors can access pickup approval endpoints.
+                        .requestMatchers("/api/donors/*/requests", "/api/donors/*/requests/**")
+                        .hasRole("DONOR")
+
                         // Pickup requests are made and viewed by recipients.
                         .requestMatchers(
                                 "/api/requests",

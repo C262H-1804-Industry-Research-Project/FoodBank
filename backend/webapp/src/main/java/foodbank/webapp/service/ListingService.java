@@ -48,6 +48,11 @@ public class ListingService {
         return listingRepository.findAll(pageable);
     }
 
+    public Page<foodbank.webapp.dto.AdminListingResponse> findAdminListings(Pageable pageable) {
+        return findAllListing(pageable).map(listing -> new foodbank.webapp.dto.AdminListingResponse(
+                toListingResponse(listing, null), listing.getStatus(), listing.getQuantity()));
+    }
+
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
         return findAllListing(pageable).map(listing -> toListingResponse(listing, null));
     }

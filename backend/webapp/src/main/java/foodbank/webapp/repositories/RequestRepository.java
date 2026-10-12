@@ -23,6 +23,10 @@ public interface RequestRepository extends JpaRepository<Request, Integer> {
            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId)")
     List<Request> findPendingByDonor(@Param("donorId") Integer donorId, @Param("status") String status);
 
+    @Query("SELECT r FROM Request r WHERE r.timeslotId IN " +
+           "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId)")
+    List<Request> findAllByDonor(@Param("donorId") Integer donorId);
+
     @Query("SELECT SUM(r.quantityRequested) FROM Request r " +
            "WHERE r.recipientId = :recipientId AND r.status NOT IN ('REJECTED', 'CANCELLED') AND r.timeslotId IN " +
            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.listingId = :listingId " +

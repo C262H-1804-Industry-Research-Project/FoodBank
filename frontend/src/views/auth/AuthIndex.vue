@@ -264,18 +264,18 @@
 
           <form @submit.prevent="handleAdminLogin">
             <div class="field">
-              <label class="field-label">Admin account</label>
-              <input v-model="adminUser" type="text" placeholder="admin4" required>
+              <label class="field-label">Admin email</label>
+              <input v-model="adminUser" type="email" placeholder="admin@example.com" required>
             </div>
             <div class="field">
               <label class="field-label">Admin password</label>
               <input v-model="adminPassword" type="password" placeholder="••••••••" required>
             </div>
 
-            <button type="submit" class="btn-danger-large">
-              Verify & Enter Console
+            <button type="submit" class="btn-danger-large" :disabled="adminPending">
+              {{ adminPending ? 'Signing in…' : 'Verify & Enter Console' }}
             </button>
-            <button type="button" class="btn-text-link" @click="showAdminLogin = false">
+            <button type="button" class="btn-text-link" :disabled="adminPending" @click="showAdminLogin = false">
               ← Back to public user login
             </button>
           </form>
@@ -315,8 +315,9 @@ const loginRole = ref('recipient')
 const signupStep = ref(1)
 const showAdminLogin = ref(false)
 
-const adminUser = ref('admin4')
-const adminPassword = ref('adminpass')
+const adminUser = ref('')
+const adminPassword = ref('')
+const adminPending = ref(false)
 
 function switchTab(tab) {
   currentTab.value = tab
@@ -403,9 +404,20 @@ function completeLogin(session) {
   router.push(session.user.role === 'donor' ? '/donor' : '/recipient')
 }
 
-function handleAdminLogin() {
-  if (adminUser.value.trim()) {
-    router.push('/admin')
+async function handleAdminLogin() {
+  if (adminPending.value) return
+  adminPending.value = true
+  try {
+    const session = await login({ email: adminUser.value.trim(), password: adminPassword.value, role: 'admin' })
+    if (!session?.accessToken || session?.user?.role !== 'admin') {
+      throw new Error('Administrator login returned an invalid session.')
+    }
+    storeSession(session)
+    await router.push('/admin')
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    adminPending.value = false
   }
 }
 </script>

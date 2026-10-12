@@ -19,12 +19,17 @@ import java.time.LocalDateTime;
 public class AdminReportService {
 
     private final ReportRepository reportRepository;
+    private final AdminBanService adminBanService;
+    private final foodbank.webapp.repositories.DonorRepository donorRepository;
+    private final foodbank.webapp.repositories.RecipientRepository recipientRepository;
+    private final foodbank.webapp.repositories.ListingRepository listingRepository;
+    private final foodbank.webapp.repositories.BanRecordRepository banRecordRepository;
 
     public List<AdminReportResponse> getAllReports() {
         return reportRepository
                 .findAll()
                 .stream()
-                .map(AdminReportService::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
     public AdminReportResponse getReportById(
@@ -40,6 +45,7 @@ public class AdminReportService {
 
         return toResponse(report);
     }
+    @org.springframework.transaction.annotation.Transactional
     public AdminReportResponse processReport(
             Integer reportId,
             ProcessReportRequest request,
@@ -88,6 +94,28 @@ public class AdminReportService {
                         )
                 );
 
+        if (request.action() != null) {
+            if (Set.of("RESOLVED", "DISMISSED").contains(report.getStatus())) {
+                throw new foodbank.webapp.exceptions.ConflictException("Report has already been processed");
+            }
+            String action = request.action().trim().toUpperCase(Locale.ROOT);
+            if (!Set.of("BAN", "DEACTIVATE", "WARNING", "DISMISS", "REVIEW").contains(action)) {
+                throw new IllegalArgumentException("Invalid report action");
+            }
+            String expected = action.equals("DISMISS") ? "DISMISSED" : action.equals("REVIEW") ? "IN_REVIEW" : "RESOLVED";
+            if (!expected.equals(status)) throw new IllegalArgumentException("Action and status do not match");
+            if (action.equals("BAN") || action.equals("DEACTIVATE")) {
+                java.time.LocalDate end = null;
+                if (action.equals("BAN")) {
+                    if (request.banDays() == null || request.banDays() < 1 || request.banDays() > 365)
+                        throw new IllegalArgumentException("banDays must be between 1 and 365");
+                    end = java.time.LocalDate.now().plusDays(request.banDays());
+                }
+                adminBanService.banUser(report.getReportedId(), new foodbank.webapp.dto.BanUserRequest(
+                        reportId, blankToNull(request.adminNote()) == null ? report.getReason() : request.adminNote(),
+                        action.equals("BAN") ? "TEMPORARY" : "PERMANENT", end), adminId);
+            }
+        }
         report.setStatus(status);
         report.setAdminNote(
                 blankToNull(request.adminNote())
@@ -104,7 +132,7 @@ public class AdminReportService {
         return toResponse(updatedReport);
     }
 
-    private static AdminReportResponse toResponse(
+    private AdminReportResponse toResponse(
             Report report
     ) {
         return new AdminReportResponse(
@@ -124,8 +152,17 @@ public class AdminReportService {
                 report.getProcessedBy(),
                 report.getProcessedAt(),
                 report.getCreatedAt(),
-                report.getUpdatedAt()
+                report.getUpdatedAt(),
+                userName(report.getReporterId()),
+                userName(report.getReportedId()),
+                donorRepository.existsByUserId(report.getReportedId()) ? "Donor" : "Recipient",
+                report.getListingId() == null ? null : listingRepository.findById(report.getListingId()).map(foodbank.webapp.entity.Listing::getName).orElse(null),
+                banRecordRepository.countByUserId(report.getReportedId())
         );
+    }
+    private String userName(Integer userId) {
+        return donorRepository.findByUserId(userId).map(foodbank.webapp.entity.Donor::getOrgName)
+                .orElseGet(() -> recipientRepository.findByUserId(userId).map(foodbank.webapp.entity.Recipient::getName).orElse("User #" + userId));
     }
     private static String blankToNull(String value) {
         return value == null || value.isBlank()
