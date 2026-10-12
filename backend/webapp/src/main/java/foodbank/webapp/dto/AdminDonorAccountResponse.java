@@ -4,6 +4,8 @@ public record AdminDonorAccountResponse(
         Integer donorId,
         Integer userId,
         String organisation,
+        String email,
+        String phone,
         long reportsAgainst,
         long donationsMade,
         long successfulCollections,
