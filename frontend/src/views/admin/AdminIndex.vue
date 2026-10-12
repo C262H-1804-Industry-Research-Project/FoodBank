@@ -39,13 +39,11 @@
           @ban-listing="handleBanListing"
         />
 
-        <!-- 2. Account Management Panel (with userId & Deactivate action) -->
+        <!-- 2. Account Management Panel -->
         <AccountManagement
           v-else-if="currentPanel === 'users'"
           :users-list="adminUsers"
           :loading="usersLoading" :error="usersError" @reload="loadUsers"
-          @deactivate-user="handleDeactivateUser"
-          @reactivate-user="handleReactivateUser"
         />
 
         <!-- 3. Misuse Reports & Penalty Policy Panel -->
@@ -158,19 +156,6 @@ async function loadUsers() {
 }
 watch(currentPanel, panel => { if (panel === 'users') loadUsers() })
 
-function handleDeactivateUser(userId) {
-  const user = adminUsers.value.find(u => u.userId === userId)
-  if (user) {
-    user.status = 'Deactivated'
-  }
-}
-
-function handleReactivateUser(userId) {
-  const user = adminUsers.value.find(u => u.userId === userId)
-  if (user) {
-    user.status = 'Active'
-  }
-}
 </script>
 
 <style scoped>

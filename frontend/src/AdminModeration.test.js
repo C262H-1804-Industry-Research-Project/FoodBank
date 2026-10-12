@@ -121,3 +121,49 @@ it('loads real donor and recipient accounts into user management', async () => {
   expect(rows[0].text()).toContain('Green Leaf Café'); expect(rows[0].text()).toContain('green@cafe.com'); expect(rows[0].text()).toContain('Active')
   expect(rows[1].text()).toContain('Kitchen East'); expect(rows[1].text()).toContain('Deactivated'); expect(rows[1].text()).toContain('—')
 })
+function mockAccounts(recipientStatus) {
+  let status = recipientStatus
+  const fetchMock = vi.fn(async (url, options = {}) => {
+    if (url === '/api/donors') return response([])
+    if (url === '/api/recipients') return response([{ recipientId: 2, userId: 8, recipient: 'Kitchen East', email: 'k@east.org', status }])
+    if (url === '/api/admin/users/8/ban') { status = 'BANNED'; return response({ userStatus: 'BANNED' }, 201) }
+    if (url === '/api/admin/users/8/unban') { status = 'ACTIVE'; return response({ userStatus: 'ACTIVE' }) }
+    return response({ content: [], page: { totalPages: 0 } })
+  })
+  vi.stubGlobal('fetch', fetchMock); return fetchMock
+}
+async function openUsers() {
+  wrapper = mount(AdminIndex); await flushPromises()
+  await wrapper.findAll('.sb-item').find(item => item.text() === 'User management').trigger('click'); await flushPromises()
+}
+it('deactivates an account permanently with a reason from the modal', async () => {
+  const fetchMock = mockAccounts('ACTIVE'); await openUsers()
+  await wrapper.get('.btn-deactivate').trigger('click')
+  expect(wrapper.get('.modal-backdrop').classes()).toContain('show')
+  expect(wrapper.get('.btn-danger-confirm').attributes('disabled')).toBeDefined()
+  await wrapper.get('.modal-card textarea').setValue('Repeated no-shows')
+  await wrapper.get('.btn-danger-confirm').trigger('click'); await flushPromises()
+  const [, options] = fetchMock.mock.calls.find(([url]) => url === '/api/admin/users/8/ban')
+  expect(JSON.parse(options.body)).toEqual({ reason: 'Repeated no-shows', banType: 'PERMANENT' })
+  expect(wrapper.get('.modal-backdrop').classes()).not.toContain('show')
+  expect(wrapper.get('tbody tr').text()).toContain('Deactivated')
+})
+it('keeps the deactivate modal open when the request fails', async () => {
+  vi.stubGlobal('fetch', vi.fn(async url => {
+    if (url === '/api/recipients') return response([{ userId: 8, recipient: 'Kitchen East', status: 'ACTIVE' }])
+    if (url === '/api/admin/users/8/ban') return response({ error: 'User is already banned' }, 409)
+    return response(url === '/api/donors' ? [] : { content: [], page: { totalPages: 0 } })
+  }))
+  await openUsers()
+  await wrapper.get('.btn-deactivate').trigger('click')
+  await wrapper.get('.modal-card textarea').setValue('Fraud')
+  await wrapper.get('.btn-danger-confirm').trigger('click'); await flushPromises()
+  expect(window.alert).toHaveBeenCalled()
+  expect(wrapper.get('.modal-backdrop').classes()).toContain('show')
+})
+it('reactivates a deactivated account', async () => {
+  const fetchMock = mockAccounts('BANNED'); await openUsers()
+  await wrapper.get('.btn-reactivate').trigger('click'); await flushPromises()
+  expect(fetchMock.mock.calls.some(([url, options]) => url === '/api/admin/users/8/unban' && options.method === 'POST')).toBe(true)
+  expect(wrapper.get('tbody tr').text()).toContain('Active')
+})

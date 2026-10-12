@@ -38,6 +38,10 @@ function adminAccountRow(item, role, name) {
     phone: item.phone || '', status, reportsAgainst: item.reportsAgainst, banTimes: item.banTimes,
     banDaysRemaining: item.banDaysRemaining }
 }
+export function deactivateUser(userId, reason) {
+  return apiRequest(`/admin/users/${userId}/ban`, { method: 'POST', body: { reason, banType: 'PERMANENT' } })
+}
+export function reactivateUser(userId) { return apiRequest(`/admin/users/${userId}/unban`, { method: 'POST' }) }
 export function banFoodListing(id) { return apiRequest(`/admin/listings/${id}/ban`, { method: 'POST' }) }
 export function fetchAdminReports() { return apiRequest('/admin/reports') }
 export function processAdminReport(id, body) { return apiRequest(`/admin/reports/${id}`, { method: 'PATCH', body }) }

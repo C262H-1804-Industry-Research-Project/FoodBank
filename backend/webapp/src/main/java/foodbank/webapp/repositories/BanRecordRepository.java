@@ -17,6 +17,8 @@ public interface BanRecordRepository
             String banType
     );
 
+    List<BanRecord> findByUserIdAndActiveTrueOrderByStartDateAsc(Integer userId);
+
     List<BanRecord> findByBanTypeIgnoreCaseAndActiveTrueAndEndDateLessThanEqual(
             String banType,
             LocalDate endDate

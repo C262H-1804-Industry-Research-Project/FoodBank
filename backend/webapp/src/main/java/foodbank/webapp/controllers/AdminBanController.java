@@ -2,6 +2,7 @@ package foodbank.webapp.controllers;
 
 import foodbank.webapp.dto.BanUserRequest;
 import foodbank.webapp.dto.BanUserResponse;
+import foodbank.webapp.dto.UnbanUserResponse;
 import foodbank.webapp.service.AdminBanService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
@@ -37,5 +38,10 @@ public class AdminBanController {
                 request,
                 adminId
         );
+    }
+
+    @PostMapping("/{userId}/unban")
+    public UnbanUserResponse unbanUser(@PathVariable Integer userId) {
+        return adminBanService.unbanUser(userId);
     }
 }

@@ -77,17 +77,18 @@
               </span>
             </td>
             <td style="text-align:right;">
-              <!-- Replaced "Detail" button with "Deactivate" / "Reactivate" toggle action -->
               <button 
                 v-if="user.status === 'Active'" 
                 class="btn-deactivate btn-sm" 
-                @click="handleDeactivate(user)"
+                :disabled="busy"
+                @click="openDeactivate(user)"
               >
                 Deactivate
               </button>
               <button 
                 v-else-if="user.status === 'Deactivated'" 
                 class="btn-reactivate btn-sm" 
+                :disabled="busy"
                 @click="handleReactivate(user)"
               >
                 Reactivate
@@ -136,11 +137,35 @@
     <div v-else-if="!loading" class="empty-note">
       No users found matching your search and filter criteria.
     </div>
+
+    <!-- 4. Deactivate Modal -->
+    <div class="modal-backdrop" :class="{ show: deactivateTarget }" @click.self="!busy && closeDeactivate()">
+      <div class="modal-card" v-if="deactivateTarget">
+        <div class="modal-head">
+          <h3>Deactivate account</h3>
+        </div>
+        <div class="modal-summary">
+          <div><strong>Account:</strong> {{ deactivateTarget.name }} ({{ deactivateTarget.role }}, #{{ deactivateTarget.userId }})</div>
+          <div>They will be logged out and permanently lose access until an admin reactivates them.</div>
+        </div>
+        <div class="field">
+          <label class="field-label">Reason</label>
+          <textarea v-model="deactivateReason" :disabled="busy" rows="3" maxlength="500" placeholder="Explain why this account is being deactivated…"></textarea>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn-outline" :disabled="busy" @click="closeDeactivate">Cancel</button>
+          <button type="button" class="btn-danger-confirm" :disabled="busy || !deactivateReason.trim()" @click="confirmDeactivate">
+            Deactivate account
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { deactivateUser, reactivateUser } from '../../api/adminModeration'
 
 const props = defineProps({
   loading: Boolean,
@@ -151,7 +176,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['deactivate-user', 'reactivate-user', 'reload'])
+const emit = defineEmits(['reload'])
 
 function statusClass(status) {
   return { Active: 'status-active', 'Under review': 'status-review' }[status] || 'status-deactivated'
@@ -209,19 +234,44 @@ const paginatedUsers = computed(() => {
   return filteredUsers.value.slice(start, start + pageSize.value)
 })
 
-function handleDeactivate(user) {
-  const confirmed = window.confirm(`Are you sure you want to DEACTIVATE user ${user.name} (${user.userId})? They will immediately lose access to post or claim listings.`)
-  if (confirmed) {
-    user.status = 'Deactivated'
-    emit('deactivate-user', user.userId)
+const busy = ref(false)
+const deactivateTarget = ref(null)
+const deactivateReason = ref('')
+
+function openDeactivate(user) {
+  deactivateTarget.value = user
+  deactivateReason.value = ''
+}
+
+function closeDeactivate() {
+  deactivateTarget.value = null
+}
+
+async function confirmDeactivate() {
+  const reason = deactivateReason.value.trim()
+  if (busy.value || !reason) return
+  busy.value = true
+  try {
+    await deactivateUser(deactivateTarget.value.userId, reason)
+    closeDeactivate()
+    emit('reload')
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    busy.value = false
   }
 }
 
-function handleReactivate(user) {
-  const confirmed = window.confirm(`Restore account access for user ${user.name} (${user.userId})?`)
-  if (confirmed) {
-    user.status = 'Active'
-    emit('reactivate-user', user.userId)
+async function handleReactivate(user) {
+  if (busy.value || !window.confirm(`Restore account access for ${user.name} (#${user.userId})?`)) return
+  busy.value = true
+  try {
+    await reactivateUser(user.userId)
+    emit('reload')
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    busy.value = false
   }
 }
 </script>
@@ -388,6 +438,68 @@ tbody tr:hover { background: #FBFAF6; }
   color: #fff;
 }
 .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-deactivate:disabled, .btn-reactivate:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Modal */
+.modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15,20,17,.5);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.show { display: flex; }
+.modal-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  width: 460px;
+  max-width: 90vw;
+  padding: 24px;
+}
+.modal-head { margin-bottom: 14px; }
+.modal-head h3 { font-size: 18px; margin: 0; }
+.modal-summary {
+  background: var(--surface-2);
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.field { margin-bottom: 14px; }
+.field-label { font-size: 12.5px; font-weight: 700; display: block; margin-bottom: 6px; }
+.field textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  box-sizing: border-box;
+}
+.modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-danger-confirm {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-outline:disabled, .btn-danger-confirm:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .empty-note {
   font-size: 12.5px;
