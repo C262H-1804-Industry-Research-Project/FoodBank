@@ -6,6 +6,8 @@
         <div class="sub">Review registered donors and recipient organisations, audit accounts, and deactivate non-compliant users</div>
       </div>
     </div>
+    <p v-if="loading">Loading accounts…</p>
+    <p v-if="error" role="alert">{{ error }} <button @click="emit('reload')">Retry</button></p>
 
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
@@ -25,6 +27,7 @@
       <select v-model="filterStatus">
         <option value="">All statuses</option>
         <option value="Active">Active</option>
+        <option value="Under review">Under review</option>
         <option value="Deactivated">Deactivated</option>
       </select>
 
@@ -53,7 +56,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in paginatedUsers" :key="user.userId">
+          <tr v-for="user in paginatedUsers" :key="`${user.role}-${user.userId}`">
             <td>
               <code class="uid-tag">#{{ user.userId }}</code>
             </td>
@@ -69,7 +72,7 @@
             <td>{{ user.email }}</td>
             <td>{{ user.phone || '—' }}</td>
             <td>
-              <span class="badge-status" :class="user.status === 'Active' ? 'status-active' : 'status-deactivated'">
+              <span class="badge-status" :class="statusClass(user.status)">
                 {{ user.status }}
               </span>
             </td>
@@ -83,7 +86,7 @@
                 Deactivate
               </button>
               <button 
-                v-else 
+                v-else-if="user.status === 'Deactivated'" 
                 class="btn-reactivate btn-sm" 
                 @click="handleReactivate(user)"
               >
@@ -130,7 +133,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else class="empty-note">
+    <div v-else-if="!loading" class="empty-note">
       No users found matching your search and filter criteria.
     </div>
   </section>
@@ -140,59 +143,19 @@
 import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
+  loading: Boolean,
+  error: String,
   usersList: {
     type: Array,
-    default: () => [
-      {
-        userId: 'U1001',
-        name: 'Sophie Martin',
-        orgName: 'Green Leaf Café',
-        role: 'Donor',
-        email: 'greenleaf@cafe.com',
-        phone: '0412 889 001',
-        status: 'Active'
-      },
-      {
-        userId: 'U1002',
-        name: 'Priya Nair',
-        orgName: 'Community Kitchen East',
-        role: 'Recipient',
-        email: 'priya@kitcheneast.org',
-        phone: '0412 345 678',
-        status: 'Active'
-      },
-      {
-        userId: 'U1003',
-        name: 'Mark Higgins',
-        orgName: 'St. Vincent de Paul Adelaide',
-        role: 'Recipient',
-        email: 'mark.h@vinnies.org.au',
-        phone: '0423 789 012',
-        status: 'Active'
-      },
-      {
-        userId: 'U1004',
-        name: 'Daniel Croft',
-        orgName: 'Rustic Loaf Bakery',
-        role: 'Donor',
-        email: 'daniel@rusticloaf.com.au',
-        phone: '0433 112 334',
-        status: 'Deactivated'
-      },
-      {
-        userId: 'U1005',
-        name: 'Elena Rostova',
-        orgName: 'Norwood Youth Refuge',
-        role: 'Recipient',
-        email: 'elena@norwoodyouth.org',
-        phone: '0455 667 889',
-        status: 'Active'
-      }
-    ]
+    default: () => []
   }
 })
 
-const emit = defineEmits(['deactivate-user', 'reactivate-user'])
+const emit = defineEmits(['deactivate-user', 'reactivate-user', 'reload'])
+
+function statusClass(status) {
+  return { Active: 'status-active', 'Under review': 'status-review' }[status] || 'status-deactivated'
+}
 
 const users = ref([...props.usersList])
 watch(() => props.usersList, (newVal) => {
@@ -360,6 +323,7 @@ tbody tr:hover { background: #FBFAF6; }
 }
 .status-active { background: var(--success-tint); color: var(--success); }
 .status-deactivated { background: var(--danger-tint); color: var(--danger); }
+.status-review { background: var(--amber-tint); color: var(--amber); }
 
 .btn-deactivate {
   background: transparent;

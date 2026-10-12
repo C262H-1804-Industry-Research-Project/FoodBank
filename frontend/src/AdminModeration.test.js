@@ -107,3 +107,17 @@ it('does not send dismissal when confirmation is cancelled', async () => {
   await wrapper.get('.btn-dismiss').trigger('click'); await flushPromises()
   expect(fetchMock.mock.calls.some(([url]) => url === '/api/admin/reports/7')).toBe(false)
 })
+it('loads real donor and recipient accounts into user management', async () => {
+  const fetchMock = vi.fn(async url => {
+    if (url === '/api/donors') return response([{ donorId: 1, userId: 7, organisation: 'Green Leaf Café', email: 'green@cafe.com', phone: '0400', status: 'ACTIVE' }])
+    if (url === '/api/recipients') return response([{ recipientId: 2, userId: 8, recipient: 'Kitchen East', email: 'k@east.org', phone: null, status: 'BANNED' }])
+    return response({ content: [], page: { totalPages: 0 } })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  wrapper = mount(AdminIndex); await flushPromises()
+  await wrapper.findAll('.sb-item').find(item => item.text() === 'User management').trigger('click'); await flushPromises()
+  const rows = wrapper.findAll('tbody tr')
+  expect(rows).toHaveLength(2)
+  expect(rows[0].text()).toContain('Green Leaf Café'); expect(rows[0].text()).toContain('green@cafe.com'); expect(rows[0].text()).toContain('Active')
+  expect(rows[1].text()).toContain('Kitchen East'); expect(rows[1].text()).toContain('Deactivated'); expect(rows[1].text()).toContain('—')
+})

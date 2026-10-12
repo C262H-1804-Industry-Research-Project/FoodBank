@@ -24,6 +24,20 @@ function pickupDay(slots) {
   if (slots.some(slot => [0, 6].includes(new Date(slot.startTime).getDay()) && new Date(slot.startTime) >= today)) return 'weekend'
   return ''
 }
+export async function fetchAdminAccounts() {
+  const [donors, recipients] = await Promise.all([apiRequest('/donors'), apiRequest('/recipients')])
+  if (!Array.isArray(donors) || !Array.isArray(recipients)) throw new Error('Invalid account response')
+  return [
+    ...donors.map(item => adminAccountRow(item, 'Donor', item.organisation)),
+    ...recipients.map(item => adminAccountRow(item, 'Recipient', item.recipient)),
+  ]
+}
+function adminAccountRow(item, role, name) {
+  const status = { ACTIVE: 'Active', BANNED: 'Deactivated', UNDER_REVIEW: 'Under review' }[item.status] || item.status
+  return { userId: item.userId, name: name || `User #${item.userId}`, role, email: item.email || '',
+    phone: item.phone || '', status, reportsAgainst: item.reportsAgainst, banTimes: item.banTimes,
+    banDaysRemaining: item.banDaysRemaining }
+}
 export function banFoodListing(id) { return apiRequest(`/admin/listings/${id}/ban`, { method: 'POST' }) }
 export function fetchAdminReports() { return apiRequest('/admin/reports') }
 export function processAdminReport(id, body) { return apiRequest(`/admin/reports/${id}`, { method: 'PATCH', body }) }

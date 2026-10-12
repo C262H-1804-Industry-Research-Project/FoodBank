@@ -43,6 +43,7 @@
         <AccountManagement
           v-else-if="currentPanel === 'users'"
           :users-list="adminUsers"
+          :loading="usersLoading" :error="usersError" @reload="loadUsers"
           @deactivate-user="handleDeactivateUser"
           @reactivate-user="handleReactivateUser"
         />
@@ -72,7 +73,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { logout, clearSession } from '../../api/client'
-import { fetchAdminListings, banFoodListing } from '../../api/adminModeration'
+import { fetchAdminListings, banFoodListing, fetchAdminAccounts } from '../../api/adminModeration'
 import ManageListings from './ManageListings.vue'
 import AccountManagement from './AccountManagement.vue'
 import MisuseReports from './MisuseReports.vue'
@@ -138,53 +139,24 @@ async function handleBanListing(id) {
 }
 
 // Global Users Data for Account Management
-const adminUsers = ref([
-  {
-    userId: 'U1001',
-    name: 'Sophie Martin',
-    orgName: 'Green Leaf Café',
-    role: 'Donor',
-    email: 'greenleaf@cafe.com',
-    phone: '0412 889 001',
-    status: 'Active'
-  },
-  {
-    userId: 'U1002',
-    name: 'Priya Nair',
-    orgName: 'Community Kitchen East',
-    role: 'Recipient',
-    email: 'priya@kitcheneast.org',
-    phone: '0412 345 678',
-    status: 'Active'
-  },
-  {
-    userId: 'U1003',
-    name: 'Mark Higgins',
-    orgName: 'St. Vincent de Paul Adelaide',
-    role: 'Recipient',
-    email: 'mark.h@vinnies.org.au',
-    phone: '0423 789 012',
-    status: 'Active'
-  },
-  {
-    userId: 'U1004',
-    name: 'Daniel Croft',
-    orgName: 'Rustic Loaf Bakery',
-    role: 'Donor',
-    email: 'daniel@rusticloaf.com.au',
-    phone: '0433 112 334',
-    status: 'Deactivated'
-  },
-  {
-    userId: 'U1005',
-    name: 'Elena Rostova',
-    orgName: 'Norwood Youth Refuge',
-    role: 'Recipient',
-    email: 'elena@norwoodyouth.org',
-    phone: '0455 667 889',
-    status: 'Active'
+const adminUsers = ref([])
+const usersLoading = ref(false)
+const usersError = ref('')
+let usersGeneration = 0
+async function loadUsers() {
+  const generation = ++usersGeneration
+  usersLoading.value = true
+  usersError.value = ''
+  try {
+    const rows = await fetchAdminAccounts()
+    if (generation === usersGeneration) adminUsers.value = rows
+  } catch (error) {
+    if (generation === usersGeneration) usersError.value = error.message
+  } finally {
+    if (generation === usersGeneration) usersLoading.value = false
   }
-])
+}
+watch(currentPanel, panel => { if (panel === 'users') loadUsers() })
 
 function handleDeactivateUser(userId) {
   const user = adminUsers.value.find(u => u.userId === userId)

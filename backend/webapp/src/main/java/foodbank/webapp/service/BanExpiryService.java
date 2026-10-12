@@ -44,7 +44,7 @@ public class BanExpiryService {
                 String restoredStatus = banRecord.getPreviousStatus();
 
                 if (restoredStatus == null || restoredStatus.isBlank()) {
-                    restoredStatus = "PENDING";
+                    restoredStatus = "ACTIVE";
                 }
 
                 user.setStatus(restoredStatus);

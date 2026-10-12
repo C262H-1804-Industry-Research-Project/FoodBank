@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.emptyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -72,6 +73,30 @@ class AuthApiTest extends ApiTestSupport {
         login("new.person@example.com", PASSWORD, "recipient")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.name").value("New Person"));
+    }
+
+    @Test
+    void registeredAccountsAreApprovedImmediately() throws Exception {
+        mockMvc.perform(post("/api/auth/register-donors")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email": "new.donor@example.com", "password": "%s", "orgName": "New Bakery",
+                                 "addressLine": "1 King William St", "suburb": "Adelaide", "region": "SA"}
+                                """.formatted(PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.approvalStatus").value("APPROVED"));
+        mockMvc.perform(post("/api/auth/register-recipients")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "New Org", "phone": "0400111222", "orgName": "Kitchen",
+                                 "email": "new.org@example.com", "password": "%s"}
+                                """.formatted(PASSWORD)))
+                .andExpect(status().isOk());
+
+        assertThat(userRepository.findAllByEmailIgnoreCase("new.donor@example.com").get(0).getStatus()).isEqualTo("ACTIVE");
+        User recipientUser = userRepository.findAllByEmailIgnoreCase("new.org@example.com").get(0);
+        assertThat(recipientUser.getStatus()).isEqualTo("ACTIVE");
+        assertThat(recipientRepository.findByUserId(recipientUser.getUserId()).orElseThrow().getApprovalStatus()).isEqualTo("APPROVED");
     }
 
     @Test
