@@ -62,7 +62,7 @@
             </td>
             <td>
               <div class="user-name">{{ user.name }}</div>
-              <div v-if="user.orgName" class="user-org">{{ user.orgName }}</div>
+              <div v-if="user.location" class="user-org">{{ user.location }}</div>
             </td>
             <td>
               <span class="role-badge" :class="user.role === 'Donor' ? 'role-donor' : 'role-recipient'">

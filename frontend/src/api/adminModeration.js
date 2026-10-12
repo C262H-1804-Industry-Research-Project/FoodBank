@@ -35,7 +35,7 @@ export async function fetchAdminAccounts() {
 function adminAccountRow(item, role, name) {
   const status = { ACTIVE: 'Active', BANNED: 'Deactivated', UNDER_REVIEW: 'Under review' }[item.status] || item.status
   return { userId: item.userId, name: name || `User #${item.userId}`, role, email: item.email || '',
-    phone: item.phone || '', status, reportsAgainst: item.reportsAgainst, banTimes: item.banTimes,
+    phone: item.phone || '', location: [item.suburb, item.region].filter(Boolean).join(', '), status, reportsAgainst: item.reportsAgainst, banTimes: item.banTimes,
     banDaysRemaining: item.banDaysRemaining }
 }
 export function deactivateUser(userId, reason) {

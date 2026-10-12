@@ -109,7 +109,7 @@ it('does not send dismissal when confirmation is cancelled', async () => {
 })
 it('loads real donor and recipient accounts into user management', async () => {
   const fetchMock = vi.fn(async url => {
-    if (url === '/api/donors') return response([{ donorId: 1, userId: 7, organisation: 'Green Leaf Café', email: 'green@cafe.com', phone: '0400', status: 'ACTIVE' }])
+    if (url === '/api/donors') return response([{ donorId: 1, userId: 7, organisation: 'Green Leaf Café', email: 'green@cafe.com', phone: '0400', suburb: 'Norwood', region: 'SA', status: 'ACTIVE' }])
     if (url === '/api/recipients') return response([{ recipientId: 2, userId: 8, recipient: 'Kitchen East', email: 'k@east.org', phone: null, status: 'BANNED' }])
     return response({ content: [], page: { totalPages: 0 } })
   })
@@ -119,6 +119,7 @@ it('loads real donor and recipient accounts into user management', async () => {
   const rows = wrapper.findAll('tbody tr')
   expect(rows).toHaveLength(2)
   expect(rows[0].text()).toContain('Green Leaf Café'); expect(rows[0].text()).toContain('green@cafe.com'); expect(rows[0].text()).toContain('Active')
+  expect(rows[0].get('.user-org').text()).toBe('Norwood, SA'); expect(rows[1].find('.user-org').exists()).toBe(false)
   expect(rows[1].text()).toContain('Kitchen East'); expect(rows[1].text()).toContain('Deactivated'); expect(rows[1].text()).toContain('—')
 })
 function mockAccounts(recipientStatus) {

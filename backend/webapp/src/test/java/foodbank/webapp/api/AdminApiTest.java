@@ -43,14 +43,17 @@ class AdminApiTest extends ApiTestSupport {
         mockMvc.perform(post("/api/admin/admins").header("Authorization",token).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"No Email\",\"password\":\"x\"}")).andExpect(status().isBadRequest());
     }
-    @Test void accountListsIncludeEmailAndPhone() throws Exception {
+    @Test void accountListsIncludeContactAndLocation() throws Exception {
         Donor donor = createDonor(); Recipient recipient = createRecipient();
+        recipient.setSuburb("Norwood"); recipient.setRegion("SA"); recipientRepository.save(recipient);
         String donorEmail = userRepository.findById(donor.getUserId()).orElseThrow().getEmail();
         String recipientEmail = userRepository.findById(recipient.getUserId()).orElseThrow().getEmail();
         mockMvc.perform(get("/api/donors").header("Authorization",token)).andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value(donorEmail)).andExpect(jsonPath("$[0].phone").value("0400000000"));
+                .andExpect(jsonPath("$[0].email").value(donorEmail)).andExpect(jsonPath("$[0].phone").value("0400000000"))
+                .andExpect(jsonPath("$[0].suburb").value("Adelaide")).andExpect(jsonPath("$[0].region").value("SA"));
         mockMvc.perform(get("/api/recipients").header("Authorization",token)).andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].email").value(recipientEmail)).andExpect(jsonPath("$[0].phone").value("0400000000"));
+                .andExpect(jsonPath("$[0].email").value(recipientEmail)).andExpect(jsonPath("$[0].phone").value("0400000000"))
+                .andExpect(jsonPath("$[0].suburb").value("Norwood")).andExpect(jsonPath("$[0].region").value("SA"));
     }
     @Test void permanentBanThenUnbanRestoresAccess() throws Exception {
         Recipient recipient = createRecipient();

@@ -6,6 +6,8 @@ public record AdminRecipientAccountResponse(
         String recipient,
         String email,
         String phone,
+        String suburb,
+        String region,
         long reportsAgainst,
         long requestsMade,
         long successfulCollections,

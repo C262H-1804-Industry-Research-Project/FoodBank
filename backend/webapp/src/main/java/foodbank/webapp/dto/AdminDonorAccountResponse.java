@@ -6,6 +6,8 @@ public record AdminDonorAccountResponse(
         String organisation,
         String email,
         String phone,
+        String suburb,
+        String region,
         long reportsAgainst,
         long donationsMade,
         long successfulCollections,
