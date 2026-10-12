@@ -40,11 +40,7 @@
         />
 
         <!-- 2. Account Management Panel -->
-        <AccountManagement
-          v-else-if="currentPanel === 'users'"
-          :users-list="adminUsers"
-          :loading="usersLoading" :error="usersError" @reload="loadUsers"
-        />
+        <AccountManagement v-else-if="currentPanel === 'users'" />
 
         <!-- 3. Misuse Reports & Penalty Policy Panel -->
         <MisuseReports
@@ -71,7 +67,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { logout, clearSession } from '../../api/client'
-import { fetchAdminListings, banFoodListing, fetchAdminAccounts } from '../../api/adminModeration'
+import { fetchAdminListings, banFoodListing } from '../../api/adminModeration'
 import ManageListings from './ManageListings.vue'
 import AccountManagement from './AccountManagement.vue'
 import MisuseReports from './MisuseReports.vue'
@@ -135,27 +131,6 @@ async function handleBanListing(id) {
   } catch (error) { window.alert(error.message) }
   finally { listingBusy.value = null }
 }
-
-// Global Users Data for Account Management
-const adminUsers = ref([])
-const usersLoading = ref(false)
-const usersError = ref('')
-let usersGeneration = 0
-async function loadUsers() {
-  const generation = ++usersGeneration
-  usersLoading.value = true
-  usersError.value = ''
-  try {
-    const rows = await fetchAdminAccounts()
-    if (generation === usersGeneration) adminUsers.value = rows
-  } catch (error) {
-    if (generation === usersGeneration) usersError.value = error.message
-  } finally {
-    if (generation === usersGeneration) usersLoading.value = false
-  }
-}
-watch(currentPanel, panel => { if (panel === 'users') loadUsers() })
-
 </script>
 
 <style scoped>

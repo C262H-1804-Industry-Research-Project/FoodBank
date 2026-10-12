@@ -75,6 +75,39 @@ class AdminApiTest extends ApiTestSupport {
         mockMvc.perform(post("/api/admin/users/{id}/unban",recipient.getUserId())
                 .header("Authorization",bearer(recipient.getUserId(),"recipient"))).andExpect(status().isForbidden());
     }
+    @Test void accountsArePagedAndFilteredByRoleStatusAndSearch() throws Exception {
+        Donor donor = createDonor(); createDonor();
+        Recipient recipient = createRecipient(); createRecipient(); createRecipient();
+        var banned = userRepository.findById(recipient.getUserId()).orElseThrow();
+        banned.setStatus("BANNED"); userRepository.save(banned);
+        mockMvc.perform(get("/api/admin/accounts?page=0&size=2").header("Authorization",token)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.page.totalElements").value(5)).andExpect(jsonPath("$.page.totalPages").value(3));
+        mockMvc.perform(get("/api/admin/accounts?page=2&size=2").header("Authorization",token))
+                .andExpect(jsonPath("$.content.length()").value(1));
+        mockMvc.perform(get("/api/admin/accounts?role=donor").header("Authorization",token))
+                .andExpect(jsonPath("$.page.totalElements").value(2)).andExpect(jsonPath("$.content[0].role").value("DONOR"));
+        mockMvc.perform(get("/api/admin/accounts?role=RECIPIENT&status=BANNED").header("Authorization",token))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].userId").value(recipient.getUserId()))
+                .andExpect(jsonPath("$.content[0].status").value("BANNED"));
+        mockMvc.perform(get("/api/admin/accounts?status=ACTIVE").header("Authorization",token))
+                .andExpect(jsonPath("$.page.totalElements").value(4));
+        String donorEmail = userRepository.findById(donor.getUserId()).orElseThrow().getEmail();
+        mockMvc.perform(get("/api/admin/accounts").param("q", donorEmail.toUpperCase()).header("Authorization",token))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].userId").value(donor.getUserId()))
+                .andExpect(jsonPath("$.content[0].email").value(donorEmail));
+    }
+    @Test void accountsRejectInvalidFiltersAndNonAdmins() throws Exception {
+        mockMvc.perform(get("/api/admin/accounts?role=ADMIN").header("Authorization",token)).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/accounts?status=PENDING").header("Authorization",token)).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/accounts?size=101").header("Authorization",token)).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/admin/accounts")).andExpect(status().isUnauthorized());
+        Recipient recipient = createRecipient();
+        mockMvc.perform(get("/api/admin/accounts").header("Authorization",bearer(recipient.getUserId(),"recipient")))
+                .andExpect(status().isForbidden());
+    }
     @Test void rejectsNonAdmin() throws Exception {
         String body = "{\"name\":\"X\",\"email\":\"x@example.com\",\"password\":\"x\"}";
         mockMvc.perform(post("/api/admin/admins").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());

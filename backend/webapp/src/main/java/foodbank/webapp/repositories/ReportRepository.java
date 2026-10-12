@@ -8,9 +8,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface ReportRepository extends JpaRepository<Report, Integer> {
 
     long countByReportedId(Integer reportedId);
+
+    // Each row is [reportedId, number of reports against that user]
+    @Query("SELECT r.reportedId, COUNT(r) FROM Report r WHERE r.reportedId IS NOT NULL GROUP BY r.reportedId")
+    List<Object[]> countReportsPerReportedUser();
 
     // One query per page of the donor's report list. Report stores plain IDs, so these are
     // ad-hoc entity joins; LEFT JOIN keeps reports whose listing or request was deleted.

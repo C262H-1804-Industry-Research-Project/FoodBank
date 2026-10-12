@@ -107,35 +107,57 @@ it('does not send dismissal when confirmation is cancelled', async () => {
   await wrapper.get('.btn-dismiss').trigger('click'); await flushPromises()
   expect(fetchMock.mock.calls.some(([url]) => url === '/api/admin/reports/7')).toBe(false)
 })
-it('loads real donor and recipient accounts into user management', async () => {
-  const fetchMock = vi.fn(async url => {
-    if (url === '/api/donors') return response([{ donorId: 1, userId: 7, organisation: 'Green Leaf Café', email: 'green@cafe.com', phone: '0400', suburb: 'Norwood', region: 'SA', status: 'ACTIVE' }])
-    if (url === '/api/recipients') return response([{ recipientId: 2, userId: 8, recipient: 'Kitchen East', email: 'k@east.org', phone: null, status: 'BANNED' }])
-    return response({ content: [], page: { totalPages: 0 } })
-  })
-  vi.stubGlobal('fetch', fetchMock)
+const accountPage = (content, totalElements = content.length, totalPages = Math.ceil(totalElements / 10)) =>
+  response({ content, page: { size: 10, number: 0, totalElements, totalPages } })
+const donorRow = { userId: 7, role: 'DONOR', name: 'Green Leaf Café', email: 'green@cafe.com', phone: '0400', suburb: 'Norwood', region: 'SA', status: 'ACTIVE' }
+const recipientRow = status => ({ userId: 8, role: 'RECIPIENT', name: 'Kitchen East', email: 'k@east.org', phone: null, status })
+const accountCalls = fetchMock => fetchMock.mock.calls.map(([url]) => url).filter(url => url.startsWith('/api/admin/accounts'))
+async function openUsers() {
   wrapper = mount(AdminIndex); await flushPromises()
   await wrapper.findAll('.sb-item').find(item => item.text() === 'User management').trigger('click'); await flushPromises()
+}
+it('loads a server page of accounts into user management', async () => {
+  const fetchMock = vi.fn(async url => url.startsWith('/api/admin/accounts')
+    ? accountPage([donorRow, recipientRow('BANNED')])
+    : response({ content: [], page: { totalPages: 0 } }))
+  vi.stubGlobal('fetch', fetchMock)
+  await openUsers()
+  expect(accountCalls(fetchMock)).toEqual(['/api/admin/accounts?page=0&size=10'])
   const rows = wrapper.findAll('tbody tr')
   expect(rows).toHaveLength(2)
   expect(rows[0].text()).toContain('Green Leaf Café'); expect(rows[0].text()).toContain('green@cafe.com'); expect(rows[0].text()).toContain('Active')
   expect(rows[0].get('.user-org').text()).toBe('Norwood, SA'); expect(rows[1].find('.user-org').exists()).toBe(false)
   expect(rows[1].text()).toContain('Kitchen East'); expect(rows[1].text()).toContain('Deactivated'); expect(rows[1].text()).toContain('—')
 })
+it('sends role, status, search and page to the server', async () => {
+  vi.useFakeTimers()
+  try {
+    const fetchMock = vi.fn(async url => url.startsWith('/api/admin/accounts')
+      ? accountPage([donorRow], 25)
+      : response({ content: [], page: { totalPages: 0 } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await openUsers()
+    expect(wrapper.text()).toContain('of 25 users')
+    await wrapper.findAll('.page-number-btn')[2].trigger('click'); await flushPromises()
+    expect(accountCalls(fetchMock).at(-1)).toBe('/api/admin/accounts?page=2&size=10')
+    const [roleSelect, statusSelect] = wrapper.findAll('.filter-bar select')
+    await roleSelect.setValue('RECIPIENT'); await flushPromises()
+    expect(accountCalls(fetchMock).at(-1)).toBe('/api/admin/accounts?page=0&size=10&role=RECIPIENT')
+    await statusSelect.setValue('BANNED'); await flushPromises()
+    await wrapper.get('.search-input').setValue(' kitchen ')
+    vi.advanceTimersByTime(300); await flushPromises()
+    expect(accountCalls(fetchMock).at(-1)).toBe('/api/admin/accounts?page=0&size=10&role=RECIPIENT&status=BANNED&q=kitchen')
+  } finally { vi.useRealTimers() }
+})
 function mockAccounts(recipientStatus) {
   let status = recipientStatus
-  const fetchMock = vi.fn(async (url, options = {}) => {
-    if (url === '/api/donors') return response([])
-    if (url === '/api/recipients') return response([{ recipientId: 2, userId: 8, recipient: 'Kitchen East', email: 'k@east.org', status }])
+  const fetchMock = vi.fn(async url => {
+    if (url.startsWith('/api/admin/accounts')) return accountPage([recipientRow(status)])
     if (url === '/api/admin/users/8/ban') { status = 'BANNED'; return response({ userStatus: 'BANNED' }, 201) }
     if (url === '/api/admin/users/8/unban') { status = 'ACTIVE'; return response({ userStatus: 'ACTIVE' }) }
     return response({ content: [], page: { totalPages: 0 } })
   })
   vi.stubGlobal('fetch', fetchMock); return fetchMock
-}
-async function openUsers() {
-  wrapper = mount(AdminIndex); await flushPromises()
-  await wrapper.findAll('.sb-item').find(item => item.text() === 'User management').trigger('click'); await flushPromises()
 }
 it('deactivates an account permanently with a reason from the modal', async () => {
   const fetchMock = mockAccounts('ACTIVE'); await openUsers()
@@ -151,9 +173,9 @@ it('deactivates an account permanently with a reason from the modal', async () =
 })
 it('keeps the deactivate modal open when the request fails', async () => {
   vi.stubGlobal('fetch', vi.fn(async url => {
-    if (url === '/api/recipients') return response([{ userId: 8, recipient: 'Kitchen East', status: 'ACTIVE' }])
+    if (url.startsWith('/api/admin/accounts')) return accountPage([recipientRow('ACTIVE')])
     if (url === '/api/admin/users/8/ban') return response({ error: 'User is already banned' }, 409)
-    return response(url === '/api/donors' ? [] : { content: [], page: { totalPages: 0 } })
+    return response({ content: [], page: { totalPages: 0 } })
   }))
   await openUsers()
   await wrapper.get('.btn-deactivate').trigger('click')

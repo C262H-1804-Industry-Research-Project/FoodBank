@@ -6,29 +6,29 @@
         <div class="sub">Review registered donors and recipient organisations, audit accounts, and deactivate non-compliant users</div>
       </div>
     </div>
-    <p v-if="loading">Loading accounts…</p>
-    <p v-if="error" role="alert">{{ error }} <button @click="emit('reload')">Retry</button></p>
+    <p v-if="isLoading">Loading accounts…</p>
+    <p v-if="loadError" role="alert">{{ loadError }} <button @click="loadAccounts">Retry</button></p>
 
     <!-- 1. Filter Toolbar -->
     <div class="filter-bar">
       <input 
         type="text" 
         v-model="searchKeyword" 
-        placeholder="Search by User ID, name, organisation, or email…" 
+        placeholder="Search by User ID, name, email, or suburb…" 
         class="search-input"
       >
 
       <select v-model="filterRole">
         <option value="">All roles</option>
-        <option value="Donor">Donor</option>
-        <option value="Recipient">Recipient</option>
+        <option value="DONOR">Donor</option>
+        <option value="RECIPIENT">Recipient</option>
       </select>
 
       <select v-model="filterStatus">
         <option value="">All statuses</option>
-        <option value="Active">Active</option>
-        <option value="Under review">Under review</option>
-        <option value="Deactivated">Deactivated</option>
+        <option value="ACTIVE">Active</option>
+        <option value="UNDER_REVIEW">Under review</option>
+        <option value="BANNED">Deactivated</option>
       </select>
 
       <button 
@@ -42,7 +42,7 @@
     </div>
 
     <!-- 2. Users Table -->
-    <div v-if="paginatedUsers.length > 0">
+    <div v-if="users.length > 0">
       <table>
         <thead>
           <tr>
@@ -56,7 +56,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in paginatedUsers" :key="`${user.role}-${user.userId}`">
+          <tr v-for="user in users" :key="`${user.role}-${user.userId}`">
             <td>
               <code class="uid-tag">#{{ user.userId }}</code>
             </td>
@@ -101,12 +101,12 @@
       <!-- 3. Bottom Pagination -->
       <div class="pagination-bar">
         <div class="pagination-info">
-          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ filteredUsers.length }}</strong> users
+          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ totalElements }}</strong> users
         </div>
         <div class="pagination-controls">
           <button 
             class="page-btn" 
-            :disabled="currentPage === 1" 
+            :disabled="currentPage === 1 || isLoading" 
             @click="currentPage--"
           >
             ‹ Prev
@@ -117,6 +117,7 @@
             :key="page"
             class="page-number-btn"
             :class="{ active: currentPage === page }"
+            :disabled="isLoading"
             @click="currentPage = page"
           >
             {{ page }}
@@ -124,7 +125,7 @@
 
           <button 
             class="page-btn" 
-            :disabled="currentPage === totalPages" 
+            :disabled="currentPage === totalPages || isLoading" 
             @click="currentPage++"
           >
             Next ›
@@ -134,7 +135,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="!loading" class="empty-note">
+    <div v-else-if="!isLoading && !loadError" class="empty-note">
       No users found matching your search and filter criteria.
     </div>
 
@@ -164,32 +165,78 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { deactivateUser, reactivateUser } from '../../api/adminModeration'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { fetchAdminAccounts, deactivateUser, reactivateUser } from '../../api/adminModeration'
 
-const props = defineProps({
-  loading: Boolean,
-  error: String,
-  usersList: {
-    type: Array,
-    default: () => []
-  }
-})
-
-const emit = defineEmits(['reload'])
+const PAGE_SIZE = 10
 
 function statusClass(status) {
   return { Active: 'status-active', 'Under review': 'status-review' }[status] || 'status-deactivated'
 }
 
-const users = ref([...props.usersList])
-watch(() => props.usersList, (newVal) => {
-  users.value = [...newVal]
-}, { deep: true })
-
+// Search, role and status filtering and paging all happen on the server
 const searchKeyword = ref('')
+// Backend codes; '' means no filter
 const filterRole = ref('')
 const filterStatus = ref('')
+const currentPage = ref(1)
+
+const users = ref([])
+const totalElements = ref(0)
+const totalPages = ref(1)
+const isLoading = ref(true)
+const loadError = ref('')
+let loadController = null
+
+async function loadAccounts() {
+  // Abort an older request so a slow response cannot overwrite newer results
+  loadController?.abort()
+  const controller = new AbortController()
+  loadController = controller
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const result = await fetchAdminAccounts({
+      page: currentPage.value - 1,
+      size: PAGE_SIZE,
+      role: filterRole.value,
+      status: filterStatus.value,
+      search: searchKeyword.value
+    }, controller.signal)
+    // The page can fall off the end if accounts changed since the last load
+    if (!result.items.length && result.totalPages > 0 && currentPage.value > result.totalPages) {
+      currentPage.value = result.totalPages
+      return
+    }
+    users.value = result.items
+    totalElements.value = result.totalElements
+    totalPages.value = Math.max(result.totalPages, 1)
+  } catch (error) {
+    if (!controller.signal.aborted) loadError.value = error.message || 'Unable to load accounts.'
+  } finally {
+    if (!controller.signal.aborted && loadController === controller) isLoading.value = false
+  }
+}
+
+// A new filter or search starts again from page 1; changing currentPage triggers the load
+function reloadFromFirstPage() {
+  if (currentPage.value === 1) loadAccounts()
+  else currentPage.value = 1
+}
+
+let searchTimer = null
+watch(searchKeyword, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reloadFromFirstPage, 300)
+})
+watch([filterRole, filterStatus], reloadFromFirstPage)
+watch(currentPage, loadAccounts)
+
+onMounted(loadAccounts)
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer)
+  loadController?.abort()
+})
 
 const hasActiveFilters = computed(() => {
   return searchKeyword.value.trim() !== '' || filterRole.value !== '' || filterStatus.value !== ''
@@ -201,38 +248,8 @@ function resetFilters() {
   filterStatus.value = ''
 }
 
-const filteredUsers = computed(() => {
-  return users.value.filter(user => {
-    if (filterRole.value && user.role !== filterRole.value) return false
-    if (filterStatus.value && user.status !== filterStatus.value) return false
-
-    if (searchKeyword.value.trim()) {
-      const q = searchKeyword.value.trim().toLowerCase()
-      const matchId = String(user.userId).toLowerCase().includes(q)
-      const matchName = (user.name || '').toLowerCase().includes(q)
-      const matchOrg = (user.orgName || '').toLowerCase().includes(q)
-      const matchEmail = (user.email || '').toLowerCase().includes(q)
-      if (!matchId && !matchName && !matchOrg && !matchEmail) return false
-    }
-
-    return true
-  })
-})
-
-const currentPage = ref(1)
-const pageSize = ref(5)
-
-watch([searchKeyword, filterRole, filterStatus], () => {
-  currentPage.value = 1
-})
-
-const totalPages = computed(() => Math.ceil(filteredUsers.value.length / pageSize.value) || 1)
-const paginationStart = computed(() => filteredUsers.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
-const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredUsers.value.length))
-const paginatedUsers = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredUsers.value.slice(start, start + pageSize.value)
-})
+const paginationStart = computed(() => totalElements.value === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1)
+const paginationEnd = computed(() => Math.min(currentPage.value * PAGE_SIZE, totalElements.value))
 
 const busy = ref(false)
 const deactivateTarget = ref(null)
@@ -254,7 +271,7 @@ async function confirmDeactivate() {
   try {
     await deactivateUser(deactivateTarget.value.userId, reason)
     closeDeactivate()
-    emit('reload')
+    loadAccounts()
   } catch (error) {
     window.alert(error.message)
   } finally {
@@ -267,7 +284,7 @@ async function handleReactivate(user) {
   busy.value = true
   try {
     await reactivateUser(user.userId)
-    emit('reload')
+    loadAccounts()
   } catch (error) {
     window.alert(error.message)
   } finally {
