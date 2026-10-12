@@ -63,13 +63,14 @@
         <!-- 5. Submit Report Panel -->
         <DonorReports 
           v-else-if="currentPanel === 'reports'"
+          :donor-id="donorId"
           @report-submitted="handleReportSubmitted"
         />
 
         <!-- 6. Report List Panel -->
         <ReportList 
           v-else-if="currentPanel === 'reportlist'"
-          :reports="reportsData"
+          :donor-id="donorId"
           @create-report="currentPanel = 'reports'"
         />
 
@@ -268,30 +269,8 @@ const historyData = ref([
   }
 ])
 
-// Global Reports history state
-const reportsData = ref([
-  {
-    id: 101,
-    foodName: 'Sourdough loaves (12 units)',
-    recipient: 'Community Kitchen East',
-    actualDate: '2026-09-20 18:00',
-    reason: 'Recipient arrived 1 hour late after collection deadline without notification.',
-    status: 'Resolved',
-    statusClass: 'status-resolved'
-  },
-  {
-    id: 102,
-    foodName: 'Pantry staples box (8 boxes)',
-    recipient: 'St. Vincent de Paul Adelaide',
-    actualDate: '2026-09-22 10:30',
-    reason: 'Recipient took 3 boxes instead of approved 2 boxes.',
-    status: 'Under Review',
-    statusClass: 'status-pending'
-  }
-])
-
-function handleReportSubmitted(newReport) {
-  reportsData.value.unshift(newReport)
+// ReportList reloads from the API when it mounts, so the new report shows up there
+function handleReportSubmitted() {
   currentPanel.value = 'reportlist'
 }
 </script>

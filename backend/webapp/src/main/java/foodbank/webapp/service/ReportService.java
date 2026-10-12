@@ -18,6 +18,8 @@ import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -36,32 +38,40 @@ public class ReportService {
     private final DonorRepository donorRepository;
     private final RecipientRepository recipientRepository;
 
-    public List<DonorReportResponse> getReportsByDonor(
-            Integer donorId
+    // status and search are optional; search matches the listing name,
+    // recipient name, reason or details, ignoring case.
+    public Page<DonorReportResponse> getReportsByDonor(
+            Integer donorId,
+            String status,
+            String search,
+            Pageable pageable
     ) {
+        String statusFilter = blankToNull(status);
+        if (statusFilter != null) {
+            statusFilter = statusFilter.toUpperCase(Locale.ROOT);
+            if (!Report.STATUSES.contains(statusFilter)) {
+                throw new IllegalArgumentException(
+                        "status must be one of " + String.join(", ", Report.STATUSES)
+                );
+            }
+        }
+
         Donor donor = donorRepository.findById(donorId)
                 .orElseThrow(() ->
                         new NoSuchElementException("Donor not found")
                 );
 
-        return reportRepository
-                .findByReporterIdOrderByCreatedAtDesc(donor.getUserId())
-                .stream()
-                .map(report -> new DonorReportResponse(
-                        report.getReportId(),
-                        report.getReportedId(),
-                        report.getListingId(),
-                        report.getRequestId(),
-                        report.getReportType(),
-                        report.getReason(),
-                        report.getDetails(),
-                        report.getStatus(),
-                        report.getOutcome(),
-                        report.getProcessedAt(),
-                        report.getCreatedAt(),
-                        report.getUpdatedAt()
-                ))
-                .toList();
+        String searchTerm = blankToNull(search);
+        // Escape LIKE wildcards so the search matches the text literally
+        String searchPattern = searchTerm == null ? null
+                : "%" + searchTerm.toLowerCase(Locale.ROOT)
+                        .replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_") + "%";
+
+        return reportRepository.findDonorReports(
+                donor.getUserId(), statusFilter, searchPattern, pageable
+        );
     }
 
     @Transactional
@@ -218,6 +228,12 @@ public class ReportService {
                         .reason(request.reason().trim())
                         .details(
                                 blankToNull(request.details())
+                        )
+                        .evidenceImageUrl(
+                                blankToNull(request.evidenceImageUrl())
+                        )
+                        .actualTransactionTime(
+                                request.actualTransactionTime()
                         )
                         .build()
         );

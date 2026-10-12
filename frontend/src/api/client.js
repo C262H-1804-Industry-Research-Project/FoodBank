@@ -159,3 +159,40 @@ export function deleteDonorListing(donorId, listingId, signal) {
     method: 'DELETE', signal,
   })
 }
+
+export async function getReportableRequests(donorId, signal) {
+  if (!Number.isInteger(donorId) || donorId <= 0) {
+    throw new Error('The signed-in donor is missing an ID.')
+  }
+
+  const requests = await apiRequest(`/donors/${donorId}/requests/reportable`, { signal })
+  if (!Array.isArray(requests)) throw new Error('Invalid reportable requests response from the API.')
+  return requests
+}
+
+export function submitReport(report, signal) {
+  return apiRequest('/reports', { method: 'POST', body: report, signal })
+}
+
+// page is 0-based. status is a backend status code such as 'PENDING' and search matches
+// the listing, recipient, reason or details; leave either empty to not filter by it.
+export async function getDonorReports(donorId, { page = 0, size = 10, status, search } = {}, signal) {
+  if (!Number.isInteger(donorId) || donorId <= 0) {
+    throw new Error('The signed-in donor is missing an ID.')
+  }
+
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (status) params.set('status', status)
+  if (search?.trim()) params.set('q', search.trim())
+
+  const result = await apiRequest(`/donors/${donorId}/reports?${params}`, { signal })
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid reports response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
+}
+
+export async function getReportStatuses(signal) {
+  const statuses = await apiRequest('/reports/statuses', { signal })
+  if (!Array.isArray(statuses)) throw new Error('Invalid report statuses response from the API.')
+  return statuses
+}

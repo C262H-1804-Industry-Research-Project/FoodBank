@@ -1,5 +1,6 @@
 package foodbank.webapp.controllers;
 
+import foodbank.webapp.dto.ReportableRequestResponse;
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.service.RequestService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -18,6 +19,11 @@ public class DonorRequestController {
     @GetMapping
     public List<RequestResponse> getPendingRequests(@PathVariable Integer donorId) {
         return requestService.getPendingRequests(donorId);
+    }
+
+    @GetMapping("/reportable")
+    public List<ReportableRequestResponse> getReportableRequests(@PathVariable Integer donorId) {
+        return requestService.getReportableRequests(donorId);
     }
 
     @PatchMapping("/{requestId}/approve")
