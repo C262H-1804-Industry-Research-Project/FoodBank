@@ -12,6 +12,8 @@ import java.util.List;
 public interface ListingRepository extends JpaRepository<Listing, Integer>, JpaSpecificationExecutor<Listing> {
     List<Listing> findByDonorId(Integer donorId);
 
+    long countByDonor_Id(Integer donorId);
+
     @Query("""
     SELECT DISTINCT l.name
     FROM Listing l

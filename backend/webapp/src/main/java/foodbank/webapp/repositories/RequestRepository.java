@@ -14,6 +14,8 @@ public interface RequestRepository extends JpaRepository<Request, Integer> {
 
     List<Request> findByRecipientId(Integer recipientId);
 
+    long countByRecipientId(Integer recipientId);
+
     boolean existsByTimeslotIdAndRecipientIdAndStatusNot(
             Integer timeslotId, Integer recipientId, String status);
 

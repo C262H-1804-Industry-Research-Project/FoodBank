@@ -2,6 +2,7 @@ package foodbank.webapp.service;
 
 import foodbank.webapp.dto.CreateReportRequest;
 import foodbank.webapp.dto.CreatedReportResponse;
+import foodbank.webapp.dto.DonorReportResponse;
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
@@ -33,6 +35,34 @@ public class ReportService {
     private final TimeslotRepository timeslotRepository;
     private final DonorRepository donorRepository;
     private final RecipientRepository recipientRepository;
+
+    public List<DonorReportResponse> getReportsByDonor(
+            Integer donorId
+    ) {
+        Donor donor = donorRepository.findById(donorId)
+                .orElseThrow(() ->
+                        new NoSuchElementException("Donor not found")
+                );
+
+        return reportRepository
+                .findByReporterIdOrderByCreatedAtDesc(donor.getUserId())
+                .stream()
+                .map(report -> new DonorReportResponse(
+                        report.getReportId(),
+                        report.getReportedId(),
+                        report.getListingId(),
+                        report.getRequestId(),
+                        report.getReportType(),
+                        report.getReason(),
+                        report.getDetails(),
+                        report.getStatus(),
+                        report.getOutcome(),
+                        report.getProcessedAt(),
+                        report.getCreatedAt(),
+                        report.getUpdatedAt()
+                ))
+                .toList();
+    }
 
     @Transactional
     public CreatedReportResponse submitReport(
