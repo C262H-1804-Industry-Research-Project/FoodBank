@@ -159,3 +159,17 @@ export function deleteDonorListing(donorId, listingId, signal) {
     method: 'DELETE', signal,
   })
 }
+
+export async function getReportableRequests(donorId, signal) {
+  if (!Number.isInteger(donorId) || donorId <= 0) {
+    throw new Error('The signed-in donor is missing an ID.')
+  }
+
+  const requests = await apiRequest(`/donors/${donorId}/requests/reportable`, { signal })
+  if (!Array.isArray(requests)) throw new Error('Invalid reportable requests response from the API.')
+  return requests
+}
+
+export function submitReport(report, signal) {
+  return apiRequest('/reports', { method: 'POST', body: report, signal })
+}

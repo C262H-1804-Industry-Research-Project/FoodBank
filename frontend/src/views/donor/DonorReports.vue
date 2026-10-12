@@ -8,18 +8,23 @@
     </div>
 
     <div class="card report-card">
+      <p v-if="loadError" class="form-error" role="alert">{{ loadError }}</p>
+      <p v-else-if="!isLoading && !listingOptions.length" class="form-hint">
+        You have no approved pickups to report yet.
+      </p>
+
       <form @submit.prevent="handleSubmitReport">
         <!-- 1. Select Food Listing -->
         <div class="field">
           <label class="field-label">Select food listing</label>
-          <select v-model="form.selectedOrder" @change="handleListingChange" required>
-            <option value="" disabled>Choose a food listing…</option>
+          <select v-model="form.selectedListingId" :disabled="isLoading" @change="handleListingChange" required>
+            <option value="" disabled>{{ isLoading ? 'Loading your pickups…' : 'Choose a food listing…' }}</option>
             <option 
-              v-for="order in orderOptions" 
-              :key="order.id" 
-              :value="order.name"
+              v-for="listing in listingOptions" 
+              :key="listing.id" 
+              :value="listing.id"
             >
-              {{ order.name }}
+              {{ listing.name }}
             </option>
           </select>
         </div>
@@ -28,7 +33,7 @@
         <div class="field">
           <label class="field-label">Select pickup timeslot</label>
           <select 
-            v-model="form.selectedTimeslot" 
+            v-model="form.selectedTimeslotId" 
             :disabled="!availableTimeslots.length" 
             @change="handleTimeslotChange"
             required
@@ -38,10 +43,10 @@
             </option>
             <option 
               v-for="slot in availableTimeslots" 
-              :key="slot.time" 
-              :value="slot.time"
+              :key="slot.id" 
+              :value="slot.id"
             >
-              {{ slot.time }}
+              {{ slot.label }}
             </option>
           </select>
         </div>
@@ -50,7 +55,7 @@
         <div class="field">
           <label class="field-label">Select recipient to report</label>
           <select 
-            v-model="form.selectedRecipient" 
+            v-model="form.selectedRequestId" 
             :disabled="!availableRecipients.length" 
             required
           >
@@ -59,10 +64,10 @@
             </option>
             <option 
               v-for="r in availableRecipients" 
-              :key="r" 
-              :value="r"
+              :key="r.requestId" 
+              :value="r.requestId"
             >
-              {{ r }}
+              {{ r.recipientName }} ({{ r.quantityRequested }} requested)
             </option>
           </select>
         </div>
@@ -77,18 +82,26 @@
           >
         </div>
 
-        <!-- 5. Reason / Description Textarea -->
+        <!-- 5. Reason -->
         <div class="field">
-          <label class="field-label">Reason / details of the issue</label>
+          <label class="field-label">Reason</label>
+          <select v-model="form.reason" required>
+            <option value="" disabled>Select a reason…</option>
+            <option v-for="r in reasonOptions" :key="r" :value="r">{{ r }}</option>
+          </select>
+        </div>
+
+        <!-- 6. Details Textarea -->
+        <div class="field">
+          <label class="field-label">Details of the issue <span class="opt-label">(optional)</span></label>
           <textarea 
-            v-model="form.reason" 
+            v-model="form.details" 
             rows="4" 
-            placeholder="Please specify what happened (e.g. Recipient no-show, collected incorrect quantity, collection delay, or disrespectful behavior)…" 
-            required
+            placeholder="Please specify what happened…" 
           ></textarea>
         </div>
 
-        <!-- 6. Photo Proof Upload -->
+        <!-- 7. Photo Proof Upload -->
         <div class="field">
           <label class="field-label">* Upload photo proof <span class="opt-label">(optional)</span></label>
           <div
@@ -125,97 +138,112 @@
 
         <!-- Submit Button Row -->
         <div class="btn-row">
-          <button type="submit" class="btn-primary" style="width:auto; padding:11px 24px;">
-            Submit report
+          <button type="submit" class="btn-primary" style="width:auto; padding:11px 24px;" :disabled="isSubmitting">
+            {{ isSubmitting ? 'Submitting…' : 'Submit report' }}
           </button>
-          <button type="button" class="btn-outline" @click="resetForm">
+          <button type="button" class="btn-outline" :disabled="isSubmitting" @click="resetForm">
             Cancel
           </button>
         </div>
+        <p v-if="submitError" class="form-error" role="alert">{{ submitError }}</p>
       </form>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { getReportableRequests, submitReport, uploadPhoto } from '../../api/client'
+import { formatPickupSlot } from '../../api/listingAdapter'
+
+const props = defineProps({
+  donorId: { type: Number, required: true }
+})
 
 const emit = defineEmits(['report-submitted'])
 
-// Food listing options with nested timeslots and their assigned recipients
-const orderOptions = [
-  {
-    id: 1,
-    name: 'Sourdough loaves (12 units)',
-    slots: [
-      {
-        time: 'Today, 5:30–6:00pm',
-        recipients: ['Community Kitchen East', 'Salvation Army Centre']
-      },
-      {
-        time: 'Today, 6:00–6:30pm',
-        recipients: ['Norwood Youth Refuge']
-      }
-    ]
-  },
-  {
-    id: 2,
-    name: 'Pantry staples box (8 boxes)',
-    slots: [
-      {
-        time: 'Sat, 10:00–10:30am',
-        recipients: ['St. Vincent de Paul Adelaide']
-      },
-      {
-        time: 'Sat, 10:30–11:00am',
-        recipients: ['Adelaide City Mission']
-      }
-    ]
-  },
-  {
-    id: 3,
-    name: 'Dairy bundle (10 units)',
-    slots: [
-      {
-        time: 'Today, 4:00–4:30pm',
-        recipients: ['Norwood Youth Refuge', 'Sturt Community Centre']
-      }
-    ]
-  }
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+
+const reasonOptions = [
+  'Recipient no-show',
+  'Late collection',
+  'Collected incorrect quantity',
+  'Disrespectful behaviour',
+  'Other'
 ]
 
+// Approved pickup requests on this donor's listings, from the API
+const reportableRequests = ref([])
+const isLoading = ref(true)
+const loadError = ref('')
+const loadController = new AbortController()
+
+onMounted(async () => {
+  try {
+    reportableRequests.value = await getReportableRequests(props.donorId, loadController.signal)
+  } catch (error) {
+    if (!loadController.signal.aborted) loadError.value = error.message || 'Unable to load your pickups.'
+  } finally {
+    isLoading.value = false
+  }
+})
+onBeforeUnmount(() => loadController.abort())
+
 const form = reactive({
-  selectedOrder: '',
-  selectedTimeslot: '',
-  selectedRecipient: '',
+  selectedListingId: '',
+  selectedTimeslotId: '',
+  selectedRequestId: '',
   actualTime: '17:30',
-  reason: ''
+  reason: '',
+  details: ''
+})
+
+// Listings that have at least one approved request
+const listingOptions = computed(() => {
+  const byId = new Map()
+  for (const r of reportableRequests.value) {
+    if (!byId.has(r.listingId)) byId.set(r.listingId, { id: r.listingId, name: r.listingName })
+  }
+  return [...byId.values()]
 })
 
 // Timeslots computed based on selected food listing
 const availableTimeslots = computed(() => {
-  const match = orderOptions.find(o => o.name === form.selectedOrder)
-  return match ? match.slots : []
+  const byId = new Map()
+  for (const r of reportableRequests.value) {
+    if (r.listingId !== form.selectedListingId || byId.has(r.timeslotId)) continue
+    byId.set(r.timeslotId, {
+      id: r.timeslotId,
+      startTime: r.timeslotStart,
+      label: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd })
+    })
+  }
+  return [...byId.values()].sort((a, b) => a.startTime.localeCompare(b.startTime))
 })
 
-// Recipients computed based on selected timeslot
-const availableRecipients = computed(() => {
-  const match = availableTimeslots.value.find(s => s.time === form.selectedTimeslot)
-  return match ? match.recipients : []
-})
+// Recipients (approved requests) computed based on selected timeslot
+const availableRecipients = computed(() =>
+  reportableRequests.value.filter(r => r.timeslotId === form.selectedTimeslotId)
+)
+
+const selectedRequest = computed(() =>
+  reportableRequests.value.find(r => r.requestId === form.selectedRequestId) || null
+)
 
 function handleListingChange() {
-  form.selectedTimeslot = ''
-  form.selectedRecipient = ''
+  form.selectedTimeslotId = ''
+  form.selectedRequestId = ''
 }
 
 function handleTimeslotChange() {
-  form.selectedRecipient = ''
+  form.selectedRequestId = ''
 }
 
 const fileInputRef = ref(null)
 const isDragOver = ref(false)
 const uploadedPhoto = ref(null)
+const isSubmitting = ref(false)
+const submitError = ref('')
 
 function triggerFileInput() {
   if (fileInputRef.value) fileInputRef.value.click()
@@ -223,9 +251,15 @@ function triggerFileInput() {
 
 function processImageFile(file) {
   if (!file || !file.type.startsWith('image/')) return
+  if (file.size > MAX_PHOTO_BYTES) {
+    submitError.value = 'Photo must be 5MB or smaller.'
+    return
+  }
+  submitError.value = ''
+  // Keep the file so it can be uploaded on submit; the data URL is only for the preview
   const reader = new FileReader()
   reader.onload = (e) => {
-    uploadedPhoto.value = { name: file.name, url: e.target.result }
+    uploadedPhoto.value = { name: file.name, url: e.target.result, file }
   }
   reader.readAsDataURL(file)
 }
@@ -248,31 +282,57 @@ function removeUpload() {
 }
 
 function resetForm() {
-  form.selectedOrder = ''
-  form.selectedTimeslot = ''
-  form.selectedRecipient = ''
+  form.selectedListingId = ''
+  form.selectedTimeslotId = ''
+  form.selectedRequestId = ''
   form.actualTime = '17:30'
   form.reason = ''
+  form.details = ''
+  submitError.value = ''
   removeUpload()
 }
 
-function handleSubmitReport() {
-  if (!form.selectedOrder || !form.selectedTimeslot || !form.selectedRecipient || !form.reason.trim()) return
+async function handleSubmitReport() {
+  const request = selectedRequest.value
+  if (!request || !form.reason || isSubmitting.value) return
 
-  const newReport = {
-    id: Date.now(),
-    foodName: form.selectedOrder,
-    timeslot: form.selectedTimeslot,
-    recipient: form.selectedRecipient,
-    actualDate: `${form.selectedTimeslot.split(',')[0] || 'Today'} ${form.actualTime}`,
-    reason: form.reason,
-    status: 'Under Review',
-    statusClass: 'status-pending'
+  isSubmitting.value = true
+  submitError.value = ''
+  try {
+    const evidenceImageUrl = uploadedPhoto.value ? await uploadPhoto(uploadedPhoto.value.file) : null
+    // The API has no field for the actual transaction time, so it is recorded in the details
+    const details = [`Actual transaction time: ${form.actualTime}`, form.details.trim()]
+      .filter(Boolean)
+      .join('\n')
+
+    const created = await submitReport({
+      reportType: 'RECIPIENT_BEHAVIOUR',
+      listingId: request.listingId,
+      pickupRequestId: request.requestId,
+      reportedUserId: request.recipientUserId,
+      reason: form.reason,
+      details,
+      evidenceImageUrl
+    })
+
+    emit('report-submitted', {
+      id: created.reportId,
+      foodName: request.listingName,
+      timeslot: formatPickupSlot({ startTime: request.timeslotStart, endTime: request.timeslotEnd }),
+      recipient: request.recipientName,
+      actualDate: `${request.timeslotStart.split('T')[0]} ${form.actualTime}`,
+      reason: form.details.trim() ? `${form.reason}: ${form.details.trim()}` : form.reason,
+      photo: evidenceImageUrl ? { name: uploadedPhoto.value.name, url: evidenceImageUrl } : null,
+      status: 'Under Review',
+      statusClass: 'status-pending'
+    })
+    alert(`Report regarding "${request.recipientName}" submitted successfully!`)
+    resetForm()
+  } catch (error) {
+    submitError.value = error.message || 'Unable to submit the report.'
+  } finally {
+    isSubmitting.value = false
   }
-
-  emit('report-submitted', newReport)
-  alert(`Report regarding "${form.selectedRecipient}" for timeslot "${form.selectedTimeslot}" submitted successfully!`)
-  resetForm()
 }
 </script>
 
@@ -375,6 +435,10 @@ function handleSubmitReport() {
   cursor: pointer;
 }
 .btn-primary:hover { background: var(--primary-dark); }
+.btn-primary:disabled, .btn-outline:disabled { opacity: .6; cursor: not-allowed; }
+
+.form-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
+.form-hint { color: var(--text-muted); font-size: 13px; margin: 0 0 12px; }
 .btn-outline {
   background: transparent;
   border: 1.5px solid var(--border);

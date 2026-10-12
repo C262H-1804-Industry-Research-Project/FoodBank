@@ -1,5 +1,6 @@
 package foodbank.webapp.service;
 
+import foodbank.webapp.dto.ReportableRequestResponse;
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.dto.RequestSubmission;
 import foodbank.webapp.entity.Listing;
@@ -33,6 +34,12 @@ public class RequestService {
     public List<RequestResponse> getPendingRequests(Integer donorId) {
         return requestRepository.findPendingByDonor(donorId, "PENDING").stream()
                 .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ReportableRequestResponse> getReportableRequests(Integer donorId) {
+        return requestRepository.findPendingByDonor(donorId, "APPROVED").stream()
+                .map(this::toReportableResponse)
                 .toList();
     }
 
@@ -201,6 +208,26 @@ public class RequestService {
                 request.getStatus(),
                 request.getPickupCode(),
                 request.getNote()
+        );
+    }
+
+    private ReportableRequestResponse toReportableResponse(Request request) {
+        Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        Recipient recipient = recipientRepository.findById(request.getRecipientId())
+                .orElseThrow(() -> new NoSuchElementException("Recipient not found"));
+        Listing listing = timeslot.getListing();
+
+        return new ReportableRequestResponse(
+                request.getRequestId(),
+                listing.getListingId(),
+                listing.getName(),
+                timeslot.getTimeslotId(),
+                timeslot.getStartTime().toString(),
+                timeslot.getEndTime().toString(),
+                recipient.getUserId(),
+                recipient.getName(),
+                request.getQuantityRequested()
         );
     }
 }

@@ -63,6 +63,7 @@
         <!-- 5. Submit Report Panel -->
         <DonorReports 
           v-else-if="currentPanel === 'reports'"
+          :donor-id="donorId"
           @report-submitted="handleReportSubmitted"
         />
 
