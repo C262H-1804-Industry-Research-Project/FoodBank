@@ -49,6 +49,9 @@ public class Report {
     // Optional evidence photo URL, uploaded via /api/uploads/photo.
     private String evidenceImageUrl;
 
+    // When the pickup actually happened, as recorded by the reporter (optional).
+    private LocalDateTime actualTransactionTime;
+
     // PENDING, IN_REVIEW, RESOLVED or DISMISSED.
     private String status;
 

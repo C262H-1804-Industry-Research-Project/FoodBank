@@ -14,6 +14,13 @@ public record DonorReportResponse(
         String outcome,
         LocalDateTime processedAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        // Display fields for the donor's report list; null when the linked record is gone.
+        String listingName,
+        String reportedName,
+        LocalDateTime timeslotStart,
+        LocalDateTime timeslotEnd,
+        String evidenceImageUrl,
+        LocalDateTime actualTransactionTime
 ) {
 }

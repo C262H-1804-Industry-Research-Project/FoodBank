@@ -24,8 +24,11 @@
       </select>
     </div>
 
+    <p v-if="loadError" class="form-error" role="alert">{{ loadError }}</p>
+
     <!-- 2. Report History Table -->
-    <div v-if="paginatedReports.length > 0">
+    <div v-if="isLoading" class="empty-note">Loading your reports…</div>
+    <div v-else-if="paginatedReports.length > 0">
       <table>
         <thead>
           <tr>
@@ -45,7 +48,7 @@
             <td>
               <span class="recipient-name">{{ r.recipient }}</span>
             </td>
-            <td>{{ r.actualDate || r.timeslot }}</td>
+            <td :title="r.timeslot">{{ r.actualDate || r.timeslot }}</td>
             <!-- Attachment Column -->
             <td>
               <div v-if="r.photo && r.photo.url" class="attach-thumb-wrap" @click="previewPhoto(r.photo.url)" title="Click to view full image">
@@ -100,8 +103,8 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else class="empty-note">
-      No submitted reports match your search criteria.
+    <div v-else-if="!loadError" class="empty-note">
+      {{ reports.length ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
     </div>
 
     <!-- 4. Photo Preview Modal -->
@@ -118,16 +121,33 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { getDonorReports } from '../../api/client'
+import { toReportRow } from '../../api/donorReportAdapter'
 
 const props = defineProps({
-  reports: {
-    type: Array,
-    required: true
-  }
+  donorId: { type: Number, required: true }
 })
 
 const emit = defineEmits(['create-report'])
+
+// Reports this donor has submitted, newest first, from the API
+const reports = ref([])
+const isLoading = ref(true)
+const loadError = ref('')
+const loadController = new AbortController()
+
+onMounted(async () => {
+  try {
+    const data = await getDonorReports(props.donorId, loadController.signal)
+    reports.value = data.map(toReportRow)
+  } catch (error) {
+    if (!loadController.signal.aborted) loadError.value = error.message || 'Unable to load your reports.'
+  } finally {
+    isLoading.value = false
+  }
+})
+onBeforeUnmount(() => loadController.abort())
 
 const searchKeyword = ref('')
 const filterStatus = ref('')
@@ -142,7 +162,7 @@ function previewPhoto(url) {
 }
 
 const filteredReports = computed(() => {
-  return props.reports.filter(r => {
+  return reports.value.filter(r => {
     if (filterStatus.value && r.status !== filterStatus.value) {
       return false
     }
@@ -368,6 +388,8 @@ tbody tr:hover { background: #FBFAF6; }
   color: #fff;
 }
 .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.form-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
 
 .empty-note {
   font-size: 12.5px;

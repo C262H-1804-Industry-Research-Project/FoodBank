@@ -173,3 +173,13 @@ export async function getReportableRequests(donorId, signal) {
 export function submitReport(report, signal) {
   return apiRequest('/reports', { method: 'POST', body: report, signal })
 }
+
+export async function getDonorReports(donorId, signal) {
+  if (!Number.isInteger(donorId) || donorId <= 0) {
+    throw new Error('The signed-in donor is missing an ID.')
+  }
+
+  const reports = await apiRequest(`/donors/${donorId}/reports`, { signal })
+  if (!Array.isArray(reports)) throw new Error('Invalid reports response from the API.')
+  return reports
+}

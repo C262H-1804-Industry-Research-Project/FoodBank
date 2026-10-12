@@ -1,5 +1,7 @@
 package foodbank.webapp.dto;
 
+import java.time.LocalDateTime;
+
 public record CreateReportRequest(
         String reportType,
         Integer listingId,
@@ -7,6 +9,7 @@ public record CreateReportRequest(
         Integer reportedUserId,
         String reason,
         String details,
-        String evidenceImageUrl
+        String evidenceImageUrl,
+        LocalDateTime actualTransactionTime
 ) {
 }

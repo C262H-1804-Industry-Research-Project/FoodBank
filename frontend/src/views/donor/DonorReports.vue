@@ -300,10 +300,8 @@ async function handleSubmitReport() {
   submitError.value = ''
   try {
     const evidenceImageUrl = uploadedPhoto.value ? await uploadPhoto(uploadedPhoto.value.file) : null
-    // The API has no field for the actual transaction time, so it is recorded in the details
-    const details = [`Actual transaction time: ${form.actualTime}`, form.details.trim()]
-      .filter(Boolean)
-      .join('\n')
+    // The form only asks for a time; the date comes from the pickup timeslot
+    const slotDate = request.timeslotStart.split('T')[0]
 
     const created = await submitReport({
       reportType: 'RECIPIENT_BEHAVIOUR',
@@ -311,21 +309,12 @@ async function handleSubmitReport() {
       pickupRequestId: request.requestId,
       reportedUserId: request.recipientUserId,
       reason: form.reason,
-      details,
-      evidenceImageUrl
+      details: form.details.trim(),
+      evidenceImageUrl,
+      actualTransactionTime: `${slotDate}T${form.actualTime}:00`
     })
 
-    emit('report-submitted', {
-      id: created.reportId,
-      foodName: request.listingName,
-      timeslot: formatPickupSlot({ startTime: request.timeslotStart, endTime: request.timeslotEnd }),
-      recipient: request.recipientName,
-      actualDate: `${request.timeslotStart.split('T')[0]} ${form.actualTime}`,
-      reason: form.details.trim() ? `${form.reason}: ${form.details.trim()}` : form.reason,
-      photo: evidenceImageUrl ? { name: uploadedPhoto.value.name, url: evidenceImageUrl } : null,
-      status: 'Under Review',
-      statusClass: 'status-pending'
-    })
+    emit('report-submitted', created)
     alert(`Report regarding "${request.recipientName}" submitted successfully!`)
     resetForm()
   } catch (error) {

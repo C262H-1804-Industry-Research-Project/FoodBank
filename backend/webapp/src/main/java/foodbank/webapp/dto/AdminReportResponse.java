@@ -12,6 +12,7 @@ public record AdminReportResponse(
         String reason,
         String details,
         String evidenceImageUrl,
+        LocalDateTime actualTransactionTime,
         String status,
         String adminNote,
         String outcome,

@@ -44,24 +44,7 @@ public class ReportService {
                         new NoSuchElementException("Donor not found")
                 );
 
-        return reportRepository
-                .findByReporterIdOrderByCreatedAtDesc(donor.getUserId())
-                .stream()
-                .map(report -> new DonorReportResponse(
-                        report.getReportId(),
-                        report.getReportedId(),
-                        report.getListingId(),
-                        report.getRequestId(),
-                        report.getReportType(),
-                        report.getReason(),
-                        report.getDetails(),
-                        report.getStatus(),
-                        report.getOutcome(),
-                        report.getProcessedAt(),
-                        report.getCreatedAt(),
-                        report.getUpdatedAt()
-                ))
-                .toList();
+        return reportRepository.findDonorReports(donor.getUserId());
     }
 
     @Transactional
@@ -221,6 +204,9 @@ public class ReportService {
                         )
                         .evidenceImageUrl(
                                 blankToNull(request.evidenceImageUrl())
+                        )
+                        .actualTransactionTime(
+                                request.actualTransactionTime()
                         )
                         .build()
         );

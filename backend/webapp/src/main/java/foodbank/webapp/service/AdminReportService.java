@@ -117,6 +117,7 @@ public class AdminReportService {
                 report.getReason(),
                 report.getDetails(),
                 report.getEvidenceImageUrl(),
+                report.getActualTransactionTime(),
                 report.getStatus(),
                 report.getAdminNote(),
                 report.getOutcome(),

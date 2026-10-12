@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -61,7 +62,7 @@ class ReportApiTest extends ApiTestSupport {
                 .content("""
                         {"reportType": "RECIPIENT_BEHAVIOUR", "listingId": %s, "pickupRequestId": %s,
                          "reportedUserId": %s, "reason": "Recipient no-show", "details": "Did not arrive",
-                         "evidenceImageUrl": %s}
+                         "evidenceImageUrl": %s, "actualTransactionTime": "2026-10-12T17:45:00"}
                         """.formatted(listing.getListingId(), approvedRequest.getRequestId(),
                         recipient.getUserId(), evidenceJson)));
     }
@@ -104,5 +105,23 @@ class ReportApiTest extends ApiTestSupport {
                 .singleElement()
                 .extracting(Report::getEvidenceImageUrl)
                 .isNull();
+    }
+
+    @Test
+    void donorReportListIncludesDisplayFields() throws Exception {
+        submitDonorReport("\"/uploads/evidence.jpg\"")
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].reason").value("Recipient no-show"))
+                .andExpect(jsonPath("$[0].status").value("PENDING"))
+                .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))
+                .andExpect(jsonPath("$[0].reportedName").value("Test Recipient"))
+                .andExpect(jsonPath("$[0].timeslotStart").value(startsWith(timeslot.getStartTime().toLocalDate().toString())))
+                .andExpect(jsonPath("$[0].evidenceImageUrl").value("/uploads/evidence.jpg"))
+                .andExpect(jsonPath("$[0].actualTransactionTime").value("2026-10-12T17:45:00"));
     }
 }
