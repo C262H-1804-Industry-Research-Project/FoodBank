@@ -174,12 +174,20 @@ export function submitReport(report, signal) {
   return apiRequest('/reports', { method: 'POST', body: report, signal })
 }
 
-export async function getDonorReports(donorId, signal) {
+// status is a backend status code such as 'PENDING'; leave it empty for every report
+export async function getDonorReports(donorId, { status = '' } = {}, signal) {
   if (!Number.isInteger(donorId) || donorId <= 0) {
     throw new Error('The signed-in donor is missing an ID.')
   }
 
-  const reports = await apiRequest(`/donors/${donorId}/reports`, { signal })
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const reports = await apiRequest(`/donors/${donorId}/reports${query}`, { signal })
   if (!Array.isArray(reports)) throw new Error('Invalid reports response from the API.')
   return reports
+}
+
+export async function getReportStatuses(signal) {
+  const statuses = await apiRequest('/reports/statuses', { signal })
+  if (!Array.isArray(statuses)) throw new Error('Invalid report statuses response from the API.')
+  return statuses
 }

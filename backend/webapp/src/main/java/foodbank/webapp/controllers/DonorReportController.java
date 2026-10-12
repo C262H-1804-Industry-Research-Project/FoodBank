@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
@@ -25,9 +26,10 @@ public class DonorReportController {
     @GetMapping
     public List<DonorReportResponse> getDonorReports(
             @PathVariable Integer donorId,
+            @RequestParam(required = false) String status,
             Principal principal
     ) {
         listingService.requireDonorOwner(donorId, principal.getName());
-        return reportService.getReportsByDonor(donorId);
+        return reportService.getReportsByDonor(donorId, status);
     }
 }

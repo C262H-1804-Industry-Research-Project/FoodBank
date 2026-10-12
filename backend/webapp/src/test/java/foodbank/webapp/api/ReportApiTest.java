@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -123,5 +124,43 @@ class ReportApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$[0].timeslotStart").value(startsWith(timeslot.getStartTime().toLocalDate().toString())))
                 .andExpect(jsonPath("$[0].evidenceImageUrl").value("/uploads/evidence.jpg"))
                 .andExpect(jsonPath("$[0].actualTransactionTime").value("2026-10-12T17:45:00"));
+    }
+
+    @Test
+    void listsAllReportStatuses() throws Exception {
+        mockMvc.perform(get("/api/reports/statuses")
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", contains("PENDING", "IN_REVIEW", "RESOLVED", "DISMISSED")));
+    }
+
+    @Test
+    void donorReportListFiltersByStatus() throws Exception {
+        submitDonorReport("null").andExpect(status().isCreated());
+        submitDonorReport("null").andExpect(status().isCreated());
+        Report resolved = reportRepository.findAll().get(0);
+        resolved.setStatus("RESOLVED");
+        reportRepository.save(resolved);
+
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .param("status", "resolved")
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].reportId").value(resolved.getReportId()))
+                .andExpect(jsonPath("$[0].status").value("RESOLVED"));
+
+        // No status means every report
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .header("Authorization", donorToken()))
+                .andExpect(jsonPath("$", hasSize(2)));
+    }
+
+    @Test
+    void unknownStatusFilterIsRejected() throws Exception {
+        mockMvc.perform(get("/api/donors/{donorId}/reports", donor.getId())
+                        .param("status", "ARCHIVED")
+                        .header("Authorization", donorToken()))
+                .andExpect(status().isBadRequest());
     }
 }

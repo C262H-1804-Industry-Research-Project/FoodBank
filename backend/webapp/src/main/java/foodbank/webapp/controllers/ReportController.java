@@ -2,6 +2,7 @@ package foodbank.webapp.controllers;
 
 import foodbank.webapp.dto.CreateReportRequest;
 import foodbank.webapp.dto.CreatedReportResponse;
+import foodbank.webapp.entity.Report;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.service.ReportService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -9,11 +10,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
@@ -22,6 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
+
+    @GetMapping("/statuses")
+    public List<String> getReportStatuses() {
+        return Report.STATUSES;
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

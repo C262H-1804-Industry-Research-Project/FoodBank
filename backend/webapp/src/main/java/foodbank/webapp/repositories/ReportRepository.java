@@ -27,8 +27,12 @@ public interface ReportRepository extends JpaRepository<Report, Integer> {
             LEFT JOIN Request rq ON rq.requestId = r.requestId
             LEFT JOIN Timeslot t ON t.timeslotId = rq.timeslotId
             WHERE r.reporterId = :reporterId
+              AND (:status IS NULL OR r.status = :status)
             ORDER BY r.createdAt DESC
             """)
-    List<DonorReportResponse> findDonorReports(@Param("reporterId") Integer reporterId);
+    List<DonorReportResponse> findDonorReports(
+            @Param("reporterId") Integer reporterId,
+            @Param("status") String status
+    );
 
 }

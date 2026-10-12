@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toReportRow } from './donorReportAdapter'
+import { reportStatusLabel, toReportRow } from './donorReportAdapter'
 
 const report = {
   reportId: 7,
@@ -13,6 +13,13 @@ const report = {
   timeslotEnd: '2026-10-12T18:00:00',
   evidenceImageUrl: '/uploads/evidence.jpg',
 }
+
+describe('reportStatusLabel', () => {
+  it('uses the display label, falling back to the raw status', () => {
+    expect(reportStatusLabel('IN_REVIEW')).toBe('Being Reviewed')
+    expect(reportStatusLabel('ARCHIVED')).toBe('ARCHIVED')
+  })
+})
 
 describe('toReportRow', () => {
   it('maps a donor report to a report list row', () => {

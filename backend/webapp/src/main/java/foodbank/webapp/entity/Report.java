@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Setter
 @Getter
@@ -20,6 +21,10 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @Entity
 public class Report {
+
+    // Every status a report can have, in workflow order.
+    public static final List<String> STATUSES =
+            List.of("PENDING", "IN_REVIEW", "RESOLVED", "DISMISSED");
 
     @Id
     @GeneratedValue

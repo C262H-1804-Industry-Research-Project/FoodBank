@@ -36,15 +36,27 @@ public class ReportService {
     private final DonorRepository donorRepository;
     private final RecipientRepository recipientRepository;
 
+    // status is optional; when given, only reports with that status are returned.
     public List<DonorReportResponse> getReportsByDonor(
-            Integer donorId
+            Integer donorId,
+            String status
     ) {
+        String statusFilter = blankToNull(status);
+        if (statusFilter != null) {
+            statusFilter = statusFilter.toUpperCase(Locale.ROOT);
+            if (!Report.STATUSES.contains(statusFilter)) {
+                throw new IllegalArgumentException(
+                        "status must be one of " + String.join(", ", Report.STATUSES)
+                );
+            }
+        }
+
         Donor donor = donorRepository.findById(donorId)
                 .orElseThrow(() ->
                         new NoSuchElementException("Donor not found")
                 );
 
-        return reportRepository.findDonorReports(donor.getUserId());
+        return reportRepository.findDonorReports(donor.getUserId(), statusFilter);
     }
 
     @Transactional

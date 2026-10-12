@@ -18,10 +18,9 @@
       >
       <select v-model="filterStatus">
         <option value="">All statuses</option>
-        <option value="Under Review">Under Review</option>
-        <option value="Being Reviewed">Being Reviewed</option>
-        <option value="Resolved">Resolved</option>
-        <option value="Dismissed">Dismissed</option>
+        <option v-for="status in statusOptions" :key="status" :value="status">
+          {{ reportStatusLabel(status) }}
+        </option>
       </select>
     </div>
 
@@ -105,7 +104,7 @@
 
     <!-- Empty State -->
     <div v-else-if="!loadError" class="empty-note">
-      {{ reports.length ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
+      {{ reports.length || filterStatus ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
     </div>
 
     <!-- 4. Photo Preview Modal -->
@@ -123,8 +122,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { getDonorReports } from '../../api/client'
-import { toReportRow } from '../../api/donorReportAdapter'
+import { getDonorReports, getReportStatuses } from '../../api/client'
+import { reportStatusLabel, toReportRow } from '../../api/donorReportAdapter'
 
 const props = defineProps({
   donorId: { type: Number, required: true }
@@ -132,26 +131,54 @@ const props = defineProps({
 
 const emit = defineEmits(['create-report'])
 
+const searchKeyword = ref('')
+// Backend status code; '' means all statuses. Filtering by status happens on the server.
+const filterStatus = ref('')
+const statusOptions = ref([])
+
 // Reports this donor has submitted, newest first, from the API
 const reports = ref([])
 const isLoading = ref(true)
 const loadError = ref('')
-const loadController = new AbortController()
+let loadController = null
 
-onMounted(async () => {
+async function loadReports() {
+  // Abort an older request so a slow response cannot overwrite a newer filter's results
+  loadController?.abort()
+  const controller = new AbortController()
+  loadController = controller
+  isLoading.value = true
+  loadError.value = ''
   try {
-    const data = await getDonorReports(props.donorId, loadController.signal)
+    const data = await getDonorReports(props.donorId, { status: filterStatus.value }, controller.signal)
     reports.value = data.map(toReportRow)
   } catch (error) {
-    if (!loadController.signal.aborted) loadError.value = error.message || 'Unable to load your reports.'
+    if (!controller.signal.aborted) loadError.value = error.message || 'Unable to load your reports.'
   } finally {
-    isLoading.value = false
+    if (!controller.signal.aborted) isLoading.value = false
   }
-})
-onBeforeUnmount(() => loadController.abort())
+}
 
-const searchKeyword = ref('')
-const filterStatus = ref('')
+const statusController = new AbortController()
+
+async function loadStatuses() {
+  try {
+    statusOptions.value = await getReportStatuses(statusController.signal)
+  } catch (error) {
+    // The list still works without the filter options
+    if (!statusController.signal.aborted) console.error('Unable to load report statuses.', error)
+  }
+}
+
+onMounted(() => {
+  loadStatuses()
+  loadReports()
+})
+watch(filterStatus, loadReports)
+onBeforeUnmount(() => {
+  loadController?.abort()
+  statusController.abort()
+})
 
 // Image preview modal state
 const showPhotoModal = ref(false)
@@ -164,9 +191,6 @@ function previewPhoto(url) {
 
 const filteredReports = computed(() => {
   return reports.value.filter(r => {
-    if (filterStatus.value && r.status !== filterStatus.value) {
-      return false
-    }
     if (searchKeyword.value.trim()) {
       const q = searchKeyword.value.trim().toLowerCase()
       const matchFood = (r.foodName || '').toLowerCase().includes(q)

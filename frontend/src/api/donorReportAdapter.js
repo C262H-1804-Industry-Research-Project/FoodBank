@@ -5,6 +5,11 @@ const STATUS_DISPLAY = {
   DISMISSED: { status: 'Dismissed', statusClass: 'status-dismissed' },
 }
 
+// Display label for a backend status code, e.g. for the status filter
+export function reportStatusLabel(status) {
+  return STATUS_DISPLAY[status]?.status || status
+}
+
 export function toReportRow(report) {
   const details = (report.details || '').trim()
   const [slotDate = '', slotStart = ''] = (report.timeslotStart || '').split('T')
