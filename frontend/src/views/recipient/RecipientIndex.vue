@@ -51,9 +51,17 @@
           :history-list="myHistoryList"
         />
 
-        <!-- 4. Report an Issue Panel -->
-        <ReportIssue 
-          v-else-if="currentPanel === 'report'"
+        <!-- 4. Report List Panel (Matching Donor) -->
+        <ReportList
+          v-else-if="currentPanel === 'reports'"
+          :reports="recipientReports"
+          @create-report="currentPanel = 'filereport'"
+        />
+
+        <!-- 5. File a Report Panel (Matching Donor) -->
+        <ReportIssue
+          v-else-if="currentPanel === 'filereport'"
+          @report-submitted="handleReportSubmitted"
         />
 
         <!-- Fallback Placeholder -->
@@ -124,6 +132,7 @@ import { useRouter } from 'vue-router'
 import BrowseDonations from './BrowseDonations.vue'
 import MyRequests from './MyRequests.vue'
 import CollectionHistory from './CollectionHistory.vue'
+import ReportList from './ReportList.vue'
 import ReportIssue from './ReportIssue.vue'
 
 import { clearSession, logout } from '../../api/client'
@@ -132,11 +141,13 @@ import { formatPickupSlot } from '../../api/listingAdapter'
 
 const router = useRouter()
 
+// Side navigation matching Donor portal structure
 const navItems = [
   { key: 'browse', name: 'Browse donations' },
   { key: 'myrequests', name: 'My requests' },
   { key: 'history', name: 'Collection history' },
-  { key: 'report', name: 'Report an issue' }
+  { key: 'reports', name: 'Report list' },
+  { key: 'filereport', name: 'File a report' }
 ]
 
 const currentPanel = ref('browse')
@@ -148,7 +159,7 @@ async function handleLogout() {
   try {
     await logout()
   } catch {
-    // Still remove a stale local session when server logout is unavailable.
+    // Session fallback
   } finally {
     clearSession()
     router.push('/auth')
@@ -227,6 +238,25 @@ const myHistoryList = ref([
     collectedDate: '2026-09-15 11:30'
   }
 ])
+
+// Recipient submitted reports dataset
+const recipientReports = ref([
+  {
+    id: 301,
+    collection: 'Mixed vegetable crates — Norwood Fresh Markets, Reserved',
+    reason: 'Food quality issue',
+    details: 'A crate of carrots was completely molded at the bottom upon receipt.',
+    submittedAt: '2026-10-02 11:20',
+    status: 'Under Review',
+    statusClass: 'status-pending',
+    photo: null
+  }
+])
+
+function handleReportSubmitted(newReport) {
+  recipientReports.value.unshift(newReport)
+  currentPanel.value = 'reports' // Jump to Report list after submission
+}
 
 const showModal = ref(false)
 const modalItem = ref(null)
