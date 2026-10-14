@@ -40,7 +40,8 @@
           :requests="myRequestsList"
           :loading="myRequestsLoading"
           :error="myRequestsError"
-          :busy="cancellationPending"
+          :busy="cancellingId !== null"
+          :cancelling-id="cancellingId"
           @reload="loadMyRequests"
           @cancel="handleCancelRequest"
         />
@@ -171,7 +172,8 @@ const browseRef = ref(null)
 const myRequestsList = ref([])
 const myRequestsLoading = ref(false)
 const myRequestsError = ref('')
-const cancellationPending = ref(false)
+// ID of the request being cancelled, or null
+const cancellingId = ref(null)
 const requestController = new AbortController()
 onBeforeUnmount(() => requestController.abort())
 
@@ -191,14 +193,14 @@ async function loadMyRequests() {
 watch(currentPanel, panel => { if (panel === 'myrequests') loadMyRequests() })
 
 async function handleCancelRequest(id) {
-  if (cancellationPending.value || myRequestsLoading.value) return
+  if (cancellingId.value !== null || myRequestsLoading.value) return
   const row = myRequestsList.value.find(request => request.id === id)
   if (!row || !canCancelPickup(row)) {
     window.alert('This request can no longer be cancelled before pickup.')
     return
   }
   if (!window.confirm('Are you sure you want to cancel this request?')) return
-  cancellationPending.value = true
+  cancellingId.value = id
   try {
     await cancelPickupRequest(id)
     Object.assign(row, { statusCode: 'CANCELLED', status: 'Cancelled', statusClass: 'status-expired', address: null, code: null })
@@ -206,7 +208,7 @@ async function handleCancelRequest(id) {
   } catch (error) {
     window.alert(error.message)
   } finally {
-    cancellationPending.value = false
+    cancellingId.value = null
   }
 }
 

@@ -306,6 +306,39 @@ describe('recipient requests', () => {
     expect(wrapper.get('tbody').text()).toContain('Requested')
   })
 
+  it('disables Cancel with a reason for requests that can no longer be cancelled', async () => {
+    const past = { timeslotStart: '2020-01-01T10:00:00', timeslotEnd: '2020-01-01T11:00:00' }
+    const fetchMock = vi.fn(async () => response([
+      { ...record('PENDING'), requestId: 1 },
+      { ...record('APPROVED'), ...past, requestId: 2 },
+      { ...record('CANCELLED'), requestId: 3 },
+      { ...record('REJECTED'), requestId: 4 },
+    ]))
+    recipientPortal(fetchMock)
+    await openMine()
+    const cells = wrapper.findAll('tbody tr').map(row => row.findAll('td').at(-1))
+    expect(cells.map(cell => cell.text())).toEqual(['Cancel', 'Cancel', 'Cancel', 'Cancel'])
+    expect(wrapper.find('tbody').text()).not.toContain('Details')
+    expect(cells.map(cell => cell.get('button').attributes('disabled') !== undefined)).toEqual([false, true, true, true])
+    expect(cells.map(cell => cell.get('span').attributes('title'))).toEqual(
+      ['', 'Pickup time has passed', 'Already cancelled', 'Request was declined'])
+    await cells[1].get('button').trigger('click')
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('shows Cancelling only on the request being cancelled', async () => {
+    let resolve
+    recipientPortal(vi.fn((_, options) => options.method === 'GET'
+      ? Promise.resolve(response([{ ...record('PENDING'), requestId: 1 }, { ...record('APPROVED'), requestId: 2 }]))
+      : new Promise(done => { resolve = done })))
+    await openMine()
+    await wrapper.findAll('tbody button')[0].trigger('click')
+    const buttons = wrapper.findAll('tbody button')
+    expect(buttons.map(button => button.text())).toEqual(['Cancelling…', 'Cancel'])
+    expect(buttons.every(button => button.attributes('disabled') !== undefined)).toBe(true)
+    resolve(response(null, 204)); await flushPromises()
+  })
+
   it('shows load errors and retries, instead of displaying demo data', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(response({ error: 'Unavailable' }, 500))
       .mockResolvedValueOnce(response([]))

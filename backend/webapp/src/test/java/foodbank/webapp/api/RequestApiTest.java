@@ -3,9 +3,12 @@ package foodbank.webapp.api;
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
+import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
+import foodbank.webapp.repositories.RequestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -13,12 +16,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class RequestApiTest extends ApiTestSupport {
+
+    @Autowired private RequestRepository requestRepository;
 
     private Recipient recipient;
     private Donor donor;
@@ -148,5 +154,66 @@ class RequestApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].note").value("mine"));
+    }
+
+    private Request saveRequest(Recipient owner, Timeslot slot, String status) {
+        return requestRepository.save(Request.builder()
+                .timeslotId(slot.getTimeslotId())
+                .recipientId(owner.getRecipientId())
+                .quantityRequested(1f)
+                .status(status)
+                .pickupCode("APPROVED".equals(status) ? "123456" : null)
+                .build());
+    }
+
+    private ResultActions cancel(Request request, Recipient as) throws Exception {
+        return mockMvc.perform(delete("/api/requests/{id}", request.getRequestId())
+                .header("Authorization", recipientToken(as)));
+    }
+
+    @Test
+    void cancelsFuturePendingAndApprovedRequestsAndFreesThePlace() throws Exception {
+        for (String status : new String[] {"PENDING", "APPROVED"}) {
+            int before = timeslotRepository.findById(timeslot.getTimeslotId()).orElseThrow().getRemainingSlot();
+            Request request = saveRequest(recipient, timeslot, status);
+
+            cancel(request, recipient).andExpect(status().isNoContent());
+
+            Request saved = requestRepository.findById(request.getRequestId()).orElseThrow();
+            assertThat(saved.getStatus()).isEqualTo("CANCELLED");
+            assertThat(saved.getPickupCode()).isNull();
+            assertThat(timeslotRepository.findById(timeslot.getTimeslotId()).orElseThrow().getRemainingSlot())
+                    .isEqualTo(before + 1);
+        }
+    }
+
+    @Test
+    void cannotCancelOnceThePickupHasStarted() throws Exception {
+        Timeslot started = createTimeslot(listing, 3);
+        started.setStartTime(java.time.LocalDateTime.now().minusMinutes(5));
+        started.setEndTime(java.time.LocalDateTime.now().plusMinutes(55));
+        timeslotRepository.save(started);
+        Request request = saveRequest(recipient, started, "APPROVED");
+
+        cancel(request, recipient).andExpect(status().isConflict());
+        assertThat(requestRepository.findById(request.getRequestId()).orElseThrow().getStatus()).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void cannotCancelDeclinedOrAlreadyCancelledRequests() throws Exception {
+        for (String status : new String[] {"REJECTED", "CANCELLED"}) {
+            cancel(saveRequest(recipient, timeslot, status), recipient).andExpect(status().isConflict());
+        }
+    }
+
+    @Test
+    void cannotCancelAnotherRecipientsOrAnUnknownRequest() throws Exception {
+        Request request = saveRequest(recipient, timeslot, "PENDING");
+
+        cancel(request, createRecipient()).andExpect(status().isForbidden());
+        assertThat(requestRepository.findById(request.getRequestId()).orElseThrow().getStatus()).isEqualTo("PENDING");
+
+        mockMvc.perform(delete("/api/requests/{id}", 999999).header("Authorization", recipientToken(recipient)))
+                .andExpect(status().isNotFound());
     }
 }
