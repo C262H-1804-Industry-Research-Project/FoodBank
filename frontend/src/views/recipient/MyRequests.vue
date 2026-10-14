@@ -36,8 +36,17 @@
             <span v-else>—</span>
           </td>
           <td>
-            <button v-if="canCancelPickup(req, now)" :disabled="busy" class="btn-outline btn-sm" @click="emit('cancel', req.id)">{{ busy ? 'Cancelling…' : 'Cancel' }}</button>
-            <button v-else class="btn-outline btn-sm">Details</button>
+            <!-- The wrapper carries the reason, since disabled buttons don't reliably show a tooltip -->
+            <span :title="cancelBlockedReason(req, now) || ''">
+              <button
+                type="button"
+                class="btn-outline btn-sm"
+                :disabled="busy || cancelBlockedReason(req, now) !== null"
+                @click="emit('cancel', req.id)"
+              >
+                {{ cancellingId === req.id ? 'Cancelling…' : 'Cancel' }}
+              </button>
+            </span>
           </td>
         </tr>
       </tbody>
@@ -47,7 +56,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { canCancelPickup } from '../../api/pickupRequests'
+import { cancelBlockedReason } from '../../api/pickupRequests'
 const now = ref(Date.now())
 let timer
 onMounted(() => { timer = setInterval(() => { now.value = Date.now() }, 1000) })
@@ -57,6 +66,8 @@ defineProps({
   loading: Boolean,
   error: { type: String, default: '' },
   busy: Boolean,
+  // The request being cancelled right now, if any
+  cancellingId: { type: Number, default: null },
   requests: {
     type: Array,
     required: true
@@ -134,6 +145,12 @@ code.pcode {
 .btn-outline:hover {
   border-color: var(--primary);
   color: var(--primary-dark);
+}
+.btn-outline:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text);
 }
 .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
 </style>

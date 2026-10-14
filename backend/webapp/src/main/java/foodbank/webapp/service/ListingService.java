@@ -312,9 +312,13 @@ public class ListingService {
             throw new IllegalArgumentException("status must be LIVE or DRAFT");
         }
         var slots = timeslotRepository.findByListing(listing);
-        if (slots.stream().anyMatch(slot -> slot.getRemainingSlot() < slot.getMaxRecipients())
-                && !hasSameTimeslots(slots, request.timeslots())) {
-            throw new foodbank.webapp.exceptions.ConflictException("Pickup timeslots with bookings cannot be changed");
+        // Slots the edit removes; refuse before changing anything if any of them is booked
+        Set<String> requestedKeys = timeslotKeys(request.timeslots());
+        List<Timeslot> removedSlots = slots.stream()
+                .filter(slot -> !requestedKeys.contains(timeslotKey(slot.getStartTime(), slot.getEndTime())))
+                .toList();
+        if (removedSlots.stream().anyMatch(slot -> slot.getRemainingSlot() < slot.getMaxRecipients())) {
+            throw new foodbank.webapp.exceptions.ConflictException("Pickup timeslots with bookings cannot be removed");
         }
         Integer previousCapacity = listing.getSlotCapacity();
         if (previousCapacity == null && !slots.isEmpty()) {
@@ -354,9 +358,7 @@ public class ListingService {
         listing.setSlotCapacity(request.slotCapacity());
         listing.setStatus(request.status());
         replaceListingTags(listing, request.tagIds());
-        if (!hasSameTimeslots(slots, request.timeslots())) {
-            replaceTimeslots(listing, request.timeslots());
-        }
+        updateTimeslots(listing, slots, removedSlots, request.timeslots());
         listingRepository.flush();
         return toMyListingResponse(listing);
     }
@@ -439,17 +441,33 @@ public class ListingService {
         }
     }
 
-    private static boolean hasSameTimeslots(List<Timeslot> slots, List<CreateTimeslotRequest> requestedSlots) {
-        if (slots.size() != (requestedSlots == null ? 0 : requestedSlots.size())) return false;
-        Set<String> existing = new HashSet<>();
-        for (Timeslot slot : slots) existing.add(slot.getStartTime() + "|" + slot.getEndTime());
-        Set<String> requested = new HashSet<>();
+    // Applies an edit's timeslots by start and end time: existing slots that are still listed
+    // are kept as they are (with their bookings), removed ones are deleted and new ones created.
+    private void updateTimeslots(Listing listing, List<Timeslot> slots, List<Timeslot> removedSlots,
+                                 List<CreateTimeslotRequest> requestedSlots) {
+        timeslotRepository.deleteAll(removedSlots);
+        Set<String> existingKeys = new HashSet<>();
+        for (Timeslot slot : slots) existingKeys.add(timeslotKey(slot.getStartTime(), slot.getEndTime()));
         for (CreateTimeslotRequest slot : requestedSlots == null
                 ? Collections.<CreateTimeslotRequest>emptyList() : requestedSlots) {
-            if (slot == null || slot.startTime() == null || slot.endTime() == null) return false;
-            requested.add(slot.startTime() + "|" + slot.endTime());
+            // existingKeys also stops the same new slot being created twice
+            if (slot == null || existingKeys.add(timeslotKey(slot.startTime(), slot.endTime()))) {
+                saveTimeslot(listing, slot);
+            }
         }
-        return existing.equals(requested) && existing.size() == slots.size();
+    }
+
+    private static Set<String> timeslotKeys(List<CreateTimeslotRequest> requestedSlots) {
+        Set<String> keys = new HashSet<>();
+        for (CreateTimeslotRequest slot : requestedSlots == null
+                ? Collections.<CreateTimeslotRequest>emptyList() : requestedSlots) {
+            if (slot != null) keys.add(timeslotKey(slot.startTime(), slot.endTime()));
+        }
+        return keys;
+    }
+
+    private static String timeslotKey(java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+        return startTime + "|" + endTime;
     }
 
     private static void validateListingRequest(CreateListingRequest request) {

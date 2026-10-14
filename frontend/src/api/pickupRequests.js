@@ -29,6 +29,15 @@ export function canCancelPickup(row, now = Date.now()) {
     && new Date(row.pickupStart).getTime() > now
 }
 
+// Why a request's Cancel button is disabled, or null when it can be cancelled
+export function cancelBlockedReason(row, now = Date.now()) {
+  if (canCancelPickup(row, now)) return null
+  if (row.statusCode === 'CANCELLED') return 'Already cancelled'
+  if (row.statusCode === 'REJECTED') return 'Request was declined'
+  if (['PENDING', 'APPROVED'].includes(row.statusCode)) return 'Pickup time has passed'
+  return 'This request can no longer be cancelled'
+}
+
 function checked(request) {
   if (!Number.isInteger(request?.requestId) || typeof request.status !== 'string') {
     throw new Error('The pickup requests API returned an invalid request.')
