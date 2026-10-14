@@ -209,17 +209,7 @@ async function handleSubmit() {
       evidenceImageUrl
     })
 
-    // The Report list is not connected to the API yet, so hand it a row in its current shape
-    emit('report-submitted', {
-      id: created.reportId,
-      collection: collection.label,
-      reason: reportForm.reason,
-      details: reportForm.details.trim() || '—',
-      submittedAt: (created.createdAt || new Date().toISOString()).slice(0, 16).replace('T', ' '),
-      status: 'Under Review',
-      statusClass: 'status-pending',
-      photo: evidenceImageUrl ? { name: uploadedPhoto.value.name, url: evidenceImageUrl } : null
-    })
+    emit('report-submitted', created)
     alert(`Report for "${collection.listingName}" has been submitted to administrators.`)
     resetForm()
   } catch (error) {

@@ -1,6 +1,7 @@
 package foodbank.webapp.repositories;
 
 import foodbank.webapp.dto.DonorReportResponse;
+import foodbank.webapp.dto.RecipientReportResponse;
 import foodbank.webapp.entity.Report;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -63,4 +64,47 @@ public interface ReportRepository extends JpaRepository<Report, Integer> {
             Pageable pageable
     );
 
+    // The recipient's own report list; the same shape of query as findDonorReports, with the
+    // reported donor in place of the reported recipient. search is matched against the
+    // listing name, donor name, reason and details.
+    @Query(value = """
+            SELECT new foodbank.webapp.dto.RecipientReportResponse(
+                r.reportId, r.listingId, r.requestId,
+                r.reason, r.details, r.status, r.outcome,
+                r.processedAt, r.createdAt,
+                l.name, d.orgName, t.startTime, t.endTime,
+                r.evidenceImageUrl)
+            FROM Report r
+            LEFT JOIN Listing l ON l.listingId = r.listingId
+            LEFT JOIN Donor d ON d.userId = r.reportedId
+            LEFT JOIN Request rq ON rq.requestId = r.requestId
+            LEFT JOIN Timeslot t ON t.timeslotId = rq.timeslotId
+            WHERE r.reporterId = :reporterId
+              AND (:status IS NULL OR r.status = :status)
+              AND (:search IS NULL
+                   OR LOWER(l.name) LIKE :search ESCAPE '\\'
+                   OR LOWER(d.orgName) LIKE :search ESCAPE '\\'
+                   OR LOWER(r.reason) LIKE :search ESCAPE '\\'
+                   OR LOWER(r.details) LIKE :search ESCAPE '\\')
+            ORDER BY r.createdAt DESC, r.reportId DESC
+            """,
+            countQuery = """
+            SELECT COUNT(r)
+            FROM Report r
+            LEFT JOIN Listing l ON l.listingId = r.listingId
+            LEFT JOIN Donor d ON d.userId = r.reportedId
+            WHERE r.reporterId = :reporterId
+              AND (:status IS NULL OR r.status = :status)
+              AND (:search IS NULL
+                   OR LOWER(l.name) LIKE :search ESCAPE '\\'
+                   OR LOWER(d.orgName) LIKE :search ESCAPE '\\'
+                   OR LOWER(r.reason) LIKE :search ESCAPE '\\'
+                   OR LOWER(r.details) LIKE :search ESCAPE '\\')
+            """)
+    Page<RecipientReportResponse> findRecipientReports(
+            @Param("reporterId") Integer reporterId,
+            @Param("status") String status,
+            @Param("search") String search,
+            Pageable pageable
+    );
 }

@@ -136,6 +136,56 @@ class ReportApiTest extends ApiTestSupport {
     }
 
     @Test
+    void recipientReportListShowsOwnReportsWithDisplayFields() throws Exception {
+        submitRecipientReport(approvedRequest).andExpect(status().isCreated());
+        submitDonorReport("null").andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/recipients/me/reports").header("Authorization", recipientToken(recipient)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].listingName").value("Bread rolls"))
+                .andExpect(jsonPath("$.content[0].donorName").value("Test Donor"))
+                .andExpect(jsonPath("$.content[0].reason").value("Food quality issue"))
+                .andExpect(jsonPath("$.content[0].details").value("Mouldy"))
+                .andExpect(jsonPath("$.content[0].evidenceImageUrl").value("/uploads/mould.jpg"))
+                .andExpect(jsonPath("$.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.content[0].createdAt").isNotEmpty());
+    }
+
+    @Test
+    void recipientReportListFiltersSearchesAndPages() throws Exception {
+        for (int i = 0; i < 3; i++) submitRecipientReport(approvedRequest).andExpect(status().isCreated());
+        Report resolved = reportRepository.findAll().get(0);
+        resolved.setStatus("RESOLVED");
+        resolved.setDetails("Bad smell");
+        reportRepository.save(resolved);
+        String token = recipientToken(recipient);
+
+        mockMvc.perform(get("/api/recipients/me/reports").param("status", "resolved").header("Authorization", token))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].reportId").value(resolved.getReportId()));
+        mockMvc.perform(get("/api/recipients/me/reports").param("q", "SMELL").header("Authorization", token))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+        mockMvc.perform(get("/api/recipients/me/reports").param("q", "test donor").header("Authorization", token))
+                .andExpect(jsonPath("$.page.totalElements").value(3));
+        mockMvc.perform(get("/api/recipients/me/reports").param("size", "2").param("page", "1").header("Authorization", token))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
+    }
+
+    @Test
+    void recipientReportListRejectsBadInputAndOtherRoles() throws Exception {
+        String token = recipientToken(recipient);
+        mockMvc.perform(get("/api/recipients/me/reports").param("status", "ARCHIVED").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/recipients/me/reports").param("size", "101").header("Authorization", token))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/recipients/me/reports").header("Authorization", donorToken()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/recipients/me/reports")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void donorReportStoresEvidenceImageUrl() throws Exception {
         submitDonorReport("\"/uploads/evidence.jpg\"")
                 .andExpect(status().isCreated())

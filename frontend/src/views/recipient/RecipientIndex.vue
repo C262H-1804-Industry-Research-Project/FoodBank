@@ -54,7 +54,6 @@
         <!-- 4. Report List Panel (Matching Donor) -->
         <ReportList
           v-else-if="currentPanel === 'reports'"
-          :reports="recipientReports"
           @create-report="currentPanel = 'filereport'"
         />
 
@@ -239,23 +238,8 @@ const myHistoryList = ref([
   }
 ])
 
-// Recipient submitted reports dataset
-const recipientReports = ref([
-  {
-    id: 301,
-    collection: 'Mixed vegetable crates — Norwood Fresh Markets, Reserved',
-    reason: 'Food quality issue',
-    details: 'A crate of carrots was completely molded at the bottom upon receipt.',
-    submittedAt: '2026-10-02 11:20',
-    status: 'Under Review',
-    statusClass: 'status-pending',
-    photo: null
-  }
-])
-
-function handleReportSubmitted(newReport) {
-  recipientReports.value.unshift(newReport)
-  currentPanel.value = 'reports' // Jump to Report list after submission
+function handleReportSubmitted() {
+  currentPanel.value = 'reports' // Jump to Report list, which reloads from the API
 }
 
 const showModal = ref(false)

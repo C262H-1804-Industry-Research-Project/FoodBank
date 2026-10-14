@@ -3,6 +3,7 @@ package foodbank.webapp.service;
 import foodbank.webapp.dto.CreateReportRequest;
 import foodbank.webapp.dto.CreatedReportResponse;
 import foodbank.webapp.dto.DonorReportResponse;
+import foodbank.webapp.dto.RecipientReportResponse;
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
@@ -47,32 +48,62 @@ public class ReportService {
             String search,
             Pageable pageable
     ) {
-        String statusFilter = blankToNull(status);
-        if (statusFilter != null) {
-            statusFilter = statusFilter.toUpperCase(Locale.ROOT);
-            if (!Report.STATUSES.contains(statusFilter)) {
-                throw new IllegalArgumentException(
-                        "status must be one of " + String.join(", ", Report.STATUSES)
-                );
-            }
-        }
+        String statusFilter = statusFilter(status);
 
         Donor donor = donorRepository.findById(donorId)
                 .orElseThrow(() ->
                         new NoSuchElementException("Donor not found")
                 );
 
-        String searchTerm = blankToNull(search);
-        // Escape LIKE wildcards so the search matches the text literally
-        String searchPattern = searchTerm == null ? null
-                : "%" + searchTerm.toLowerCase(Locale.ROOT)
-                        .replace("\\", "\\\\")
-                        .replace("%", "\\%")
-                        .replace("_", "\\_") + "%";
+        String searchPattern = searchPattern(search);
 
         return reportRepository.findDonorReports(
                 donor.getUserId(), statusFilter, searchPattern, pageable
         );
+    }
+
+    // status and search are optional; search matches the listing name,
+    // donor name, reason or details, ignoring case.
+    public Page<RecipientReportResponse> getReportsByRecipient(
+            Integer userId,
+            String status,
+            String search,
+            Pageable pageable
+    ) {
+        String statusFilter = statusFilter(status);
+
+        recipientRepository.findByUserId(userId)
+                .orElseThrow(() ->
+                        new ForbiddenException("Recipient profile does not exist")
+                );
+
+        return reportRepository.findRecipientReports(
+                userId, statusFilter, searchPattern(search), pageable
+        );
+    }
+
+    private static String statusFilter(String status) {
+        String statusFilter = blankToNull(status);
+        if (statusFilter == null) {
+            return null;
+        }
+        statusFilter = statusFilter.toUpperCase(Locale.ROOT);
+        if (!Report.STATUSES.contains(statusFilter)) {
+            throw new IllegalArgumentException(
+                    "status must be one of " + String.join(", ", Report.STATUSES)
+            );
+        }
+        return statusFilter;
+    }
+
+    private static String searchPattern(String search) {
+        String searchTerm = blankToNull(search);
+        // Escape LIKE wildcards so the search matches the text literally
+        return searchTerm == null ? null
+                : "%" + searchTerm.toLowerCase(Locale.ROOT)
+                        .replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_") + "%";
     }
 
     @Transactional

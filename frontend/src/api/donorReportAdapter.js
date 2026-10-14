@@ -5,6 +5,11 @@ const STATUS_DISPLAY = {
   DISMISSED: { status: 'Dismissed', statusClass: 'status-dismissed' },
 }
 
+// Display label and badge class for a backend status code
+export function reportStatusDisplay(status) {
+  return STATUS_DISPLAY[status] || { status: status || 'Unknown', statusClass: 'status-pending' }
+}
+
 // Display label for a backend status code, e.g. for the status filter
 export function reportStatusLabel(status) {
   return STATUS_DISPLAY[status]?.status || status
@@ -28,6 +33,6 @@ export function toReportRow(report) {
     timeslot,
     reason: details ? `${report.reason}: ${details}` : report.reason || '',
     photo: report.evidenceImageUrl ? { name: 'Evidence', url: report.evidenceImageUrl } : null,
-    ...(STATUS_DISPLAY[report.status] || { status: report.status || 'Unknown', statusClass: 'status-pending' }),
+    ...reportStatusDisplay(report.status),
   }
 }

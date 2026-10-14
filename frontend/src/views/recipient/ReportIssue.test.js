@@ -64,8 +64,7 @@ it('uploads the photo and submits a FOOD_QUALITY report for the chosen collectio
     reportType: 'FOOD_QUALITY', listingId: 4, pickupRequestId: 12, reason: 'Food quality issue',
     details: 'Mouldy at the bottom', evidenceImageUrl: '/uploads/evidence.png',
   })
-  const [submitted] = wrapper.emitted('report-submitted')[0]
-  expect(submitted).toMatchObject({ id: 55, reason: 'Food quality issue', submittedAt: '2026-10-15 12:30', photo: { url: '/uploads/evidence.png' } })
+  expect(wrapper.emitted('report-submitted')[0][0]).toMatchObject({ reportId: 55, status: 'PENDING' })
   expect(wrapper.get('select').element.value).toBe('')
 })
 

@@ -198,6 +198,19 @@ export async function getDonorReports(donorId, { page = 0, size = 10, status, se
   return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
 }
 
+// The signed-in recipient's own reports. page is 0-based. status is a backend status code such
+// as 'PENDING' and search matches the listing, donor, reason or details; leave either empty to not filter by it.
+export async function getMyRecipientReports({ page = 0, size = 10, status, search } = {}, signal) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (status) params.set('status', status)
+  if (search?.trim()) params.set('q', search.trim())
+
+  const result = await apiRequest(`/recipients/me/reports?${params}`, { signal })
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid reports response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
+}
+
 export async function getReportStatuses(signal) {
   const statuses = await apiRequest('/reports/statuses', { signal })
   if (!Array.isArray(statuses)) throw new Error('Invalid report statuses response from the API.')
