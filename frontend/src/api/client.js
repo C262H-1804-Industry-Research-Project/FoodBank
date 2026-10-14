@@ -170,6 +170,13 @@ export async function getReportableRequests(donorId, signal) {
   return requests
 }
 
+// The signed-in recipient's approved pickup requests, which they can file a report about.
+export async function getRecipientReportableRequests(signal) {
+  const requests = await apiRequest('/requests/reportable', { signal })
+  if (!Array.isArray(requests)) throw new Error('Invalid reportable requests response from the API.')
+  return requests
+}
+
 export function submitReport(report, signal) {
   return apiRequest('/reports', { method: 'POST', body: report, signal })
 }
@@ -186,6 +193,19 @@ export async function getDonorReports(donorId, { page = 0, size = 10, status, se
   if (search?.trim()) params.set('q', search.trim())
 
   const result = await apiRequest(`/donors/${donorId}/reports?${params}`, { signal })
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid reports response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
+}
+
+// The signed-in recipient's own reports. page is 0-based. status is a backend status code such
+// as 'PENDING' and search matches the listing, donor, reason or details; leave either empty to not filter by it.
+export async function getMyRecipientReports({ page = 0, size = 10, status, search } = {}, signal) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (status) params.set('status', status)
+  if (search?.trim()) params.set('q', search.trim())
+
+  const result = await apiRequest(`/recipients/me/reports?${params}`, { signal })
   if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
       || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid reports response from the API.')
   return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }

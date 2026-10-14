@@ -1,5 +1,6 @@
 package foodbank.webapp.controllers;
 
+import foodbank.webapp.dto.RecipientReportableRequestResponse;
 import foodbank.webapp.dto.RequestSubmission;
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.service.RequestService;
@@ -29,6 +30,12 @@ public class RecipientRequestController {
     @GetMapping
     public List<RequestResponse> getMyRequests(Authentication authentication) {
         return requestService.getMyRequests(Integer.valueOf(authentication.getName()));
+    }
+
+    // The signed-in recipient's approved requests, which they can file a report about.
+    @GetMapping("/reportable")
+    public List<RecipientReportableRequestResponse> getReportableRequests(Authentication authentication) {
+        return requestService.getRecipientReportableRequests(Integer.valueOf(authentication.getName()));
     }
 
     @DeleteMapping("/{requestId}")

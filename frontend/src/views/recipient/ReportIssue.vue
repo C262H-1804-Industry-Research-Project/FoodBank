@@ -8,23 +8,27 @@
     </div>
 
     <div class="card" style="max-width:560px;">
+      <p v-if="loadError" class="form-error" role="alert">
+        {{ loadError }} <button type="button" class="btn-link" @click="loadCollections">Retry</button>
+      </p>
+      <p v-else-if="!isLoading && !collections.length" class="form-hint">
+        You have no approved collections to report yet.
+      </p>
+
       <form @submit.prevent="handleSubmit">
         <div class="field">
           <label class="field-label">Which collection?</label>
-          <select v-model="reportForm.collection" required>
-            <option value="" disabled>Select a collection…</option>
-            <option value="Mixed vegetable crates — Norwood Fresh Markets, Reserved">
-              Mixed vegetable crates — Norwood Fresh Markets, Reserved
-            </option>
-            <option value="Sourdough loaves — Green Leaf Café, Requested">
-              Sourdough loaves — Green Leaf Café, Requested
+          <select v-model="reportForm.requestId" :disabled="isLoading || isSubmitting" required>
+            <option value="" disabled>{{ isLoading ? 'Loading your collections…' : 'Select a collection…' }}</option>
+            <option v-for="c in collections" :key="c.requestId" :value="c.requestId">
+              {{ c.label }}
             </option>
           </select>
         </div>
 
         <div class="field">
           <label class="field-label">Reason</label>
-          <select v-model="reportForm.reason" required>
+          <select v-model="reportForm.reason" :disabled="isSubmitting" required>
             <option value="" disabled>Select a reason…</option>
             <option value="Food quality issue">Food quality issue</option>
             <option value="Item didn't match listing">Item didn't match listing</option>
@@ -38,6 +42,8 @@
           <textarea 
             v-model="reportForm.details" 
             rows="4" 
+            maxlength="1000"
+            :disabled="isSubmitting"
             placeholder="Describe what went wrong with this collection…"
           ></textarea>
         </div>
@@ -70,7 +76,7 @@
                 <img :src="uploadedPhoto.url" alt="Proof photo preview">
                 <div>
                   <div class="upload-file-name">{{ uploadedPhoto.name }}</div>
-                  <button type="button" class="upload-remove" @click="removeUpload">Remove photo</button>
+                  <button type="button" class="upload-remove" :disabled="isSubmitting" @click="removeUpload">Remove photo</button>
                 </div>
               </div>
             </div>
@@ -78,42 +84,84 @@
         </div>
 
         <div class="btn-row">
-          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;">
-            Submit report
+          <button type="submit" class="btn-primary" style="width:auto; padding:11px 22px;" :disabled="isSubmitting">
+            {{ isSubmitting ? 'Submitting…' : 'Submit report' }}
           </button>
-          <button type="button" class="btn-outline" @click="resetForm">
+          <button type="button" class="btn-outline" :disabled="isSubmitting" @click="resetForm">
             Cancel
           </button>
         </div>
+        <p v-if="submitError" class="form-error" role="alert">{{ submitError }}</p>
       </form>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { getRecipientReportableRequests, submitReport, uploadPhoto } from '../../api/client'
+import { formatPickupSlot } from '../../api/listingAdapter'
 
 const emit = defineEmits(['report-submitted'])
 
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+
+// The recipient's approved pickups, which are the collections they can report
+const reportableRequests = ref([])
+const isLoading = ref(true)
+const loadError = ref('')
+let loadController = null
+
+async function loadCollections() {
+  loadController?.abort()
+  const controller = new AbortController()
+  loadController = controller
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    reportableRequests.value = await getRecipientReportableRequests(controller.signal)
+  } catch (error) {
+    if (!controller.signal.aborted) loadError.value = error.message || 'Unable to load your collections.'
+  } finally {
+    if (loadController === controller) isLoading.value = false
+  }
+}
+
+onMounted(loadCollections)
+onBeforeUnmount(() => loadController?.abort())
+
+const collections = computed(() => reportableRequests.value.map(r => ({
+  ...r,
+  label: `${r.listingName || 'Listing'} — ${r.donorName || 'Unknown donor'}, ${formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd })}`
+})))
+
 const reportForm = reactive({
-  collection: 'Mixed vegetable crates — Norwood Fresh Markets, Reserved',
-  reason: 'Food quality issue',
+  requestId: '',
+  reason: '',
   details: ''
 })
 
 const fileInputRef = ref(null)
 const isDragOver = ref(false)
 const uploadedPhoto = ref(null)
+const isSubmitting = ref(false)
+const submitError = ref('')
 
 function triggerFileInput() {
-  if (fileInputRef.value) fileInputRef.value.click()
+  if (fileInputRef.value && !isSubmitting.value) fileInputRef.value.click()
 }
 
 function processImageFile(file) {
   if (!file || !file.type.startsWith('image/')) return
+  if (file.size > MAX_PHOTO_BYTES) {
+    submitError.value = 'Photo must be 5MB or smaller.'
+    return
+  }
+  submitError.value = ''
+  // Keep the file so it can be uploaded on submit; the data URL is only for the preview
   const reader = new FileReader()
   reader.onload = (e) => {
-    uploadedPhoto.value = { name: file.name, url: e.target.result }
+    uploadedPhoto.value = { name: file.name, url: e.target.result, file }
   }
   reader.readAsDataURL(file)
 }
@@ -126,6 +174,7 @@ function handleFileUpload(e) {
 function handleFileDrop(e) {
   e.preventDefault()
   isDragOver.value = false
+  if (isSubmitting.value) return
   const file = e.dataTransfer?.files?.[0]
   if (file) processImageFile(file)
 }
@@ -136,34 +185,46 @@ function removeUpload() {
 }
 
 function resetForm() {
-  reportForm.collection = ''
+  reportForm.requestId = ''
   reportForm.reason = ''
   reportForm.details = ''
+  submitError.value = ''
   removeUpload()
 }
 
-function handleSubmit() {
-  if (!reportForm.collection || !reportForm.reason) return
+async function handleSubmit() {
+  const collection = collections.value.find(c => c.requestId === reportForm.requestId)
+  if (!collection || !reportForm.reason || isSubmitting.value) return
 
-  const newReport = {
-    id: Date.now(),
-    collection: reportForm.collection,
-    reason: reportForm.reason,
-    details: reportForm.details || '—',
-    submittedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-    status: 'Under Review',
-    statusClass: 'status-pending',
-    photo: uploadedPhoto.value ? { ...uploadedPhoto.value } : null
+  isSubmitting.value = true
+  submitError.value = ''
+  try {
+    const evidenceImageUrl = uploadedPhoto.value ? await uploadPhoto(uploadedPhoto.value.file) : null
+    const created = await submitReport({
+      reportType: 'FOOD_QUALITY',
+      listingId: collection.listingId,
+      pickupRequestId: collection.requestId,
+      reason: reportForm.reason,
+      details: reportForm.details.trim(),
+      evidenceImageUrl
+    })
+
+    emit('report-submitted', created)
+    alert(`Report for "${collection.listingName}" has been submitted to administrators.`)
+    resetForm()
+  } catch (error) {
+    submitError.value = error.message || 'Unable to submit the report.'
+  } finally {
+    isSubmitting.value = false
   }
-
-  emit('report-submitted', newReport)
-  alert(`Report for "${reportForm.collection}" has been submitted to administrators.`)
-  resetForm()
 }
 </script>
 
 <style scoped>
 .content-head { margin-bottom: 20px; }
+.form-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
+.form-hint { color: var(--text-muted); font-size: 13px; margin: 0 0 12px; }
+.btn-link { background: none; border: none; color: var(--primary-dark); font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline; }
 .content-head h2 { font-size: 22px; }
 .content-head .sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 

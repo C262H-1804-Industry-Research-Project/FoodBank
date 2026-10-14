@@ -13,19 +13,25 @@
       <input 
         type="text" 
         v-model="searchKeyword" 
-        placeholder="Search by collection, reason, or details…" 
+        placeholder="Search by food item, donor, reason, or details…" 
         class="search-input"
       >
       <select v-model="filterStatus">
         <option value="">All statuses</option>
-        <option value="Under Review">Under Review</option>
-        <option value="Resolved">Resolved</option>
-        <option value="Dismissed">Dismissed</option>
+        <option v-for="status in statusOptions" :key="status" :value="status">
+          {{ reportStatusLabel(status) }}
+        </option>
       </select>
     </div>
 
+    <p v-if="loadError" class="form-error" role="alert">
+      {{ loadError }} <button type="button" class="btn-link" @click="loadReports">Retry</button>
+    </p>
+
     <!-- 2. Report Table -->
-    <div v-if="paginatedReports.length > 0">
+    <!-- Keep the current page on screen while the next one loads -->
+    <div v-if="isLoading && !reports.length" class="empty-note">Loading your reports…</div>
+    <div v-else-if="reports.length > 0" :class="{ 'is-refreshing': isLoading }">
       <table>
         <thead>
           <tr>
@@ -38,7 +44,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in paginatedReports" :key="r.id">
+          <tr v-for="r in reports" :key="r.id">
             <td>
               <strong>{{ r.collection }}</strong>
             </td>
@@ -67,7 +73,7 @@
       <!-- 3. Pagination Controls -->
       <div class="pagination-bar">
         <div class="pagination-info">
-          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ filteredReports.length }}</strong> reports
+          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ totalElements }}</strong> reports
         </div>
         <div class="pagination-controls">
           <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">‹ Prev</button>
@@ -86,8 +92,8 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else class="empty-note">
-      No submitted reports match your search criteria.
+    <div v-else-if="!loadError" class="empty-note">
+      {{ isFiltered ? 'No submitted reports match your search criteria.' : 'You have not submitted any reports yet.' }}
     </div>
 
     <!-- 4. Photo Preview Modal -->
@@ -104,19 +110,97 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-
-const props = defineProps({
-  reports: {
-    type: Array,
-    required: true
-  }
-})
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { getMyRecipientReports, getReportStatuses } from '../../api/client'
+import { reportStatusLabel } from '../../api/donorReportAdapter'
+import { toRecipientReportRow } from '../../api/recipientReportAdapter'
 
 const emit = defineEmits(['create-report'])
 
+const PAGE_SIZE = 10
+
+// Search, status filtering and paging all happen on the server
 const searchKeyword = ref('')
+// Backend status code; '' means all statuses
 const filterStatus = ref('')
+const statusOptions = ref([])
+const currentPage = ref(1)
+
+// The current page of this recipient's reports, newest first, from the API
+const reports = ref([])
+const totalElements = ref(0)
+const totalPages = ref(1)
+const isLoading = ref(true)
+const loadError = ref('')
+let loadController = null
+
+async function loadReports() {
+  // Abort an older request so a slow response cannot overwrite newer results
+  loadController?.abort()
+  const controller = new AbortController()
+  loadController = controller
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const result = await getMyRecipientReports({
+      page: currentPage.value - 1,
+      size: PAGE_SIZE,
+      status: filterStatus.value,
+      search: searchKeyword.value
+    }, controller.signal)
+    // The page can fall off the end if reports changed since the last load
+    if (!result.items.length && result.totalPages > 0 && currentPage.value > result.totalPages) {
+      currentPage.value = result.totalPages
+      return
+    }
+    reports.value = result.items.map(toRecipientReportRow)
+    totalElements.value = result.totalElements
+    totalPages.value = Math.max(result.totalPages, 1)
+  } catch (error) {
+    if (!controller.signal.aborted) loadError.value = error.message || 'Unable to load your reports.'
+  } finally {
+    if (!controller.signal.aborted && loadController === controller) isLoading.value = false
+  }
+}
+
+// A new filter or search starts again from page 1; changing currentPage triggers the load
+function reloadFromFirstPage() {
+  if (currentPage.value === 1) loadReports()
+  else currentPage.value = 1
+}
+
+let searchTimer = null
+watch(searchKeyword, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reloadFromFirstPage, 300)
+})
+watch(filterStatus, reloadFromFirstPage)
+watch(currentPage, loadReports)
+
+const statusController = new AbortController()
+
+async function loadStatuses() {
+  try {
+    statusOptions.value = await getReportStatuses(statusController.signal)
+  } catch (error) {
+    // The list still works without the filter options
+    if (!statusController.signal.aborted) console.error('Unable to load report statuses.', error)
+  }
+}
+
+onMounted(() => {
+  loadStatuses()
+  loadReports()
+})
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer)
+  loadController?.abort()
+  statusController.abort()
+})
+
+const isFiltered = computed(() => Boolean(searchKeyword.value.trim() || filterStatus.value))
+const paginationStart = computed(() => totalElements.value === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1)
+const paginationEnd = computed(() => Math.min(currentPage.value * PAGE_SIZE, totalElements.value))
 
 const showPhotoModal = ref(false)
 const previewUrl = ref('')
@@ -125,35 +209,6 @@ function previewPhoto(url) {
   previewUrl.value = url
   showPhotoModal.value = true
 }
-
-const filteredReports = computed(() => {
-  return props.reports.filter(r => {
-    if (filterStatus.value && r.status !== filterStatus.value) return false
-    if (searchKeyword.value.trim()) {
-      const q = searchKeyword.value.trim().toLowerCase()
-      const matchCol = (r.collection || '').toLowerCase().includes(q)
-      const matchReason = (r.reason || '').toLowerCase().includes(q)
-      const matchDetails = (r.details || '').toLowerCase().includes(q)
-      if (!matchCol && !matchReason && !matchDetails) return false
-    }
-    return true
-  })
-})
-
-const currentPage = ref(1)
-const pageSize = ref(5)
-
-watch([searchKeyword, filterStatus], () => {
-  currentPage.value = 1
-})
-
-const totalPages = computed(() => Math.ceil(filteredReports.value.length / pageSize.value) || 1)
-const paginationStart = computed(() => filteredReports.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
-const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredReports.value.length))
-const paginatedReports = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredReports.value.slice(start, start + pageSize.value)
-})
 </script>
 
 <style scoped>
@@ -325,6 +380,7 @@ tbody tr:hover { background: #FBFAF6; }
   border-radius: 20px;
 }
 .status-pending { background: var(--amber-tint); color: var(--amber); }
+.status-reviewing { background: var(--primary-tint); color: var(--primary-dark); }
 .status-resolved { background: var(--success-tint); color: var(--success); }
 .status-dismissed { background: var(--surface-2); color: var(--text-soft); }
 
@@ -358,6 +414,10 @@ tbody tr:hover { background: #FBFAF6; }
   color: #fff;
 }
 .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.form-error { color: var(--danger); font-size: 13px; font-weight: 600; margin: 0 0 12px; }
+.btn-link { background: none; border: none; color: var(--primary-dark); font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline; }
+.is-refreshing { opacity: .6; transition: opacity .15s; }
 
 .empty-note {
   font-size: 12.5px;
