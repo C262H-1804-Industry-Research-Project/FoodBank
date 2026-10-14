@@ -9,6 +9,7 @@ import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Report;
 import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
+import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.DonorRepository;
 import foodbank.webapp.repositories.ListingRepository;
@@ -132,6 +133,12 @@ public class ReportService {
             )) {
                 throw new ForbiddenException(
                         "Recipient cannot report this pickup request"
+                );
+            }
+
+            if (!"APPROVED".equals(pickupRequest.getStatus())) {
+                throw new ConflictException(
+                        "Only approved pickup requests can be reported"
                 );
             }
 

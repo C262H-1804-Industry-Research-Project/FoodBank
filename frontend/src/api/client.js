@@ -170,6 +170,13 @@ export async function getReportableRequests(donorId, signal) {
   return requests
 }
 
+// The signed-in recipient's approved pickup requests, which they can file a report about.
+export async function getRecipientReportableRequests(signal) {
+  const requests = await apiRequest('/requests/reportable', { signal })
+  if (!Array.isArray(requests)) throw new Error('Invalid reportable requests response from the API.')
+  return requests
+}
+
 export function submitReport(report, signal) {
   return apiRequest('/reports', { method: 'POST', body: report, signal })
 }

@@ -1,5 +1,6 @@
 package foodbank.webapp.service;
 
+import foodbank.webapp.dto.RecipientReportableRequestResponse;
 import foodbank.webapp.dto.ReportableRequestResponse;
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.dto.RequestSubmission;
@@ -182,6 +183,13 @@ public class RequestService {
                 .toList();
     }
 
+    public List<RecipientReportableRequestResponse> getRecipientReportableRequests(Integer userId) {
+        Integer recipientId = findRecipientForUser(userId).getRecipientId();
+        return requestRepository.findByRecipientIdAndStatus(recipientId, "APPROVED").stream()
+                .map(this::toRecipientReportableResponse)
+                .toList();
+    }
+
     @Transactional
     public void cancelRequest(Integer requestId, Integer userId) {
         Request request = requestRepository.findById(requestId)
@@ -261,6 +269,22 @@ public class RequestService {
                 timeslot.getEndTime().toString(),
                 recipient.getUserId(),
                 recipient.getName(),
+                request.getQuantityRequested()
+        );
+    }
+
+    private RecipientReportableRequestResponse toRecipientReportableResponse(Request request) {
+        Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        Listing listing = timeslot.getListing();
+
+        return new RecipientReportableRequestResponse(
+                request.getRequestId(),
+                listing.getListingId(),
+                listing.getName(),
+                listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
+                timeslot.getStartTime().toString(),
+                timeslot.getEndTime().toString(),
                 request.getQuantityRequested()
         );
     }

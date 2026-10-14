@@ -86,6 +86,56 @@ class ReportApiTest extends ApiTestSupport {
     }
 
     @Test
+    void listsOnlyRecipientsOwnApprovedRequestsAsReportable() throws Exception {
+        saveRequest("PENDING");
+        saveRequest("CANCELLED");
+        Recipient other = createRecipient();
+        requestRepository.save(Request.builder().timeslotId(timeslot.getTimeslotId())
+                .recipientId(other.getRecipientId()).quantityRequested(1f).status("APPROVED").build());
+
+        mockMvc.perform(get("/api/requests/reportable").header("Authorization", recipientToken(recipient)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].requestId").value(approvedRequest.getRequestId()))
+                .andExpect(jsonPath("$[0].listingId").value(listing.getListingId()))
+                .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))
+                .andExpect(jsonPath("$[0].donorName").value(donor.getOrgName()))
+                .andExpect(jsonPath("$[0].timeslotStart").value(timeslot.getStartTime().toString()));
+
+        mockMvc.perform(get("/api/requests/reportable").header("Authorization", donorToken()))
+                .andExpect(status().isForbidden());
+    }
+
+    private ResultActions submitRecipientReport(Request pickupRequest) throws Exception {
+        return mockMvc.perform(post("/api/reports")
+                .header("Authorization", recipientToken(recipient))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"reportType": "FOOD_QUALITY", "listingId": %s, "pickupRequestId": %s,
+                         "reason": "Food quality issue", "details": "Mouldy", "evidenceImageUrl": "/uploads/mould.jpg"}
+                        """.formatted(listing.getListingId(), pickupRequest.getRequestId())));
+    }
+
+    @Test
+    void recipientCanReportApprovedRequestAgainstDonor() throws Exception {
+        submitRecipientReport(approvedRequest).andExpect(status().isCreated());
+
+        Report report = reportRepository.findAll().get(0);
+        assertThat(report.getReportedId()).isEqualTo(donor.getUserId());
+        assertThat(report.getReporterId()).isEqualTo(recipient.getUserId());
+        assertThat(report.getReason()).isEqualTo("Food quality issue");
+        assertThat(report.getEvidenceImageUrl()).isEqualTo("/uploads/mould.jpg");
+    }
+
+    @Test
+    void recipientCannotReportRequestThatIsNotApproved() throws Exception {
+        for (String status : new String[] {"PENDING", "REJECTED", "CANCELLED"}) {
+            submitRecipientReport(saveRequest(status)).andExpect(status().isConflict());
+        }
+        assertThat(reportRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void donorReportStoresEvidenceImageUrl() throws Exception {
         submitDonorReport("\"/uploads/evidence.jpg\"")
                 .andExpect(status().isCreated())
