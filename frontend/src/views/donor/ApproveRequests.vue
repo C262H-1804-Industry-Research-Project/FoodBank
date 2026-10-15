@@ -3,7 +3,7 @@
     <div class="content-head">
       <div>
         <h2>Requests to approve</h2>
-        <div class="sub">Review incoming food requests from approved recipient organisations</div>
+        <div class="sub">Review incoming food requests from approved recipient organisations and verify collection handovers</div>
       </div>
     </div>
 
@@ -28,12 +28,18 @@
         >
           Approved ({{ approvedCount }})
         </button>
+        <button 
+          :class="{ active: currentTab === 'collected' }" 
+          @click="currentTab = 'collected'"
+        >
+          Collected ({{ collectedCount }})
+        </button>
       </div>
 
       <input 
         type="text" 
         v-model="searchKeyword" 
-        placeholder="Search recipient or food item…" 
+        placeholder="Search recipient, food item, or pickup code…" 
         class="search-input"
       >
     </div>
@@ -49,6 +55,7 @@
             <th>Recipient org / Contact</th>
             <th>Requested unit</th>
             <th>Pickup slot</th>
+            <th>Pickup code</th>
             <th>Notes</th>
             <th>Status</th>
             <th style="text-align:right;">Actions</th>
@@ -70,6 +77,13 @@
             <td>
               <div class="slot-text">{{ item.slot }}</div>
             </td>
+            <!-- Pickup code display -->
+            <td>
+              <code v-if="item.pickupCode || item.code" class="pcode">
+                {{ item.pickupCode || item.code }}
+              </code>
+              <span v-else class="text-soft">—</span>
+            </td>
             <td>
               <div class="notes-text" :title="item.notes">{{ item.notes || '—' }}</div>
             </td>
@@ -77,23 +91,39 @@
               <span class="badge-status" :class="item.statusClass">{{ item.status }}</span>
             </td>
             <td style="text-align:right;">
+              <!-- Action for Pending -->
               <div v-if="item.status === 'Pending'" class="action-btns">
                 <button 
                   class="btn-approve btn-sm" 
-                   :disabled="busy"
+                  :disabled="busy"
                   @click="handleApprove(item)"
                 >
                   Approve
                 </button>
                 <button 
                   class="btn-decline btn-sm" 
-                   :disabled="busy"
+                  :disabled="busy"
                   @click="handleDecline(item)"
                 >
                   Decline
                 </button>
               </div>
-              <span v-else class="action-done-text">Processed</span>
+
+              <!-- Action for Approved: Confirm Handover -->
+              <div v-else-if="item.status === 'Approved'" class="action-btns">
+                <button 
+                  class="btn-handover btn-sm" 
+                  :disabled="busy"
+                  @click="handleConfirmHandover(item)"
+                >
+                  Confirm Handover
+                </button>
+              </div>
+
+              <!-- Action for Collected / Declined / Completed -->
+              <span v-else class="action-done-text">
+                {{ item.status === 'Collected' ? 'Collected ✓' : 'Processed' }}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -154,14 +184,15 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['approve-request', 'decline-request', 'reload'])
+const emit = defineEmits(['approve-request', 'decline-request', 'confirm-handover', 'reload'])
 
 // Tab filter & Search keyword
-const currentTab = ref('pending') // default to Pending
+const currentTab = ref('pending')
 const searchKeyword = ref('')
 
 const pendingCount = computed(() => props.requestsList.filter(r => r.status === 'Pending').length)
 const approvedCount = computed(() => props.requestsList.filter(r => r.status === 'Approved').length)
+const collectedCount = computed(() => props.requestsList.filter(r => r.status === 'Collected').length)
 
 // Filtered list
 const filteredRequests = computed(() => {
@@ -169,14 +200,16 @@ const filteredRequests = computed(() => {
     // Tab filter
     if (currentTab.value === 'pending' && item.status !== 'Pending') return false
     if (currentTab.value === 'approved' && item.status !== 'Approved') return false
+    if (currentTab.value === 'collected' && item.status !== 'Collected') return false
 
     // Search filter
     if (searchKeyword.value.trim()) {
       const q = searchKeyword.value.trim().toLowerCase()
-      const matchFood = item.foodName.toLowerCase().includes(q)
-      const matchOrg = item.recipientOrg.toLowerCase().includes(q)
-      const matchContact = item.contactName.toLowerCase().includes(q)
-      if (!matchFood && !matchOrg && !matchContact) return false
+      const matchFood = (item.foodName || '').toLowerCase().includes(q)
+      const matchOrg = (item.recipientOrg || '').toLowerCase().includes(q)
+      const matchContact = (item.contactName || '').toLowerCase().includes(q)
+      const matchCode = (item.pickupCode || item.code || '').toLowerCase().includes(q)
+      if (!matchFood && !matchOrg && !matchContact && !matchCode) return false
     }
 
     return true
@@ -208,6 +241,19 @@ function handleDecline(item) {
   const confirmed = window.confirm(`Are you sure you want to decline this request from ${item.recipientOrg}?`)
   if (confirmed) {
     emit('decline-request', item.id)
+  }
+}
+
+function handleConfirmHandover(item) {
+  const code = item.pickupCode || item.code || 'N/A'
+  const confirmed = window.confirm(
+    `Confirm Handover:\n\nRecipient: ${item.recipientOrg}\nItem: ${item.foodName} (${item.quantity})\nPickup Code: ${code}\n\nHave you verified the pickup code and successfully handed over the food?`
+  )
+  if (confirmed) {
+    // Update local status directly for instant feedback
+    item.status = 'Collected'
+    item.statusClass = 'status-collected'
+    emit('confirm-handover', item.id)
   }
 }
 </script>
@@ -295,10 +341,22 @@ tbody tr:hover { background: #FBFAF6; }
 .recipient-org { font-weight: 700; color: var(--primary-dark); }
 .recipient-contact { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 .slot-text { font-size: 12.5px; color: var(--text); }
+.text-soft { color: var(--text-soft); font-size: 12px; }
+
+code.pcode {
+  background: var(--primary-dark);
+  color: #EADFBF;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
 .notes-text {
   font-size: 12px;
   color: var(--text-muted);
-  max-width: 200px;
+  max-width: 180px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -312,7 +370,8 @@ tbody tr:hover { background: #FBFAF6; }
   border-radius: 20px;
 }
 .status-pending { background: var(--amber-tint); color: var(--amber); }
-.status-approved { background: var(--success-tint); color: var(--success); }
+.status-approved { background: var(--primary-tint); color: var(--primary-dark); }
+.status-collected { background: var(--success-tint); color: var(--success); }
 .status-declined { background: var(--danger-tint); color: var(--danger); }
 
 /* Action buttons */
@@ -332,6 +391,19 @@ tbody tr:hover { background: #FBFAF6; }
   cursor: pointer;
 }
 .btn-approve:hover { background: var(--primary-dark); }
+
+.btn-handover {
+  background: var(--success, #1F5D50);
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-handover:hover { opacity: 0.9; }
 
 .btn-decline {
   background: transparent;
