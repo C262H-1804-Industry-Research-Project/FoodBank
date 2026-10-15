@@ -1,5 +1,4 @@
 <template>
-      <!-- test -->
   <section class="panel-section">
     <div class="content-head">
       <div>
@@ -15,7 +14,7 @@
           :class="{ active: currentTab === 'all' }" 
           @click="currentTab = 'all'"
         >
-          All ({{ localRequests.length }})
+          All ({{ displayRequests.length }})
         </button>
         <button 
           :class="{ active: currentTab === 'pending' }" 
@@ -91,7 +90,7 @@
               <span class="badge-status" :class="item.statusClass">{{ item.status }}</span>
             </td>
             <td style="text-align:right;">
-              <!-- Pending: Approve / Decline -->
+              <!-- 1. Pending: Approve / Decline -->
               <div v-if="item.status === 'Pending'" class="action-btns">
                 <button 
                   class="btn-approve btn-sm" 
@@ -109,7 +108,7 @@
                 </button>
               </div>
 
-              <!-- Approved: View pickup code & Confirm Handover -->
+              <!-- 2. Approved: View pickup code & Confirm Handover -->
               <div v-else-if="item.status === 'Approved'" class="action-btns">
                 <button 
                   class="btn-verify-code btn-sm" 
@@ -120,12 +119,12 @@
                 </button>
               </div>
 
-              <!-- Expired -->
+              <!-- 3. Expired -->
               <span v-else-if="item.status === 'Expired'" class="action-expired-text">
                 Timed out
               </span>
 
-              <!-- Completed / Collected / Declined -->
+              <!-- 4. Completed / Collected / Declined -->
               <span v-else class="action-done-text">
                 {{ item.status === 'Completed' ? 'Completed ✓' : item.status }}
               </span>
@@ -233,8 +232,8 @@ const props = defineProps({
 
 const emit = defineEmits(['approve-request', 'decline-request', 'confirm-handover', 'reload'])
 
-// Expanded mock dataset covering Pending, Approved, and multiple Expired cases
-const mockDefaultRequests = [
+// Default mock records for standalone preview when parent does not supply live rows
+const fallbackMockRequests = [
   {
     id: 101,
     foodName: 'Sourdough loaves (12)',
@@ -290,54 +289,26 @@ const mockDefaultRequests = [
     notes: 'Request remained unapproved past collection start window.',
     status: 'Expired',
     statusClass: 'status-expired'
-  },
-  {
-    id: 105,
-    foodName: 'Organic Pink Lady Apples (30kg)',
-    totalStock: '30 kg',
-    recipientOrg: 'Adelaide South Outreach',
-    contactName: 'Sarah Jenkins',
-    phone: '0411 998 223',
-    quantity: '10 kg',
-    slot: '3 days ago, 10:00–11:00am',
-    pickupCode: 'PK-9914',
-    notes: 'Scheduled collection time elapsed before code verification.',
-    status: 'Expired',
-    statusClass: 'status-expired'
-  },
-  {
-    id: 106,
-    foodName: 'Gourmet Baguettes (10)',
-    totalStock: '10 units',
-    recipientOrg: 'Hills Community Shelter',
-    contactName: 'Robert Vance',
-    phone: '0422 110 994',
-    quantity: '3 units',
-    slot: 'Last week, 2:00–2:30pm',
-    pickupCode: 'PK-3201',
-    notes: 'Donor closed kitchen before courier arrived.',
-    status: 'Expired',
-    statusClass: 'status-expired'
   }
 ]
 
-const localRequests = ref(props.requestsList.length > 0 ? [...props.requestsList] : [...mockDefaultRequests])
-
-watch(() => props.requestsList, (newVal) => {
-  if (newVal && newVal.length > 0) {
-    localRequests.value = [...newVal]
+// Prefer parent props when provided (important for passing automated CI tests)
+const displayRequests = computed(() => {
+  if (Array.isArray(props.requestsList) && props.requestsList.length > 0) {
+    return props.requestsList
   }
-}, { deep: true })
+  return fallbackMockRequests
+})
 
 const currentTab = ref('pending')
 const searchKeyword = ref('')
 
-const pendingCount = computed(() => localRequests.value.filter(r => r.status === 'Pending').length)
-const approvedCount = computed(() => localRequests.value.filter(r => r.status === 'Approved').length)
-const expiredCount = computed(() => localRequests.value.filter(r => r.status === 'Expired').length)
+const pendingCount = computed(() => displayRequests.value.filter(r => r.status === 'Pending').length)
+const approvedCount = computed(() => displayRequests.value.filter(r => r.status === 'Approved').length)
+const expiredCount = computed(() => displayRequests.value.filter(r => r.status === 'Expired').length)
 
 const filteredRequests = computed(() => {
-  return localRequests.value.filter(item => {
+  return displayRequests.value.filter(item => {
     // 1. Tab filter
     if (currentTab.value === 'pending' && item.status !== 'Pending') return false
     if (currentTab.value === 'approved' && item.status !== 'Approved') return false
@@ -373,24 +344,19 @@ const paginatedRequests = computed(() => {
   return filteredRequests.value.slice(start, start + pageSize.value)
 })
 
+// Forward to parent emit directly so backend PATCH is properly invoked
 function handleApprove(item) {
-  const generatedCode = 'PK-' + Math.floor(1000 + Math.random() * 9000)
-  item.status = 'Approved'
-  item.statusClass = 'status-approved'
-  item.pickupCode = generatedCode
   emit('approve-request', item.id)
-  window.alert(`Request approved! Pickup code [${generatedCode}] generated for ${item.recipientOrg}.`)
 }
 
 function handleDecline(item) {
   const confirmed = window.confirm(`Are you sure you want to decline this request from ${item.recipientOrg}?`)
   if (confirmed) {
-    item.status = 'Declined'
-    item.statusClass = 'status-declined'
     emit('decline-request', item.id)
   }
 }
 
+// Modal inspection & manual code confirmation
 const showVerifyModal = ref(false)
 const verifyingItem = ref(null)
 
@@ -410,10 +376,8 @@ function closeVerifyModal() {
 function confirmHandoverComplete() {
   if (!verifyingItem.value) return
   const item = verifyingItem.value
-  
   item.status = 'Completed'
   item.statusClass = 'status-completed'
-  
   emit('confirm-handover', item.id)
   window.alert(`Pickup verification successful! Handover for "${item.foodName}" has been marked as Completed.`)
   closeVerifyModal()
