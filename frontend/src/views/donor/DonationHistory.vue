@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <!-- 1. Status Tabs (All, Successful, Failed) -->
+    <!-- 1. Status Tabs -->
     <div class="tab-toolbar">
       <div class="status-tabs">
         <button 
@@ -74,8 +74,9 @@
               <span class="org-name">{{ item.collectedBy }}</span>
             </td>
             <td>{{ item.completedDate }}</td>
+            <!-- Plain text status display without red/green backgrounds -->
             <td>
-              <span class="badge-status" :class="item.status === 'Completed' ? 'status-completed' : 'status-failed'">
+              <span class="status-plain-text">
                 {{ item.status }}
               </span>
             </td>
@@ -175,12 +176,20 @@ const props = defineProps({
         collectedBy: 'Local Community Pantry',
         completedDate: '2026-10-02',
         status: 'Failed'
+      },
+      {
+        id: 6,
+        foodName: 'Organic Pink Lady Apples (30kg)',
+        category: 'Produce',
+        quantity: '30 kg',
+        collectedBy: 'Adelaide South Outreach',
+        completedDate: '2026-09-28',
+        status: 'Completed'
       }
     ]
   }
 })
 
-// Retrieve source data, fallback to default mock array if parent prop is empty
 const displayList = computed(() => {
   return props.historyList && props.historyList.length > 0 ? props.historyList : []
 })
@@ -236,7 +245,6 @@ const paginatedHistory = computed(() => {
 .content-head h2 { font-size: 22px; }
 .content-head .sub { font-size: 13.5px; color: var(--text-muted); margin-top: 4px; }
 
-/* Status Tabs */
 .tab-toolbar {
   margin-bottom: 14px;
 }
@@ -322,14 +330,12 @@ tbody tr:hover { background: #FBFAF6; }
 }
 .org-name { font-weight: 700; color: var(--primary-dark); }
 
-.badge-status {
-  font-size: 11px;
-  font-weight: 800;
-  padding: 4px 10px;
-  border-radius: 20px;
+/* Normal text display for status without colored background pills */
+.status-plain-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
-.status-completed { background: var(--success-tint); color: var(--success); }
-.status-failed { background: var(--danger-tint); color: var(--danger); }
 
 .pagination-bar {
   display: flex;

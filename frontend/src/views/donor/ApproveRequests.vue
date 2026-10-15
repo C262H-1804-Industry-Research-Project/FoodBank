@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <!-- 1. Filter / Status Tab Bar (Pending, Approved, Expired) -->
+    <!-- 1. Filter / Status Tab Bar -->
     <div class="filter-bar">
       <div class="status-tabs">
         <button 
@@ -77,7 +77,6 @@
             <td>
               <div class="slot-text">{{ item.slot }}</div>
             </td>
-            <!-- Pickup code display -->
             <td>
               <code v-if="item.pickupCode || item.code" class="pcode">
                 {{ item.pickupCode || item.code }}
@@ -91,7 +90,7 @@
               <span class="badge-status" :class="item.statusClass">{{ item.status }}</span>
             </td>
             <td style="text-align:right;">
-              <!-- 1. Pending: Approve / Decline -->
+              <!-- Pending: Approve / Decline -->
               <div v-if="item.status === 'Pending'" class="action-btns">
                 <button 
                   class="btn-approve btn-sm" 
@@ -109,7 +108,7 @@
                 </button>
               </div>
 
-              <!-- 2. Approved: View pickup code & Confirm Handover -->
+              <!-- Approved: View pickup code & Confirm Handover -->
               <div v-else-if="item.status === 'Approved'" class="action-btns">
                 <button 
                   class="btn-verify-code btn-sm" 
@@ -120,12 +119,12 @@
                 </button>
               </div>
 
-              <!-- 3. Expired -->
+              <!-- Expired -->
               <span v-else-if="item.status === 'Expired'" class="action-expired-text">
                 Timed out
               </span>
 
-              <!-- 4. Completed / Collected / Declined -->
+              <!-- Completed / Collected / Declined -->
               <span v-else class="action-done-text">
                 {{ item.status === 'Completed' ? 'Completed ✓' : item.status }}
               </span>
@@ -233,7 +232,7 @@ const props = defineProps({
 
 const emit = defineEmits(['approve-request', 'decline-request', 'confirm-handover', 'reload'])
 
-// Mock initial data covering Pending, Approved, and Expired
+// Expanded mock dataset covering Pending, Approved, and multiple Expired cases
 const mockDefaultRequests = [
   {
     id: 101,
@@ -273,7 +272,7 @@ const mockDefaultRequests = [
     quantity: '5 cartons',
     slot: 'Yesterday, 4:00–4:30pm',
     pickupCode: 'PK-4102',
-    notes: 'Urgent need for weekly breakfast program.',
+    notes: 'Pickup window closed. Recipient did not arrive.',
     status: 'Expired',
     statusClass: 'status-expired'
   },
@@ -285,15 +284,42 @@ const mockDefaultRequests = [
     contactName: 'David Lee',
     phone: '0433 221 445',
     quantity: '6 units',
-    slot: 'Yesterday, 5:00–5:30pm',
+    slot: '2 days ago, 5:00–5:30pm',
     pickupCode: null,
-    notes: 'Past collection time window.',
+    notes: 'Request remained unapproved past collection start window.',
+    status: 'Expired',
+    statusClass: 'status-expired'
+  },
+  {
+    id: 105,
+    foodName: 'Organic Pink Lady Apples (30kg)',
+    totalStock: '30 kg',
+    recipientOrg: 'Adelaide South Outreach',
+    contactName: 'Sarah Jenkins',
+    phone: '0411 998 223',
+    quantity: '10 kg',
+    slot: '3 days ago, 10:00–11:00am',
+    pickupCode: 'PK-9914',
+    notes: 'Scheduled collection time elapsed before code verification.',
+    status: 'Expired',
+    statusClass: 'status-expired'
+  },
+  {
+    id: 106,
+    foodName: 'Gourmet Baguettes (10)',
+    totalStock: '10 units',
+    recipientOrg: 'Hills Community Shelter',
+    contactName: 'Robert Vance',
+    phone: '0422 110 994',
+    quantity: '3 units',
+    slot: 'Last week, 2:00–2:30pm',
+    pickupCode: 'PK-3201',
+    notes: 'Donor closed kitchen before courier arrived.',
     status: 'Expired',
     statusClass: 'status-expired'
   }
 ]
 
-// Local responsive copy for immediate feedback
 const localRequests = ref(props.requestsList.length > 0 ? [...props.requestsList] : [...mockDefaultRequests])
 
 watch(() => props.requestsList, (newVal) => {
@@ -302,7 +328,6 @@ watch(() => props.requestsList, (newVal) => {
   }
 }, { deep: true })
 
-// Tabs: 'all', 'pending', 'approved', 'expired'
 const currentTab = ref('pending')
 const searchKeyword = ref('')
 
@@ -310,7 +335,6 @@ const pendingCount = computed(() => localRequests.value.filter(r => r.status ===
 const approvedCount = computed(() => localRequests.value.filter(r => r.status === 'Approved').length)
 const expiredCount = computed(() => localRequests.value.filter(r => r.status === 'Expired').length)
 
-// Filtered list
 const filteredRequests = computed(() => {
   return localRequests.value.filter(item => {
     // 1. Tab filter
@@ -332,7 +356,6 @@ const filteredRequests = computed(() => {
   })
 })
 
-// Pagination
 const currentPage = ref(1)
 const pageSize = ref(5)
 
@@ -349,7 +372,6 @@ const paginatedRequests = computed(() => {
   return filteredRequests.value.slice(start, start + pageSize.value)
 })
 
-// 1. Approve logic: Turn status to 'Approved' and generate/display pickup code
 function handleApprove(item) {
   const generatedCode = 'PK-' + Math.floor(1000 + Math.random() * 9000)
   item.status = 'Approved'
@@ -359,7 +381,6 @@ function handleApprove(item) {
   window.alert(`Request approved! Pickup code [${generatedCode}] generated for ${item.recipientOrg}.`)
 }
 
-// 2. Decline logic
 function handleDecline(item) {
   const confirmed = window.confirm(`Are you sure you want to decline this request from ${item.recipientOrg}?`)
   if (confirmed) {
@@ -369,7 +390,6 @@ function handleDecline(item) {
   }
 }
 
-// 3. Verification & Handover Modal: View Code -> Complete
 const showVerifyModal = ref(false)
 const verifyingItem = ref(null)
 
@@ -390,7 +410,6 @@ function confirmHandoverComplete() {
   if (!verifyingItem.value) return
   const item = verifyingItem.value
   
-  // Update status to Completed
   item.status = 'Completed'
   item.statusClass = 'status-completed'
   
@@ -405,7 +424,6 @@ function confirmHandoverComplete() {
 .content-head h2 { font-size: 22px; }
 .content-head .sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-/* Filter & Tab bar */
 .filter-bar {
   display: flex;
   justify-content: space-between;
@@ -450,7 +468,6 @@ function confirmHandoverComplete() {
   border-color: var(--primary);
 }
 
-/* Table styling */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -504,7 +521,6 @@ code.pcode {
   text-overflow: ellipsis;
 }
 
-/* Status badges */
 .badge-status {
   font-size: 11px;
   font-weight: 800;
@@ -517,7 +533,6 @@ code.pcode {
 .status-completed { background: #E5F3EB; color: #1F5D50; }
 .status-declined { background: var(--surface-2); color: var(--text-soft); }
 
-/* Action buttons */
 .action-btns {
   display: flex;
   gap: 6px;
@@ -564,7 +579,6 @@ code.pcode {
 .action-expired-text { font-size: 12px; color: var(--danger); font-weight: 700; }
 .action-done-text { font-size: 12px; color: #1F5D50; font-weight: 700; }
 
-/* Pagination controls */
 .pagination-bar {
   display: flex;
   justify-content: space-between;
@@ -607,7 +621,6 @@ code.pcode {
   margin-top: 16px;
 }
 
-/* Modal */
 .modal-backdrop {
   display: none;
   position: fixed;
