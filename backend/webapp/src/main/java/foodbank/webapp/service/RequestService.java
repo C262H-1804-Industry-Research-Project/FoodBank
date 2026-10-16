@@ -4,12 +4,14 @@ import foodbank.webapp.dto.RecipientReportableRequestResponse;
 import foodbank.webapp.dto.ReportableRequestResponse;
 import foodbank.webapp.dto.RequestResponse;
 import foodbank.webapp.dto.RequestSubmission;
+import foodbank.webapp.entity.CollectionHistory;
 import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
 import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.exceptions.ForbiddenException;
+import foodbank.webapp.repositories.CollectionHistoryRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
@@ -33,6 +35,7 @@ public class RequestService {
 
     private final RequestRepository requestRepository;
     private final TimeslotRepository timeslotRepository;
+    private final CollectionHistoryRepository collectionHistoryRepository;
     private final RecipientRepository recipientRepository;
     private final UserRepository userRepository;
 
@@ -88,8 +91,26 @@ public class RequestService {
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
         checkDonorRequest(donorId, request, timeslot, "APPROVED");
+
+        Listing listing = timeslot.getListing();
         request.setStatus("COMPLETED");
-        return toResponse(requestRepository.save(request));
+        request = requestRepository.save(request);
+
+        CollectionHistory history = CollectionHistory.builder()
+                .requestId(request.getRequestId())
+                .listingId(listing.getListingId())
+                .donorId(listing.getDonor().getId())
+                .recipientId(request.getRecipientId())
+                .category(listing.getCategory() == null
+                        ? null
+                        : listing.getCategory().getName())
+                .quantityCollected(request.getQuantityRequested())
+                .collectedDatetime(LocalDateTime.now())
+                .pickupLocation(formatAddress(listing))
+                .build();
+        collectionHistoryRepository.save(history);
+
+        return toResponse(request);
     }
 
     private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot, String expectedStatus) {
