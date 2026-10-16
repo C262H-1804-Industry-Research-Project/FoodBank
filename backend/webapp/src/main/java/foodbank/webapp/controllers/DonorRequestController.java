@@ -43,4 +43,11 @@ public class DonorRequestController {
         listingService.requireDonorOwner(donorId, authentication.getName());
         return requestService.rejectRequest(donorId, requestId);
     }
+
+    @PatchMapping("/{requestId}/complete")
+    public RequestResponse completeRequest(@PathVariable Integer donorId, @PathVariable Integer requestId,
+                                           Authentication authentication) {
+        listingService.requireDonorOwner(donorId, authentication.getName());
+        return requestService.completeRequest(donorId, requestId);
+    }
 }

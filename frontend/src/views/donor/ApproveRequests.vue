@@ -198,8 +198,11 @@
 
         <div class="code-box">
           <div class="code-label">Assigned Pickup Code</div>
-          <div class="code-display">{{ verifyingItem.pickupCode || verifyingItem.code }}</div>
-          <div class="code-hint">Ask the recipient courier to present this 6-character code upon arrival.</div>
+          <template v-if="verifyingItem.pickupCode || verifyingItem.code">
+            <div class="code-display">{{ verifyingItem.pickupCode || verifyingItem.code }}</div>
+            <div class="code-hint">Ask the recipient courier to present this 6-digit code upon arrival.</div>
+          </template>
+          <div v-else class="code-hint">This listing does not use pickup codes.</div>
         </div>
 
         <div class="modal-foot">
@@ -207,6 +210,7 @@
           <button 
             type="button" 
             class="btn-confirm-handover" 
+            :disabled="busy"
             @click="confirmHandoverComplete"
           >
             Confirm Successful Handover
@@ -361,9 +365,6 @@ const showVerifyModal = ref(false)
 const verifyingItem = ref(null)
 
 function openVerifyModal(item) {
-  if (!item.pickupCode && !item.code) {
-    item.pickupCode = 'PK-' + Math.floor(1000 + Math.random() * 9000)
-  }
   verifyingItem.value = item
   showVerifyModal.value = true
 }
@@ -375,11 +376,8 @@ function closeVerifyModal() {
 
 function confirmHandoverComplete() {
   if (!verifyingItem.value) return
-  const item = verifyingItem.value
-  item.status = 'Completed'
-  item.statusClass = 'status-completed'
-  emit('confirm-handover', item.id)
-  window.alert(`Pickup verification successful! Handover for "${item.foodName}" has been marked as Completed.`)
+  // Parent PATCHes the request and refreshes the row from the server response
+  emit('confirm-handover', verifyingItem.value.id)
   closeVerifyModal()
 }
 </script>
