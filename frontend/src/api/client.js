@@ -216,3 +216,34 @@ export async function getReportStatuses(signal) {
   if (!Array.isArray(statuses)) throw new Error('Invalid report statuses response from the API.')
   return statuses
 }
+// Fetch one page of collection history for the signed-in recipient.
+export async function getMyCollectionHistoryPage(
+    { page = 0, size = 5 } = {},
+    signal,
+) {
+    const params = new URLSearchParams({
+        page: String(page),
+        size: String(size),
+    })
+
+    const result = await apiRequest(
+        `/recipients/me/collection-history?${params}`,
+        { signal },
+    )
+
+    if (
+        !Array.isArray(result?.content)
+        || !Number.isInteger(result?.page?.totalPages)
+        || !Number.isInteger(result?.page?.totalElements)
+    ) {
+        throw new Error(
+            'Invalid collection history response from the API.'
+        )
+    }
+
+    return {
+        items: result.content,
+        totalElements: result.page.totalElements,
+        totalPages: result.page.totalPages,
+    }
+}
