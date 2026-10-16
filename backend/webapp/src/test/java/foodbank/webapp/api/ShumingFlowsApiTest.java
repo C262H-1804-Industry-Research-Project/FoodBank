@@ -102,12 +102,32 @@ class ShumingFlowsApiTest extends ApiTestSupport {
     }
 
     @Test
+    void handoverCompletesApprovedRequestOnlyOnce() throws Exception {
+        int id = savedRequest();
+        mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
+                .andExpect(status().isConflict());
+        mockMvc.perform(patch(path(donor) + "/" + id + "/approve").header("Authorization", donorToken()))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        for (String action : new String[]{"approve", "reject", "complete"}) {
+            mockMvc.perform(patch(path(donor) + "/" + id + "/" + action).header("Authorization", donorToken()))
+                    .andExpect(status().isConflict());
+        }
+        assertThat(timeslotRepository.findById(slot.getTimeslotId()).orElseThrow().getRemainingSlot()).isEqualTo(1);
+        mockMvc.perform(get("/api/requests").header("Authorization", recipientToken(recipient)))
+                .andExpect(jsonPath("$[0].status").value("COMPLETED"));
+        mockMvc.perform(delete("/api/requests/" + id).header("Authorization", recipientToken(recipient)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void anotherDonorCannotReadOrProcessThisRequest() throws Exception {
         int id = savedRequest();
         Donor other = createDonor();
         String token = bearer(other.getUserId(), "donor");
         mockMvc.perform(get(path(donor)).header("Authorization", token)).andExpect(status().isForbidden());
-        for (String action : new String[]{"approve", "reject"}) {
+        for (String action : new String[]{"approve", "reject", "complete"}) {
             mockMvc.perform(patch(path(donor) + "/" + id + "/" + action).header("Authorization", token))
                     .andExpect(status().isForbidden());
             mockMvc.perform(patch(path(other) + "/" + id + "/" + action).header("Authorization", token))

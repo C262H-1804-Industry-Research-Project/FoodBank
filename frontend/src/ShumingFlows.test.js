@@ -124,7 +124,7 @@ async function donorPanel(records, fail = false) {
     if (fail) return response({ error: 'Request already processed' }, 409)
     const id = Number(url.split('/').at(-2))
     const row = records.find(r => r.requestId === id)
-    row.status = url.endsWith('/approve') ? 'APPROVED' : 'REJECTED'
+    row.status = { approve: 'APPROVED', reject: 'REJECTED', complete: 'COMPLETED' }[url.split('/').at(-1)]
     return response(row)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -156,6 +156,19 @@ describe('donor pickup review', () => {
     expect(wrapper.find('tbody').exists()).toBe(false)
     await wrapper.findAll('.status-tabs button')[0].trigger('click')
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+  })
+
+  it('confirms handover of an approved request using the complete endpoint', async () => {
+    const fetchMock = await donorPanel([record('APPROVED')])
+    await wrapper.findAll('.status-tabs button')[2].trigger('click')
+    await wrapper.get('.btn-verify-code').trigger('click')
+    expect(wrapper.get('.code-display').text()).toBe('012345')
+    await wrapper.get('.btn-confirm-handover').trigger('click')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledWith('/api/donors/5/requests/123/complete', expect.objectContaining({ method: 'PATCH' }))
+    await wrapper.findAll('.status-tabs button')[0].trigger('click')
+    expect(wrapper.get('tbody').text()).toContain('Completed')
+    expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
   })
 
   it('preserves the pending row if PATCH fails', async () => {
@@ -352,7 +365,7 @@ describe('recipient requests', () => {
 })
 
 describe('request display and time boundaries', () => {
-  it.each(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'])('maps %s and hides private pickup details until approved', status => {
+  it.each(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMPLETED'])('maps %s and hides private pickup details until approved', status => {
     const row = recipientRequestRow(record(status))
     expect(row.code).toBe(status === 'APPROVED' ? '012345' : null)
     expect(row.address).toBe(status === 'APPROVED' ? '1 Test Street' : null)
@@ -366,6 +379,7 @@ describe('request display and time boundaries', () => {
       expect(canCancelPickup(row, start)).toBe(false)
     }
     expect(canCancelPickup(recipientRequestRow(record('CANCELLED')), start - 1)).toBe(false)
+    expect(canCancelPickup(recipientRequestRow(record('COMPLETED')), start - 1)).toBe(false)
     expect(isPickupOpen(slot, start)).toBe(false)
     expect(isPickupOpen({ ...slot, remainingSlot: 0 }, start - 1)).toBe(false)
   })
