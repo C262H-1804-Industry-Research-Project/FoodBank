@@ -28,6 +28,8 @@ import java.util.Random;
 @RequiredArgsConstructor
 public class RequestService {
     public static final int MAX_NOTE_LENGTH = 500;
+    // Statuses a donor or recipient can file a report against
+    public static final List<String> REPORTABLE_STATUSES = List.of("APPROVED", "COMPLETED");
 
     private final RequestRepository requestRepository;
     private final TimeslotRepository timeslotRepository;
@@ -41,7 +43,7 @@ public class RequestService {
     }
 
     public List<ReportableRequestResponse> getReportableRequests(Integer donorId) {
-        return requestRepository.findPendingByDonor(donorId, "APPROVED").stream()
+        return requestRepository.findByDonorAndStatusIn(donorId, REPORTABLE_STATUSES).stream()
                 .map(this::toReportableResponse)
                 .toList();
     }
@@ -53,7 +55,7 @@ public class RequestService {
 
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot);
+        checkDonorRequest(donorId, request, timeslot, "PENDING");
         Listing listing = timeslot.getListing();
 
         request.setStatus("APPROVED");
@@ -71,18 +73,30 @@ public class RequestService {
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot);
+        checkDonorRequest(donorId, request, timeslot, "PENDING");
         request.setStatus("REJECTED");
         timeslot.setRemainingSlot(timeslot.getRemainingSlot() + 1);
         timeslotRepository.save(timeslot);
         return toResponse(requestRepository.save(request));
     }
 
-    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot) {
+    // Donor confirms the recipient collected the food; the pickup place stays used
+    @Transactional
+    public RequestResponse completeRequest(Integer donorId, Integer requestId) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new NoSuchElementException("Request not found"));
+        Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
+                .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
+        checkDonorRequest(donorId, request, timeslot, "APPROVED");
+        request.setStatus("COMPLETED");
+        return toResponse(requestRepository.save(request));
+    }
+
+    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot, String expectedStatus) {
         if (!donorId.equals(timeslot.getListing().getDonor().getId())) {
             throw new ForbiddenException("The pickup request belongs to a different donor");
         }
-        if (!"PENDING".equals(request.getStatus())) {
+        if (!expectedStatus.equals(request.getStatus())) {
             throw new ConflictException("The pickup request has already been processed or cancelled");
         }
     }
@@ -185,7 +199,7 @@ public class RequestService {
 
     public List<RecipientReportableRequestResponse> getRecipientReportableRequests(Integer userId) {
         Integer recipientId = findRecipientForUser(userId).getRecipientId();
-        return requestRepository.findByRecipientIdAndStatus(recipientId, "APPROVED").stream()
+        return requestRepository.findByRecipientIdAndStatusIn(recipientId, REPORTABLE_STATUSES).stream()
                 .map(this::toRecipientReportableResponse)
                 .toList();
     }

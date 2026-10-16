@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 public interface RequestRepository extends JpaRepository<Request, Integer> {
@@ -14,16 +15,17 @@ public interface RequestRepository extends JpaRepository<Request, Integer> {
 
     List<Request> findByRecipientId(Integer recipientId);
 
-    List<Request> findByRecipientIdAndStatus(Integer recipientId, String status);
+    List<Request> findByRecipientIdAndStatusIn(Integer recipientId, Collection<String> statuses);
 
     long countByRecipientId(Integer recipientId);
 
     boolean existsByTimeslotIdAndRecipientIdAndStatusNot(
             Integer timeslotId, Integer recipientId, String status);
 
-    @Query("SELECT r FROM Request r WHERE r.status = :status AND r.timeslotId IN " +
+    @Query("SELECT r FROM Request r WHERE r.status IN :statuses AND r.timeslotId IN " +
            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId)")
-    List<Request> findPendingByDonor(@Param("donorId") Integer donorId, @Param("status") String status);
+    List<Request> findByDonorAndStatusIn(@Param("donorId") Integer donorId,
+                                         @Param("statuses") Collection<String> statuses);
 
     @Query("SELECT r FROM Request r WHERE r.timeslotId IN " +
            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId)")

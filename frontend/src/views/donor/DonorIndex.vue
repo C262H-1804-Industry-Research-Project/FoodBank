@@ -56,6 +56,7 @@
           @reload="loadRequestList"
           @approve-request="handleApproveRequest"
           @decline-request="handleDeclineRequest"
+          @confirm-handover="handleConfirmHandover"
         />
 
         <!-- 4. Donation History Panel -->
@@ -215,7 +216,8 @@ watch(currentPanel, panel => { if (panel === 'requests') loadRequestList() })
 
 async function processPickup(id, action) {
   if (requestBusy.value || requestLoading.value) return
-  const index = requestsData.value.findIndex(row => row.id === id && row.status === 'Pending')
+  const expected = action === 'complete' ? 'Approved' : 'Pending'
+  const index = requestsData.value.findIndex(row => row.id === id && row.status === expected)
   if (index < 0) return
   requestBusy.value = true
   try {
@@ -230,6 +232,7 @@ async function processPickup(id, action) {
 }
 function handleApproveRequest(id) { return processPickup(id, 'approve') }
 function handleDeclineRequest(id) { return processPickup(id, 'reject') }
+function handleConfirmHandover(id) { return processPickup(id, 'complete') }
 
 // Donation history state
 const historyData = ref([

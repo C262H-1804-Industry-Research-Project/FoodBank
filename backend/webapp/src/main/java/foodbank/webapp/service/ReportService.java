@@ -167,9 +167,9 @@ public class ReportService {
                 );
             }
 
-            if (!"APPROVED".equals(pickupRequest.getStatus())) {
+            if (!RequestService.REPORTABLE_STATUSES.contains(pickupRequest.getStatus())) {
                 throw new ConflictException(
-                        "Only approved pickup requests can be reported"
+                        "Only approved or completed pickup requests can be reported"
                 );
             }
 

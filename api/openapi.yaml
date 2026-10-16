@@ -380,6 +380,23 @@ paths:
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
         '409': { description: Request has already been processed or cancelled }
+  /api/donors/{donorId}/requests/{requestId}/complete:
+    patch:
+      tags: [donor-request]
+      summary: Confirm handover of an approved request belonging to your donor account
+      parameters:
+        - { name: donorId, in: path, required: true, schema: { type: integer } }
+        - { name: requestId, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Request marked COMPLETED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequestResponse' }
+        '401': { description: Authentication required }
+        '403': { description: Not your donor account or request }
+        '404': { description: Donor or request not found }
+        '409': { description: Request is not approved }
 
   /admin/listings:
     get:
@@ -639,7 +656,7 @@ components:
         timeslotStart: { type: string }
         timeslotEnd: { type: string }
         quantityRequested: { type: number, format: float }
-        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED] }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED] }
         pickupCode: { type: string, nullable: true }
         note: { type: string, nullable: true }
         donorName: { type: string }
