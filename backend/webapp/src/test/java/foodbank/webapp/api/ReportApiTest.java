@@ -69,14 +69,16 @@ class ReportApiTest extends ApiTestSupport {
     }
 
     @Test
-    void listsOnlyApprovedRequestsAsReportable() throws Exception {
+    void listsOnlyApprovedAndCompletedRequestsAsReportable() throws Exception {
         saveRequest("PENDING");
         saveRequest("REJECTED");
+        Request completed = saveRequest("COMPLETED");
 
         mockMvc.perform(get("/api/donors/{donorId}/requests/reportable", donor.getId())
                         .header("Authorization", donorToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[1].requestId").value(completed.getRequestId()))
                 .andExpect(jsonPath("$[0].requestId").value(approvedRequest.getRequestId()))
                 .andExpect(jsonPath("$[0].listingId").value(listing.getListingId()))
                 .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))
@@ -86,16 +88,18 @@ class ReportApiTest extends ApiTestSupport {
     }
 
     @Test
-    void listsOnlyRecipientsOwnApprovedRequestsAsReportable() throws Exception {
+    void listsOnlyRecipientsOwnApprovedAndCompletedRequestsAsReportable() throws Exception {
         saveRequest("PENDING");
         saveRequest("CANCELLED");
+        Request completed = saveRequest("COMPLETED");
         Recipient other = createRecipient();
         requestRepository.save(Request.builder().timeslotId(timeslot.getTimeslotId())
                 .recipientId(other.getRecipientId()).quantityRequested(1f).status("APPROVED").build());
 
         mockMvc.perform(get("/api/requests/reportable").header("Authorization", recipientToken(recipient)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[1].requestId").value(completed.getRequestId()))
                 .andExpect(jsonPath("$[0].requestId").value(approvedRequest.getRequestId()))
                 .andExpect(jsonPath("$[0].listingId").value(listing.getListingId()))
                 .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))

@@ -15,7 +15,7 @@ export function fetchDonorRequests(donorId, signal) {
 export const createPickupRequest = body => apiRequest('/requests', { method: 'POST', body })
 export const cancelPickupRequest = id => apiRequest(`/requests/${id}`, { method: 'DELETE' })
 export function changePickupRequest(donorId, id, action) {
-  if (!['approve', 'reject'].includes(action)) throw new Error('Invalid pickup request action.')
+  if (!['approve', 'reject', 'complete'].includes(action)) throw new Error('Invalid pickup request action.')
   return apiRequest(`/donors/${donorId}/requests/${id}/${action}`, { method: 'PATCH' })
 }
 
@@ -34,6 +34,7 @@ export function cancelBlockedReason(row, now = Date.now()) {
   if (canCancelPickup(row, now)) return null
   if (row.statusCode === 'CANCELLED') return 'Already cancelled'
   if (row.statusCode === 'REJECTED') return 'Request was declined'
+  if (row.statusCode === 'COMPLETED') return 'Already collected'
   if (['PENDING', 'APPROVED'].includes(row.statusCode)) return 'Pickup time has passed'
   return 'This request can no longer be cancelled'
 }
@@ -55,8 +56,8 @@ export function recipientRequestRow(response) {
     pickupSlot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
     pickupStart: r.timeslotStart,
     statusCode: r.status,
-    status: { PENDING: 'Requested', APPROVED: 'Reserved', REJECTED: 'Declined', CANCELLED: 'Cancelled' }[r.status] || r.status,
-    statusClass: approved ? 'status-reserved' : r.status === 'PENDING' ? 'status-requested' : 'status-expired',
+    status: { PENDING: 'Requested', APPROVED: 'Reserved', REJECTED: 'Declined', CANCELLED: 'Cancelled', COMPLETED: 'Collected' }[r.status] || r.status,
+    statusClass: approved || r.status === 'COMPLETED' ? 'status-reserved' : r.status === 'PENDING' ? 'status-requested' : 'status-expired',
     address: approved ? r.pickupAddress : null,
     code: approved ? r.pickupCode : null,
   }
@@ -73,8 +74,9 @@ export function donorRequestRow(response) {
     phone: r.recipientPhone || '—',
     quantity: `${r.quantityRequested} units`,
     slot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
+    pickupCode: r.pickupCode || null,
     notes: r.note || '',
-    status: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Declined', CANCELLED: 'Cancelled' }[r.status] || r.status,
-    statusClass: r.status === 'PENDING' ? 'status-pending' : r.status === 'APPROVED' ? 'status-approved' : 'status-declined',
+    status: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Declined', CANCELLED: 'Cancelled', COMPLETED: 'Completed' }[r.status] || r.status,
+    statusClass: { PENDING: 'status-pending', APPROVED: 'status-approved', COMPLETED: 'status-completed' }[r.status] || 'status-declined',
   }
 }
