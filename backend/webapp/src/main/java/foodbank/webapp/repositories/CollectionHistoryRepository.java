@@ -1,15 +1,24 @@
 package foodbank.webapp.repositories;
 
 import foodbank.webapp.entity.CollectionHistory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface CollectionHistoryRepository extends JpaRepository<CollectionHistory, Integer> {
+public interface CollectionHistoryRepository
+        extends JpaRepository<CollectionHistory, Integer> {
+
     List<CollectionHistory> findByDonorId(Integer donorId);
 
     long countByDonorId(Integer donorId);
 
     long countByRecipientId(Integer recipientId);
 
+    Page<CollectionHistory>
+    findByRecipientIdOrderByCollectedDatetimeDesc(
+            Integer recipientId,
+            Pageable pageable
+    );
 }

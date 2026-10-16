@@ -50,6 +50,11 @@
         <CollectionHistory 
           v-else-if="currentPanel === 'history'"
           :history-list="myHistoryList"
+          :current-page="historyPage + 1"
+          :page-size="historyPageSize"
+          :total-pages="historyTotalPages"
+          :total-elements="historyTotalElements"
+          @page-change="handleHistoryPageChange"
         />
 
         <!-- 4. Report List Panel (Matching Donor) -->
@@ -135,9 +140,10 @@ import CollectionHistory from './CollectionHistory.vue'
 import ReportList from './ReportList.vue'
 import ReportIssue from './ReportIssue.vue'
 
-import { clearSession, logout } from '../../api/client'
+import { clearSession, logout, getMyCollectionHistoryPage } from '../../api/client'
 import { fetchRecipientRequests, createPickupRequest, cancelPickupRequest, recipientRequestRow, isPickupOpen, canCancelPickup } from '../../api/pickupRequests'
 import { formatPickupSlot } from '../../api/listingAdapter'
+import { toRecipientCollectionHistoryRow } from '../../api/recipientCollectionHistoryAdapter'
 
 const router = useRouter()
 
@@ -212,33 +218,34 @@ async function handleCancelRequest(id) {
   }
 }
 
-// Historical collections dataset
-const myHistoryList = ref([
-  {
-    id: 201,
-    foodName: 'Sourdough loaves (8 units)',
-    category: 'Bakery',
-    quantity: '8 units',
-    donor: 'Green Leaf Café',
-    collectedDate: '2026-09-28 17:45'
-  },
-  {
-    id: 202,
-    foodName: 'Mixed vegetable crates (3 boxes)',
-    category: 'Produce',
-    quantity: '3 boxes',
-    donor: 'Norwood Fresh Markets',
-    collectedDate: '2026-09-22 10:15'
-  },
-  {
-    id: 203,
-    foodName: 'Pantry staples hamper',
-    category: 'Pantry',
-    quantity: '4 boxes',
-    donor: 'Kent Town IGA',
-    collectedDate: '2026-09-15 11:30'
+// Collection history returned by the backend.
+const myHistoryList = ref([])
+const historyPage = ref(0)
+const historyPageSize = 5
+const historyTotalPages = ref(0)
+const historyTotalElements = ref(0)
+
+async function loadCollectionHistory(page = 0) {
+  try {
+    const result = await getMyCollectionHistoryPage(
+      { page, size: historyPageSize },
+      requestController.signal
+    )
+    if (requestController.signal.aborted) return
+    myHistoryList.value = result.items.map(toRecipientCollectionHistoryRow)
+    historyPage.value = page
+    historyTotalPages.value = result.totalPages
+    historyTotalElements.value = result.totalElements
+  } catch (error) {
+    if (!requestController.signal.aborted) window.alert(error.message)
   }
-])
+}
+
+function handleHistoryPageChange(page) {
+  loadCollectionHistory(page - 1)
+}
+
+watch(currentPanel, panel => { if (panel === 'history') loadCollectionHistory() })
 
 function handleReportSubmitted() {
   currentPanel.value = 'reports' // Jump to Report list, which reloads from the API
