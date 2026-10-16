@@ -216,3 +216,12 @@ export async function getReportStatuses(signal) {
   if (!Array.isArray(statuses)) throw new Error('Invalid report statuses response from the API.')
   return statuses
 }
+
+export async function getDonorDonationHistory(donorId, signal) {
+  if (!Number.isInteger(donorId) || donorId <= 0) {
+    throw new Error('The signed-in donor is missing an ID.')
+  }
+  const history = await apiRequest(`/donors/${donorId}/collection-history`, { signal })
+  if (!Array.isArray(history)) throw new Error('Invalid donation history response from the API.')
+  return history
+}

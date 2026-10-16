@@ -24,5 +24,7 @@ public class CollectionHistory {
     private Integer recipientId;
     private String category;
     private Float quantityCollected;
+    // Shared pickup outcome: COMPLETED or FAILED. Null denotes a legacy completed record.
+    private String status;
     private LocalDateTime collectedDatetime;
     private String pickupLocation;}
