@@ -3,6 +3,7 @@ package foodbank.webapp.service;
 import foodbank.webapp.dto.CollectionHistoryResponse;
 import foodbank.webapp.dto.RecipientCollectionHistoryResponse;
 import foodbank.webapp.entity.CollectionHistory;
+import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.CollectionHistoryRepository;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -24,22 +26,14 @@ public class CollectionHistoryService {
             collectionHistoryRepository;
 
     private final RecipientRepository recipientRepository;
-
-    // Used to provide the food name for recipient history.
     private final ListingRepository listingRepository;
 
     // Used to provide the donor organisation name.
     private final DonorRepository donorRepository;
 
-    /**
-     * Existing donor collection-history function.
-     */
-    public List<CollectionHistoryResponse> getHistoryByDonor(
-            Integer donorId
-    ) {
-        return collectionHistoryRepository
-                .findByDonorId(donorId)
-                .stream()
+    @Transactional(readOnly = true)
+    public List<CollectionHistoryResponse> getHistoryByDonor(Integer donorId) {
+        return collectionHistoryRepository.findByDonorIdOrderByCollectedDatetimeDescHistoryIdDesc(donorId).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -141,7 +135,11 @@ public class CollectionHistoryService {
                 history.getQuantityCollected(),
                 collectedDatetime,
                 recipientName,
-                history.getPickupLocation()
+                history.getPickupLocation(),
+                history.getListingId() == null ? null : listingRepository.findById(history.getListingId())
+                        .map(Listing::getName).orElse(null),
+                history.getStatus() == null || history.getStatus().isBlank()
+                        ? "COMPLETED" : history.getStatus().toUpperCase(java.util.Locale.ROOT)
         );
     }
 }

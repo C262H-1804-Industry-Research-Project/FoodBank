@@ -3,7 +3,7 @@
     <div class="content-head">
       <div>
         <h2>Donation history</h2>
-        <div class="sub">Completed collections and past redistributed food items</div>
+        <div class="sub">Successful and failed food collection outcomes</div>
       </div>
     </div>
 
@@ -41,15 +41,17 @@
       >
       <select v-model="filterCategory">
         <option value="">All categories</option>
-        <option value="Bakery">Bakery</option>
-        <option value="Produce">Produce</option>
-        <option value="Dairy">Dairy</option>
-        <option value="Pantry">Pantry</option>
+        <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
       </select>
     </div>
 
+    <p v-if="error" class="form-error" role="alert">
+      {{ error }} <button class="btn-outline btn-sm" @click="emit('reload')">Retry</button>
+    </p>
+    <div v-if="loading" class="empty-note" role="status">Loading your donation history...</div>
+
     <!-- 3. Completed History Table -->
-    <div v-if="paginatedHistory.length > 0">
+    <div v-else-if="!error && paginatedHistory.length > 0">
       <table>
         <thead>
           <tr>
@@ -57,7 +59,7 @@
             <th>Category</th>
             <th>Quantity collected</th>
             <th>Collected by</th>
-            <th>Completion date</th>
+            <th>Outcome date</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -87,7 +89,7 @@
       <!-- 4. Bottom Pagination -->
       <div class="pagination-bar">
         <div class="pagination-info">
-          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ filteredHistory.length }}</strong> completed donations
+          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ filteredHistory.length }}</strong> donation records
         </div>
         <div class="pagination-controls">
           <button 
@@ -119,7 +121,7 @@
       </div>
     </div>
 
-    <div v-else class="empty-note">
+    <div v-else-if="!error" class="empty-note">
       No donation records found matching criteria.
     </div>
   </section>
@@ -128,84 +130,30 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 
+const emit = defineEmits(['reload'])
 const props = defineProps({
-  historyList: {
-    type: Array,
-    default: () => [
-      {
-        id: 1,
-        foodName: 'Sourdough loaves (12)',
-        category: 'Bakery',
-        quantity: '12 units',
-        collectedBy: 'Community Kitchen East',
-        completedDate: '2026-10-12',
-        status: 'Completed'
-      },
-      {
-        id: 2,
-        foodName: 'Mixed vegetable crates (5)',
-        category: 'Produce',
-        quantity: '5 crates',
-        collectedBy: 'Norwood Fresh Markets',
-        completedDate: '2026-10-10',
-        status: 'Completed'
-      },
-      {
-        id: 3,
-        foodName: 'Pantry staples box (8)',
-        category: 'Pantry',
-        quantity: '8 boxes',
-        collectedBy: 'St. Vincent de Paul Adelaide',
-        completedDate: '2026-10-08',
-        status: 'Completed'
-      },
-      {
-        id: 4,
-        foodName: 'Whole milk cartons (15)',
-        category: 'Dairy',
-        quantity: '15 cartons',
-        collectedBy: 'City Care Youth Shelter',
-        completedDate: '2026-10-05',
-        status: 'Failed'
-      },
-      {
-        id: 5,
-        foodName: 'Croissant bundles (20)',
-        category: 'Bakery',
-        quantity: '20 units',
-        collectedBy: 'Local Community Pantry',
-        completedDate: '2026-10-02',
-        status: 'Failed'
-      },
-      {
-        id: 6,
-        foodName: 'Organic Pink Lady Apples (30kg)',
-        category: 'Produce',
-        quantity: '30 kg',
-        collectedBy: 'Adelaide South Outreach',
-        completedDate: '2026-09-28',
-        status: 'Completed'
-      }
-    ]
-  }
+  historyList: { type: Array, default: () => [] },
+  loading: Boolean,
+  error: { type: String, default: '' },
 })
 
 const displayList = computed(() => {
   return props.historyList && props.historyList.length > 0 ? props.historyList : []
 })
 
+const categories = computed(() => [...new Set(displayList.value.map(item => item.category).filter(Boolean))].sort())
 const currentTab = ref('all')
 const searchKeyword = ref('')
 const filterCategory = ref('')
 
 const successCount = computed(() => displayList.value.filter(item => item.status === 'Completed').length)
-const failedCount = computed(() => displayList.value.filter(item => item.status !== 'Completed').length)
+const failedCount = computed(() => displayList.value.filter(item => item.status === 'Failed').length)
 
 const filteredHistory = computed(() => {
   return displayList.value.filter(item => {
     // 1. Tab filter
     if (currentTab.value === 'success' && item.status !== 'Completed') return false
-    if (currentTab.value === 'failed' && item.status === 'Completed') return false
+    if (currentTab.value === 'failed' && item.status !== 'Failed') return false
 
     // 2. Category filter
     if (filterCategory.value && item.category !== filterCategory.value) {
@@ -226,7 +174,7 @@ const filteredHistory = computed(() => {
 const currentPage = ref(1)
 const pageSize = ref(5)
 
-watch([currentTab, searchKeyword, filterCategory], () => {
+watch([currentTab, searchKeyword, filterCategory, () => props.historyList], () => {
   currentPage.value = 1
 })
 

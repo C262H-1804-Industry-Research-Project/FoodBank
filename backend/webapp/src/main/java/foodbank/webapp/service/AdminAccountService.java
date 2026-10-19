@@ -61,7 +61,7 @@ public class AdminAccountService {
                             donor.getRegion(),
                             reportRepository.countByReportedId(user.getUserId()),
                             listingRepository.countByDonor_Id(donor.getId()),
-                            collectionHistoryRepository.countByDonorId(donor.getId()),
+                            collectionHistoryRepository.countSuccessfulByDonorId(donor.getId()),
                             banRecordRepository.countByUserId(user.getUserId()),
                             accountStatus(user),
                             banDaysRemaining(user.getUserId())
@@ -89,7 +89,7 @@ public class AdminAccountService {
                             recipient.getRegion(),
                             reportRepository.countByReportedId(user.getUserId()),
                             requestRepository.countByRecipientId(recipient.getRecipientId()),
-                            collectionHistoryRepository.countByRecipientId(recipient.getRecipientId()),
+                            collectionHistoryRepository.countSuccessfulByRecipientId(recipient.getRecipientId()),
                             banRecordRepository.countByUserId(user.getUserId()),
                             accountStatus(user),
                             banDaysRemaining(user.getUserId())
@@ -161,10 +161,10 @@ public class AdminAccountService {
         long successfulCollections;
         if (row.donor() != null) {
             activityCount = listingRepository.countByDonor_Id(row.donor().getId());
-            successfulCollections = collectionHistoryRepository.countByDonorId(row.donor().getId());
+            successfulCollections = collectionHistoryRepository.countSuccessfulByDonorId(row.donor().getId());
         } else {
             activityCount = requestRepository.countByRecipientId(row.recipient().getRecipientId());
-            successfulCollections = collectionHistoryRepository.countByRecipientId(row.recipient().getRecipientId());
+            successfulCollections = collectionHistoryRepository.countSuccessfulByRecipientId(row.recipient().getRecipientId());
         }
         return new AdminAccountResponse(
                 user.getUserId(),

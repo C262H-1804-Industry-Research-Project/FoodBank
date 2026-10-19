@@ -63,6 +63,9 @@
         <DonationHistory 
           v-else-if="currentPanel === 'history'"
           :history-list="historyData"
+          :loading="historyLoading"
+          :error="historyError"
+          @reload="loadHistory"
         />
 
         <!-- 5. Submit Report Panel -->
@@ -98,7 +101,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearSession, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
+import { clearSession, getDonorDonationHistory, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
 import { fetchDonorRequests, changePickupRequest, donorRequestRow } from '../../api/pickupRequests'
 import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
 
@@ -234,41 +237,36 @@ function handleApproveRequest(id) { return processPickup(id, 'approve') }
 function handleDeclineRequest(id) { return processPickup(id, 'reject') }
 function handleConfirmHandover(id) { return processPickup(id, 'complete') }
 
-// Donation history state
-const historyData = ref([
-  {
-    id: 301,
-    foodName: 'Artisan Bagels bundle (15 units)',
-    category: 'Bakery',
-    quantity: '15 units',
-    collectedBy: 'Norwood Youth Refuge',
-    completedDate: '2026-09-28 18:30'
-  },
-  {
-    id: 302,
-    foodName: 'Seasonal Fruit crates (4 boxes)',
-    category: 'Produce',
-    quantity: '4 boxes',
-    collectedBy: 'Community Kitchen East',
-    completedDate: '2026-09-25 11:00'
-  },
-  {
-    id: 303,
-    foodName: 'Unsweetened Oat Milk (20 cartons)',
-    category: 'Dairy',
-    quantity: '20 cartons',
-    collectedBy: 'Salvation Army Centre',
-    completedDate: '2026-09-21 16:45'
-  },
-  {
-    id: 304,
-    foodName: 'Canned Beans & Chickpeas (25 cans)',
-    category: 'Pantry',
-    quantity: '25 cans',
-    collectedBy: 'St. Vincent de Paul Adelaide',
-    completedDate: '2026-09-15 14:00'
+// Fetch persisted completed collections when the history panel opens.
+const historyData = ref([])
+const historyLoading = ref(false)
+const historyError = ref('')
+
+async function loadHistory() {
+  if (historyLoading.value) return
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const rows = await getDonorDonationHistory(donorId, listingsController.signal)
+    if (!listingsController.signal.aborted) {
+      historyData.value = rows.map(item => ({
+        id: item.historyId,
+        status: item.status === 'FAILED' ? 'Failed'
+          : item.status === 'COMPLETED' ? 'Completed' : 'Unknown',
+        foodName: item.foodName || 'Unavailable listing',
+        category: item.category || 'Uncategorised',
+        quantity: item.quantityCollected ?? 'Unavailable',
+        collectedBy: item.recipientName || 'Unavailable recipient',
+        completedDate: item.collectedDatetime?.replace('T', ' ') || 'Unavailable',
+      }))
+    }
+  } catch (error) {
+    if (!listingsController.signal.aborted) historyError.value = error.message
+  } finally {
+    historyLoading.value = false
   }
-])
+}
+watch(currentPanel, panel => { if (panel === 'history') loadHistory() })
 
 // ReportList reloads from the API when it mounts, so the new report shows up there
 function handleReportSubmitted() {

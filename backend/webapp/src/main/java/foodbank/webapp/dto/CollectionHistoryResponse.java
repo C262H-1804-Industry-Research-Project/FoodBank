@@ -7,5 +7,7 @@ public record CollectionHistoryResponse(
         Float quantityCollected,
         String collectedDatetime,
         String recipientName,
-        String pickupLocation
+        String pickupLocation,
+        String foodName,
+        String status
 ) {}
