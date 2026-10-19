@@ -7,10 +7,7 @@ import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.CollectionHistoryRepository;
-<<<<<<< HEAD
-=======
 import foodbank.webapp.repositories.DonorRepository;
->>>>>>> a1ad0e0 (Add paginated recipient collection history API integration)
 import foodbank.webapp.repositories.ListingRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,27 +28,12 @@ public class CollectionHistoryService {
     private final RecipientRepository recipientRepository;
     private final ListingRepository listingRepository;
 
-<<<<<<< HEAD
-    @Transactional(readOnly = true)
-    public List<CollectionHistoryResponse> getHistoryByDonor(Integer donorId) {
-        return collectionHistoryRepository.findByDonorIdOrderByCollectedDatetimeDescHistoryIdDesc(donorId).stream()
-=======
-    // Used to provide the food name for recipient history.
-    private final ListingRepository listingRepository;
-
     // Used to provide the donor organisation name.
     private final DonorRepository donorRepository;
 
-    /**
-     * Existing donor collection-history function.
-     */
-    public List<CollectionHistoryResponse> getHistoryByDonor(
-            Integer donorId
-    ) {
-        return collectionHistoryRepository
-                .findByDonorId(donorId)
-                .stream()
->>>>>>> a1ad0e0 (Add paginated recipient collection history API integration)
+    @Transactional(readOnly = true)
+    public List<CollectionHistoryResponse> getHistoryByDonor(Integer donorId) {
+        return collectionHistoryRepository.findByDonorIdOrderByCollectedDatetimeDescHistoryIdDesc(donorId).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -151,11 +133,7 @@ public class CollectionHistoryService {
                 history.getHistoryId(),
                 history.getCategory(),
                 history.getQuantityCollected(),
-<<<<<<< HEAD
-                history.getCollectedDatetime() == null ? null : history.getCollectedDatetime().toString(),
-=======
                 collectedDatetime,
->>>>>>> a1ad0e0 (Add paginated recipient collection history API integration)
                 recipientName,
                 history.getPickupLocation(),
                 history.getListingId() == null ? null : listingRepository.findById(history.getListingId())
