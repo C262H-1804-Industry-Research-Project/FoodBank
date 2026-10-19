@@ -118,17 +118,14 @@
                   View Code & Handover
                 </button>
               </div>
-
-              <!-- 3. Expired: recipient arrived late, donor can still confirm the handover -->
-              <div v-else-if="item.status === 'Expired'" class="action-btns">
-                <button 
-                  class="btn-verify-code btn-sm" 
-                  :disabled="busy"
-                  @click="openVerifyModal(item)"
-                >
-                  Mark as collected
-                </button>
+              <div v-if="item.status === 'Approved' && item.handoverBy" class="handover-by">
+                Handover by {{ item.handoverBy }}
               </div>
+
+              <!-- 3. Expired: not collected by the handover deadline -->
+              <span v-else-if="item.status === 'Expired'" class="action-expired-text">
+                Not collected
+              </span>
 
               <!-- 4. Completed / Collected / Declined -->
               <span v-else class="action-done-text">
@@ -479,6 +476,8 @@ code.pcode {
 .btn-decline:hover { background: var(--danger-tint); }
 
 .btn-sm { font-size: 12px; border-radius: 6px; }
+.action-expired-text { font-size: 12px; color: var(--danger); font-weight: 700; }
+.handover-by { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
 .action-done-text { font-size: 12px; color: #1F5D50; font-weight: 700; }
 
 .pagination-bar {

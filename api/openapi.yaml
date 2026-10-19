@@ -383,7 +383,7 @@ paths:
   /api/donors/{donorId}/requests/{requestId}/complete:
     patch:
       tags: [donor-request]
-      summary: Confirm handover of an approved or expired request belonging to your donor account
+      summary: Confirm handover of an approved request belonging to your donor account, up to its handoverDeadline
       parameters:
         - { name: donorId, in: path, required: true, schema: { type: integer } }
         - { name: requestId, in: path, required: true, schema: { type: integer } }
@@ -396,7 +396,7 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request is not approved or expired }
+        '409': { description: Request is not approved, or the handover deadline has passed }
 
   /admin/listings:
     get:
@@ -667,6 +667,10 @@ components:
         recipientOrg: { type: string, nullable: true }
         recipientPhone: { type: string, nullable: true }
         listingQuantity: { type: number, format: float, nullable: true }
+        handoverDeadline:
+          type: string
+          nullable: true
+          description: Slot end plus the handover grace period (15 minutes by default); set only for APPROVED or EXPIRED requests
         rejectionReason:
           type: string
           nullable: true

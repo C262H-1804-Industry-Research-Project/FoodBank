@@ -126,10 +126,18 @@ class ShumingFlowsApiTest extends ApiTestSupport {
                 .andExpect(status().isConflict());
     }
 
-    private void endSlot() {
+    // The default handover grace period is 15 minutes
+    private void endSlot(int minutesAgo) {
         slot.setStartTime(LocalDateTime.now().minusHours(2));
-        slot.setEndTime(LocalDateTime.now().minusMinutes(1));
+        slot.setEndTime(LocalDateTime.now().minusMinutes(minutesAgo));
         timeslotRepository.save(slot);
+    }
+
+    private int approvedRequest() throws Exception {
+        int id = savedRequest();
+        mockMvc.perform(patch(path(donor) + "/" + id + "/approve").header("Authorization", donorToken()))
+                .andExpect(status().isOk());
+        return id;
     }
 
     @Test
@@ -145,7 +153,7 @@ class ShumingFlowsApiTest extends ApiTestSupport {
         int untouched = requestRepository.save(foodbank.webapp.entity.Request.builder()
                 .timeslotId(future.getTimeslotId()).recipientId(recipient.getRecipientId())
                 .quantityRequested(1f).status("PENDING").build()).getRequestId();
-        endSlot();
+        endSlot(20);
 
         requestExpiryService.closeEndedRequests();
 
@@ -163,28 +171,47 @@ class ShumingFlowsApiTest extends ApiTestSupport {
             mockMvc.perform(patch(path(donor) + "/" + pending + "/" + action).header("Authorization", donorToken()))
                     .andExpect(status().isConflict());
         }
-        for (String action : new String[]{"approve", "reject"}) {
+        for (String action : new String[]{"approve", "reject", "complete"}) {
             mockMvc.perform(patch(path(donor) + "/" + approved + "/" + action).header("Authorization", donorToken()))
                     .andExpect(status().isConflict());
         }
     }
 
     @Test
-    void donorCanStillCompleteAnExpiredRequest() throws Exception {
-        int id = savedRequest();
-        mockMvc.perform(patch(path(donor) + "/" + id + "/approve").header("Authorization", donorToken()))
-                .andExpect(status().isOk());
-        endSlot();
+    void donorCanCompleteWithinTheGracePeriodAfterTheSlotEnds() throws Exception {
+        int id = approvedRequest();
+        endSlot(5);
         requestExpiryService.closeEndedRequests();
+        assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("APPROVED");
+        mockMvc.perform(get(path(donor)).header("Authorization", donorToken()))
+                .andExpect(jsonPath("$[0].handoverDeadline").value(slot.getEndTime().plusMinutes(15).toString()));
         mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
         assertThat(collectionHistoryRepository.findAll()).anyMatch(h -> h.getRequestId() == id);
     }
 
     @Test
+    void handoverIsRefusedAfterTheGracePeriodEvenBeforeTheJobRuns() throws Exception {
+        int id = approvedRequest();
+        endSlot(16);
+        mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
+                .andExpect(status().isConflict());
+        assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("APPROVED");
+        assertThat(collectionHistoryRepository.findAll()).noneMatch(h -> h.getRequestId() == id);
+    }
+
+    @Test
+    void pendingRequestIsRejectedRightAtSlotEndWithoutGrace() throws Exception {
+        int id = savedRequest();
+        endSlot(1);
+        requestExpiryService.closeEndedRequests();
+        assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("REJECTED");
+    }
+
+    @Test
     void approveAndRejectAreBlockedOnceTheSlotEndsEvenBeforeTheJobRuns() throws Exception {
         int id = savedRequest();
-        endSlot();
+        endSlot(1);
         for (String action : new String[]{"approve", "reject"}) {
             mockMvc.perform(patch(path(donor) + "/" + id + "/" + action).header("Authorization", donorToken()))
                     .andExpect(status().isConflict());

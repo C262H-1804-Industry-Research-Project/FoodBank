@@ -40,6 +40,7 @@ public class RequestService {
     private final CollectionHistoryRepository collectionHistoryRepository;
     private final RecipientRepository recipientRepository;
     private final UserRepository userRepository;
+    private final HandoverPolicy handoverPolicy;
 
     public List<RequestResponse> getDonorRequests(Integer donorId) {
         return requestRepository.findAllByDonor(donorId).stream()
@@ -88,14 +89,17 @@ public class RequestService {
         return toResponse(requestRepository.save(request));
     }
 
-    // Donor confirms the recipient collected the food, even after the slot expired; the pickup place stays used
+    // Donor confirms the recipient collected the food, up to the handover deadline; the pickup place stays used
     @Transactional
     public RequestResponse completeRequest(Integer donorId, Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, List.of("APPROVED", "EXPIRED"));
+        checkDonorRequest(donorId, request, timeslot, List.of("APPROVED"));
+        if (LocalDateTime.now().isAfter(handoverPolicy.deadline(timeslot))) {
+            throw new ConflictException("The handover window has ended");
+        }
 
         Listing listing = timeslot.getListing();
         request.setStatus("COMPLETED");
@@ -297,6 +301,8 @@ public class RequestService {
                 recipient.getOrgName(),
                 userRepository.findById(recipient.getUserId()).map(user -> user.getPhone()).orElse(null),
                 listing.getQuantity(),
+                "APPROVED".equals(request.getStatus()) || "EXPIRED".equals(request.getStatus())
+                        ? handoverPolicy.deadline(timeslot).toString() : null,
                 "REJECTED".equals(request.getStatus())
                         ? (request.getRejectionReason() == null ? DECLINED_BY_DONOR : request.getRejectionReason())
                         : null

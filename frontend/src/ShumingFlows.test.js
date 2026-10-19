@@ -171,17 +171,16 @@ describe('donor pickup review', () => {
     expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
   })
 
-  it('lets the donor mark an expired request as collected', async () => {
-    const fetchMock = await donorPanel([record('EXPIRED')])
+  it('shows the handover deadline on approved rows and no handover action once expired', async () => {
+    await donorPanel([
+      { ...record('APPROVED'), handoverDeadline: '2026-10-21T11:15:00' },
+      { ...record('EXPIRED'), requestId: 124 },
+    ])
+    await wrapper.findAll('.status-tabs button')[2].trigger('click')
+    expect(wrapper.get('.handover-by').text()).toBe('Handover by 11:15')
     await wrapper.findAll('.status-tabs button')[3].trigger('click')
-    expect(wrapper.get('.status-tabs button.active').text()).toBe('Expired (1)')
-    expect(wrapper.get('.btn-verify-code').text()).toBe('Mark as collected')
-    await wrapper.get('.btn-verify-code').trigger('click')
-    await wrapper.get('.btn-confirm-handover').trigger('click')
-    await flushPromises()
-    expect(fetchMock).toHaveBeenCalledWith('/api/donors/5/requests/123/complete', expect.objectContaining({ method: 'PATCH' }))
-    await wrapper.findAll('.status-tabs button')[0].trigger('click')
-    expect(wrapper.get('tbody').text()).toContain('Completed')
+    expect(wrapper.get('tbody').text()).toContain('Not collected')
+    expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
   })
 
   it('shows the empty message instead of sample rows when the donor has no requests', async () => {
