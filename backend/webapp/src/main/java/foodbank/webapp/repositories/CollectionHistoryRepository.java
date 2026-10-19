@@ -1,6 +1,8 @@
 package foodbank.webapp.repositories;
 
 import foodbank.webapp.entity.CollectionHistory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,6 +11,7 @@ import java.util.List;
 
 public interface CollectionHistoryRepository extends JpaRepository<CollectionHistory, Integer> {
     List<CollectionHistory> findByDonorIdOrderByCollectedDatetimeDescHistoryIdDesc(Integer donorId);
+    List<CollectionHistory> findByDonorId(Integer donorId);
 
     long countByDonorId(Integer donorId);
 
@@ -22,4 +25,10 @@ public interface CollectionHistoryRepository extends JpaRepository<CollectionHis
             "AND (h.status IS NULL OR TRIM(h.status) = '' OR UPPER(h.status) = 'COMPLETED')")
     long countSuccessfulByRecipientId(@Param("recipientId") Integer recipientId);
 
+
+    Page<CollectionHistory>
+    findByRecipientIdOrderByCollectedDatetimeDesc(
+            Integer recipientId,
+            Pageable pageable
+    );
 }

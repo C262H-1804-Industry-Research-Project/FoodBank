@@ -12,7 +12,7 @@
       <input 
         type="text" 
         v-model="searchKeyword" 
-        placeholder="Search past food item or donor organisation…" 
+        placeholder="Search this page by food item or donor…"
         class="search-input"
       >
       <select v-model="filterCategory">
@@ -25,7 +25,7 @@
     </div>
 
     <!-- History Table -->
-    <div v-if="paginatedHistory.length > 0">
+    <div v-if="filteredHistory.length > 0">
       <table>
         <thead>
           <tr>
@@ -38,7 +38,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in paginatedHistory" :key="item.id">
+          <tr v-for="item in filteredHistory" :key="item.id">
             <td>
               <strong>{{ item.foodName }}</strong>
             </td>
@@ -58,22 +58,22 @@
       </table>
 
       <!-- Bottom Pagination -->
-      <div class="pagination-bar">
+      <div v-if="totalElements > 0" class="pagination-bar">
         <div class="pagination-info">
-          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ filteredHistory.length }}</strong> completed collections
+          Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ totalElements }}</strong> completed collections
         </div>
         <div class="pagination-controls">
-          <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">‹ Prev</button>
+          <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">‹ Prev</button>
           <button
             v-for="page in totalPages"
             :key="page"
             class="page-number-btn"
             :class="{ active: currentPage === page }"
-            @click="currentPage = page"
+            @click="changePage(page)"
           >
             {{ page }}
           </button>
-          <button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++">Next ›</button>
+          <button class="page-btn" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">Next ›</button>
         </div>
       </div>
     </div>
@@ -85,39 +85,32 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   historyList: {
     type: Array,
-    default: () => [
-      {
-        id: 1,
-        foodName: 'Sourdough loaves (8 units)',
-        category: 'Bakery',
-        quantity: '8 units',
-        donor: 'Green Leaf Café',
-        collectedDate: '2026-09-28 17:45'
-      },
-      {
-        id: 2,
-        foodName: 'Mixed vegetable crates (3 boxes)',
-        category: 'Produce',
-        quantity: '3 boxes',
-        donor: 'Norwood Fresh Markets',
-        collectedDate: '2026-09-22 10:15'
-      },
-      {
-        id: 3,
-        foodName: 'Pantry staples hamper',
-        category: 'Pantry',
-        quantity: '4 boxes',
-        donor: 'Kent Town IGA',
-        collectedDate: '2026-09-15 11:30'
-      }
-    ]
+    default: () => []
+  },
+  currentPage: {
+    type: Number,
+    default: 1
+  },
+  pageSize: {
+    type: Number,
+    default: 5
+  },
+  totalPages: {
+    type: Number,
+    default: 0
+  },
+  totalElements: {
+    type: Number,
+    default: 0
   }
 })
+
+const emit = defineEmits(['page-change'])
 
 const searchKeyword = ref('')
 const filterCategory = ref('')
@@ -135,20 +128,13 @@ const filteredHistory = computed(() => {
   })
 })
 
-const currentPage = ref(1)
-const pageSize = ref(5)
+const paginationStart = computed(() => props.historyList.length === 0 ? 0 : (props.currentPage - 1) * props.pageSize + 1)
+const paginationEnd = computed(() => Math.min((props.currentPage - 1) * props.pageSize + props.historyList.length, props.totalElements))
 
-watch([searchKeyword, filterCategory], () => {
-  currentPage.value = 1
-})
-
-const totalPages = computed(() => Math.ceil(filteredHistory.value.length / pageSize.value) || 1)
-const paginationStart = computed(() => filteredHistory.value.length === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1)
-const paginationEnd = computed(() => Math.min(currentPage.value * pageSize.value, filteredHistory.value.length))
-const paginatedHistory = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredHistory.value.slice(start, start + pageSize.value)
-})
+function changePage(page) {
+  if (page < 1 || page > props.totalPages || page === props.currentPage) return
+  emit('page-change', page)
+}
 </script>
 
 <style scoped>
