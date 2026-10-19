@@ -6,7 +6,9 @@ import foodbank.webapp.entity.Listing;
 import foodbank.webapp.entity.Recipient;
 import foodbank.webapp.entity.Timeslot;
 import foodbank.webapp.repositories.AdminRepository;
+import foodbank.webapp.repositories.CollectionHistoryRepository;
 import foodbank.webapp.repositories.RequestRepository;
+import foodbank.webapp.service.RequestExpiryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ShumingFlowsApiTest extends ApiTestSupport {
     @Autowired RequestRepository requestRepository;
     @Autowired AdminRepository adminRepository;
+    @Autowired RequestExpiryService requestExpiryService;
+    @Autowired CollectionHistoryRepository collectionHistoryRepository;
     private Donor donor;
     private Recipient recipient;
     private Listing listing;
@@ -91,7 +95,8 @@ class ShumingFlowsApiTest extends ApiTestSupport {
     void rejectRestoresOnePlaceAndCannotBeRepeatedOrApproved() throws Exception {
         int id = savedRequest();
         mockMvc.perform(patch(path(donor) + "/" + id + "/reject").header("Authorization", donorToken()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REJECTED"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.rejectionReason").value("DECLINED_BY_DONOR"));
         for (String action : new String[]{"approve", "reject"}) {
             mockMvc.perform(patch(path(donor) + "/" + id + "/" + action).header("Authorization", donorToken()))
                     .andExpect(status().isConflict());
@@ -119,6 +124,72 @@ class ShumingFlowsApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$[0].status").value("COMPLETED"));
         mockMvc.perform(delete("/api/requests/" + id).header("Authorization", recipientToken(recipient)))
                 .andExpect(status().isConflict());
+    }
+
+    private void endSlot() {
+        slot.setStartTime(LocalDateTime.now().minusHours(2));
+        slot.setEndTime(LocalDateTime.now().minusMinutes(1));
+        timeslotRepository.save(slot);
+    }
+
+    @Test
+    void expiryJobRejectsUnreviewedAndExpiresUncollectedRequests() throws Exception {
+        int pending = savedRequest();
+        Recipient other = createRecipient();
+        submit(other).andExpect(status().isCreated());
+        int approved = requestRepository.findByTimeslotId(slot.getTimeslotId()).stream()
+                .filter(r -> r.getRequestId() != pending).findFirst().orElseThrow().getRequestId();
+        mockMvc.perform(patch(path(donor) + "/" + approved + "/approve").header("Authorization", donorToken()))
+                .andExpect(status().isOk());
+        Timeslot future = createTimeslot(listing, 1);
+        int untouched = requestRepository.save(foodbank.webapp.entity.Request.builder()
+                .timeslotId(future.getTimeslotId()).recipientId(recipient.getRecipientId())
+                .quantityRequested(1f).status("PENDING").build()).getRequestId();
+        endSlot();
+
+        requestExpiryService.closeEndedRequests();
+
+        assertThat(requestRepository.findById(pending).orElseThrow().getStatus()).isEqualTo("REJECTED");
+        assertThat(requestRepository.findById(approved).orElseThrow().getStatus()).isEqualTo("EXPIRED");
+        assertThat(requestRepository.findById(untouched).orElseThrow().getStatus()).isEqualTo("PENDING");
+        assertThat(timeslotRepository.findById(slot.getTimeslotId()).orElseThrow().getRemainingSlot()).isEqualTo(0);
+        mockMvc.perform(get("/api/requests").header("Authorization", recipientToken(recipient)))
+                .andExpect(jsonPath("$[?(@.requestId == " + pending + ")].rejectionReason").value("NOT_REVIEWED_IN_TIME"));
+        mockMvc.perform(get("/api/requests").header("Authorization", recipientToken(other)))
+                .andExpect(jsonPath("$[0].status").value("EXPIRED"))
+                .andExpect(jsonPath("$[0].pickupAddress").value(nullValue()))
+                .andExpect(jsonPath("$[0].rejectionReason").value(nullValue()));
+        for (String action : new String[]{"approve", "reject", "complete"}) {
+            mockMvc.perform(patch(path(donor) + "/" + pending + "/" + action).header("Authorization", donorToken()))
+                    .andExpect(status().isConflict());
+        }
+        for (String action : new String[]{"approve", "reject"}) {
+            mockMvc.perform(patch(path(donor) + "/" + approved + "/" + action).header("Authorization", donorToken()))
+                    .andExpect(status().isConflict());
+        }
+    }
+
+    @Test
+    void donorCanStillCompleteAnExpiredRequest() throws Exception {
+        int id = savedRequest();
+        mockMvc.perform(patch(path(donor) + "/" + id + "/approve").header("Authorization", donorToken()))
+                .andExpect(status().isOk());
+        endSlot();
+        requestExpiryService.closeEndedRequests();
+        mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        assertThat(collectionHistoryRepository.findAll()).anyMatch(h -> h.getRequestId() == id);
+    }
+
+    @Test
+    void approveAndRejectAreBlockedOnceTheSlotEndsEvenBeforeTheJobRuns() throws Exception {
+        int id = savedRequest();
+        endSlot();
+        for (String action : new String[]{"approve", "reject"}) {
+            mockMvc.perform(patch(path(donor) + "/" + id + "/" + action).header("Authorization", donorToken()))
+                    .andExpect(status().isConflict());
+        }
+        assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("PENDING");
     }
 
     @Test

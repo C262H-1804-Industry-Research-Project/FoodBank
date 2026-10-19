@@ -31,7 +31,9 @@ import java.util.Random;
 public class RequestService {
     public static final int MAX_NOTE_LENGTH = 500;
     // Statuses a donor or recipient can file a report against
-    public static final List<String> REPORTABLE_STATUSES = List.of("APPROVED", "COMPLETED");
+    public static final List<String> REPORTABLE_STATUSES = List.of("APPROVED", "COMPLETED", "EXPIRED");
+    public static final String DECLINED_BY_DONOR = "DECLINED_BY_DONOR";
+    public static final String NOT_REVIEWED_IN_TIME = "NOT_REVIEWED_IN_TIME";
 
     private final RequestRepository requestRepository;
     private final TimeslotRepository timeslotRepository;
@@ -58,7 +60,8 @@ public class RequestService {
 
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, "PENDING");
+        checkDonorRequest(donorId, request, timeslot, List.of("PENDING"));
+        checkSlotNotEnded(timeslot);
         Listing listing = timeslot.getListing();
 
         request.setStatus("APPROVED");
@@ -76,21 +79,23 @@ public class RequestService {
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, "PENDING");
+        checkDonorRequest(donorId, request, timeslot, List.of("PENDING"));
+        checkSlotNotEnded(timeslot);
         request.setStatus("REJECTED");
+        request.setRejectionReason(DECLINED_BY_DONOR);
         timeslot.setRemainingSlot(timeslot.getRemainingSlot() + 1);
         timeslotRepository.save(timeslot);
         return toResponse(requestRepository.save(request));
     }
 
-    // Donor confirms the recipient collected the food; the pickup place stays used
+    // Donor confirms the recipient collected the food, even after the slot expired; the pickup place stays used
     @Transactional
     public RequestResponse completeRequest(Integer donorId, Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, "APPROVED");
+        checkDonorRequest(donorId, request, timeslot, List.of("APPROVED", "EXPIRED"));
 
         Listing listing = timeslot.getListing();
         request.setStatus("COMPLETED");
@@ -113,12 +118,19 @@ public class RequestService {
         return toResponse(request);
     }
 
-    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot, String expectedStatus) {
+    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot, List<String> expectedStatuses) {
         if (!donorId.equals(timeslot.getListing().getDonor().getId())) {
             throw new ForbiddenException("The pickup request belongs to a different donor");
         }
-        if (!expectedStatus.equals(request.getStatus())) {
+        if (!expectedStatuses.contains(request.getStatus())) {
             throw new ConflictException("The pickup request has already been processed or cancelled");
+        }
+    }
+
+    // Covers the gap before RequestExpiryService picks up a request whose slot has ended
+    private void checkSlotNotEnded(Timeslot timeslot) {
+        if (!timeslot.getEndTime().isAfter(LocalDateTime.now())) {
+            throw new ConflictException("The pickup timeslot has already ended");
         }
     }
 
@@ -284,7 +296,10 @@ public class RequestService {
                 "APPROVED".equals(request.getStatus()) ? formatAddress(listing) : null,
                 recipient.getOrgName(),
                 userRepository.findById(recipient.getUserId()).map(user -> user.getPhone()).orElse(null),
-                listing.getQuantity()
+                listing.getQuantity(),
+                "REJECTED".equals(request.getStatus())
+                        ? (request.getRejectionReason() == null ? DECLINED_BY_DONOR : request.getRejectionReason())
+                        : null
         );
     }
 

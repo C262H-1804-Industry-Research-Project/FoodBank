@@ -73,12 +73,14 @@ class ReportApiTest extends ApiTestSupport {
         saveRequest("PENDING");
         saveRequest("REJECTED");
         Request completed = saveRequest("COMPLETED");
+        Request expired = saveRequest("EXPIRED");
 
         mockMvc.perform(get("/api/donors/{donorId}/requests/reportable", donor.getId())
                         .header("Authorization", donorToken()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[1].requestId").value(completed.getRequestId()))
+                .andExpect(jsonPath("$[2].requestId").value(expired.getRequestId()))
                 .andExpect(jsonPath("$[0].requestId").value(approvedRequest.getRequestId()))
                 .andExpect(jsonPath("$[0].listingId").value(listing.getListingId()))
                 .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))
@@ -92,14 +94,16 @@ class ReportApiTest extends ApiTestSupport {
         saveRequest("PENDING");
         saveRequest("CANCELLED");
         Request completed = saveRequest("COMPLETED");
+        Request expired = saveRequest("EXPIRED");
         Recipient other = createRecipient();
         requestRepository.save(Request.builder().timeslotId(timeslot.getTimeslotId())
                 .recipientId(other.getRecipientId()).quantityRequested(1f).status("APPROVED").build());
 
         mockMvc.perform(get("/api/requests/reportable").header("Authorization", recipientToken(recipient)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[1].requestId").value(completed.getRequestId()))
+                .andExpect(jsonPath("$[2].requestId").value(expired.getRequestId()))
                 .andExpect(jsonPath("$[0].requestId").value(approvedRequest.getRequestId()))
                 .andExpect(jsonPath("$[0].listingId").value(listing.getListingId()))
                 .andExpect(jsonPath("$[0].listingName").value("Bread rolls"))
@@ -129,6 +133,11 @@ class ReportApiTest extends ApiTestSupport {
         assertThat(report.getReporterId()).isEqualTo(recipient.getUserId());
         assertThat(report.getReason()).isEqualTo("Food quality issue");
         assertThat(report.getEvidenceImageUrl()).isEqualTo("/uploads/mould.jpg");
+    }
+
+    @Test
+    void recipientCanReportExpiredRequestAsNoShow() throws Exception {
+        submitRecipientReport(saveRequest("EXPIRED")).andExpect(status().isCreated());
     }
 
     @Test

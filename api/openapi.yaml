@@ -362,7 +362,7 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request has already been processed or cancelled }
+        '409': { description: Request has already been processed or cancelled, or the pickup slot has ended }
   /api/donors/{donorId}/requests/{requestId}/reject:
     patch:
       tags: [donor-request]
@@ -379,11 +379,11 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request has already been processed or cancelled }
+        '409': { description: Request has already been processed or cancelled, or the pickup slot has ended }
   /api/donors/{donorId}/requests/{requestId}/complete:
     patch:
       tags: [donor-request]
-      summary: Confirm handover of an approved request belonging to your donor account
+      summary: Confirm handover of an approved or expired request belonging to your donor account
       parameters:
         - { name: donorId, in: path, required: true, schema: { type: integer } }
         - { name: requestId, in: path, required: true, schema: { type: integer } }
@@ -396,7 +396,7 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request is not approved }
+        '409': { description: Request is not approved or expired }
 
   /admin/listings:
     get:
@@ -656,7 +656,7 @@ components:
         timeslotStart: { type: string }
         timeslotEnd: { type: string }
         quantityRequested: { type: number, format: float }
-        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED] }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED, EXPIRED] }
         pickupCode: { type: string, nullable: true }
         note: { type: string, nullable: true }
         donorName: { type: string }
@@ -667,6 +667,11 @@ components:
         recipientOrg: { type: string, nullable: true }
         recipientPhone: { type: string, nullable: true }
         listingQuantity: { type: number, format: float, nullable: true }
+        rejectionReason:
+          type: string
+          nullable: true
+          enum: [DECLINED_BY_DONOR, NOT_REVIEWED_IN_TIME]
+          description: Set only when status is REJECTED
     CatalogueItemResponse:
       type: object
       required: [id, name]
