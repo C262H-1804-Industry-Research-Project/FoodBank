@@ -21,7 +21,15 @@
       <header class="app-topbar">
         <div class="topbar-title">{{ currentPanelTitle }}</div>
         <div class="topbar-right">
-          <span class="role-badge">Donor · Green Leaf Café</span>
+          <button
+            type="button"
+            class="role-switch-button"
+            :disabled="switchingRole"
+            @click="handleSwitchRole"
+          >
+            {{ switchingRole ? 'Switching…' : 'Switch to Recipient' }}
+          </button>
+          <span class="role-badge">Donor · {{ session?.user?.name || 'Donor' }}</span>
           <div class="avatar">GL</div>
         </div>
       </header>
@@ -95,13 +103,29 @@
         </section>
       </main>
     </div>
+
+    <AddRoleModal
+      v-if="showAddRoleModal"
+      target-role="recipient"
+      :pending="addingRole"
+      :error="addRoleError"
+      @submit="handleCreateRole"
+      @cancel="closeAddRoleModal"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearSession, getDonorDonationHistory, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
+import {
+  clearSession,
+  getDonorDonationHistory,
+  getDonorListings,
+  getDonorSettings,
+  getStoredSession,
+  logout,
+} from '../../api/client'
 import { fetchDonorRequests, changePickupRequest, donorRequestRow } from '../../api/pickupRequests'
 import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
 
@@ -111,6 +135,8 @@ import ApproveRequests from './ApproveRequests.vue'
 import DonationHistory from './DonationHistory.vue'
 import DonorReports from './DonorReports.vue'
 import ReportList from './ReportList.vue'
+import AddRoleModal from '../../components/AddRoleModal.vue'
+import { useRoleSwitch } from '../../composables/useRoleSwitch'
 
 const router = useRouter()
 
@@ -127,6 +153,20 @@ const navItems = [
 const currentPanel = ref('listings')
 const currentPanelTitle = computed(() => {
   return navItems.find(item => item.key === currentPanel.value)?.name || ''
+})
+
+const {
+  switchingRole,
+  showAddRoleModal,
+  addingRole,
+  addRoleError,
+  handleSwitchRole,
+  handleCreateRole,
+  closeAddRoleModal,
+} = useRoleSwitch({
+  currentRole: 'donor',
+  targetRole: 'recipient',
+  router,
 })
 
 async function handleLogout() {
@@ -292,6 +332,9 @@ function handleReportSubmitted() {
 .app-topbar { height: 66px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; background: var(--surface); }
 .topbar-title { font-family: var(--font-serif); font-size: 19px; font-weight: 600; }
 .topbar-right { display: flex; align-items: center; gap: 14px; }
+.role-switch-button { padding: 8px 14px; border: 1px solid var(--primary); border-radius: 8px; background: #fff; color: var(--primary); font-size: 13px; font-weight: 700; cursor: pointer; }
+.role-switch-button:hover { background: var(--primary-tint); }
+.role-switch-button:disabled { cursor: not-allowed; opacity: .6; }
 .role-badge { font-size: 11.5px; font-weight: 700; background: var(--primary-tint); color: var(--primary-dark); padding: 5px 11px; border-radius: 20px; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
 .app-content { flex: 1; padding: 28px; overflow-y: auto; }

@@ -3,22 +3,22 @@ package foodbank.webapp.service;
 import foodbank.webapp.dto.LoginRequest;
 import foodbank.webapp.dto.LoginResponse;
 import foodbank.webapp.dto.LoginUserResponse;
-import foodbank.webapp.entity.Donor;
-import foodbank.webapp.entity.User;
 import foodbank.webapp.entity.Admin;
+import foodbank.webapp.entity.Donor;
+import foodbank.webapp.entity.Recipient;
+import foodbank.webapp.entity.User;
+import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.exceptions.UnauthorizedException;
+import foodbank.webapp.repositories.AdminRepository;
 import foodbank.webapp.repositories.DonorRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.UserRepository;
-import foodbank.webapp.repositories.AdminRepository;
-import foodbank.webapp.exceptions.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
-
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +39,11 @@ public class AuthService {
         String email = request.email().trim();
         String role = request.role().trim().toLowerCase();
 
-        if (!Set.of("recipient", "admin", "donor").contains(role)) {
+        if (!Set.of(
+                "recipient",
+                "admin",
+                "donor"
+        ).contains(role)) {
             throw new IllegalArgumentException(
                     "role must be one of recipient, admin, donor"
             );
@@ -81,15 +85,21 @@ public class AuthService {
         }
 
         List<User> users =
-                userRepository.findAllByEmailIgnoreCase(email);
+                userRepository.findAllByEmailIgnoreCase(
+                        email
+                );
 
         for (User user : users) {
             boolean correctRole = switch (role) {
                 case "donor" ->
-                        donorRepository.existsByUserId(user.getUserId());
+                        donorRepository.existsByUserId(
+                                user.getUserId()
+                        );
 
                 case "recipient" ->
-                        recipientRepository.existsByUserId(user.getUserId());
+                        recipientRepository.existsByUserId(
+                                user.getUserId()
+                        );
 
                 default -> false;
             };
@@ -118,15 +128,22 @@ public class AuthService {
 
             if (role.equals("donor")) {
                 Donor donor = donorRepository
-                        .findByUserId(user.getUserId())
+                        .findByUserId(
+                                user.getUserId()
+                        )
                         .orElseThrow();
+
                 name = donor.getOrgName();
                 donorId = donor.getId();
             } else {
-                name = recipientRepository
-                        .findByUserId(user.getUserId())
-                        .orElseThrow()
-                        .getName();
+                Recipient recipient =
+                        recipientRepository
+                                .findByUserId(
+                                        user.getUserId()
+                                )
+                                .orElseThrow();
+
+                name = recipient.getName();
             }
 
             String accessToken =
@@ -138,7 +155,11 @@ public class AuthService {
             return new LoginResponse(
                     accessToken,
                     "Bearer",
-                    new LoginUserResponse(name, role, donorId)
+                    new LoginUserResponse(
+                            name,
+                            role,
+                            donorId
+                    )
             );
         }
 
@@ -146,9 +167,151 @@ public class AuthService {
                 "Invalid email or password"
         );
     }
-    public void logout(String authorizationHeader) {
+
+    public LoginResponse switchRole(
+            Integer userId,
+            String targetRoleValue,
+            String authorizationHeader
+    ) {
+        requireText(
+                targetRoleValue,
+                "targetRole"
+        );
+
         if (authorizationHeader == null
-                || !authorizationHeader.startsWith("Bearer ")) {
+                || !authorizationHeader.startsWith(
+                "Bearer "
+        )) {
+            throw new UnauthorizedException(
+                    "User not logged in"
+            );
+        }
+
+        String currentToken = authorizationHeader
+                .substring(7)
+                .trim();
+
+        if (currentToken.isBlank()
+                || !authTokenService.isActive(
+                currentToken
+        )) {
+            throw new UnauthorizedException(
+                    "User not logged in"
+            );
+        }
+
+        String targetRole = targetRoleValue
+                .trim()
+                .toLowerCase();
+
+        if (!Set.of(
+                "donor",
+                "recipient"
+        ).contains(targetRole)) {
+            throw new IllegalArgumentException(
+                    "targetRole must be donor or recipient"
+            );
+        }
+
+        String currentRole = authTokenService
+                .getClaims(currentToken)
+                .get(
+                        "role",
+                        String.class
+                );
+
+        if (targetRole.equalsIgnoreCase(
+                currentRole
+        )) {
+            throw new IllegalArgumentException(
+                    "User is already using the "
+                            + targetRole
+                            + " role"
+            );
+        }
+
+        User user = userRepository
+                .findById(userId)
+                .orElseThrow(() ->
+                        new UnauthorizedException(
+                                "User does not exist"
+                        )
+                );
+
+        if ("BANNED".equalsIgnoreCase(
+                user.getStatus()
+        )) {
+            throw new ForbiddenException(
+                    "Account is banned"
+            );
+        }
+
+        String name;
+        Integer donorId = null;
+
+        if (targetRole.equals("donor")) {
+            Donor donor = donorRepository
+                    .findByUserId(userId)
+                    .orElseThrow(() ->
+                            new ForbiddenException(
+                                    "Donor profile does not exist"
+                            )
+                    );
+
+            requireProfileAvailable(
+                    donor.getApprovalStatus(),
+                    "Donor"
+            );
+
+            name = donor.getOrgName();
+            donorId = donor.getId();
+        } else {
+            Recipient recipient =
+                    recipientRepository
+                            .findByUserId(userId)
+                            .orElseThrow(() ->
+                                    new ForbiddenException(
+                                            "Recipient profile does not exist"
+                                    )
+                            );
+
+            requireProfileAvailable(
+                    recipient.getApprovalStatus(),
+                    "Recipient"
+            );
+
+            name = recipient.getName();
+        }
+
+        String newToken =
+                authTokenService.createToken(
+                        userId,
+                        targetRole
+                );
+
+        // The previous JWT can no longer be used.
+        authTokenService.revokeToken(
+                currentToken
+        );
+
+        return new LoginResponse(
+                newToken,
+                "Bearer",
+                new LoginUserResponse(
+                        name,
+                        targetRole,
+                        donorId
+                )
+        );
+    }
+
+    public void logout(
+            String authorizationHeader
+    ) {
+        if (authorizationHeader == null
+                || !authorizationHeader.startsWith(
+                "Bearer "
+        )) {
             throw new UnauthorizedException(
                     "User not logged in"
             );
@@ -168,10 +331,30 @@ public class AuthService {
         authTokenService.revokeToken(token);
     }
 
-    private static void requireText(String value, String field) {
+    private static void requireProfileAvailable(
+            String approvalStatus,
+            String roleName
+    ) {
+        if (approvalStatus != null
+                && !approvalStatus.equalsIgnoreCase(
+                "APPROVED"
+        )) {
+            throw new ForbiddenException(
+                    roleName
+                            + " profile is not approved"
+            );
+        }
+    }
+
+    private static void requireText(
+            String value,
+            String field
+    ) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(
-                    "Field " + field + " is missing/invalid"
+                    "Field "
+                            + field
+                            + " is missing/invalid"
             );
         }
     }

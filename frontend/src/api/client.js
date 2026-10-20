@@ -73,6 +73,18 @@ export function registerRecipient(recipient) {
   return apiRequest('/auth/register-recipients', { method: 'POST', body: recipient })
 }
 
+export function registerBoth(account) {
+  return apiRequest('/auth/register-both', { method: 'POST', body: account })
+}
+
+export function switchRole(targetRole) {
+  return apiRequest('/account/switch-role', { method: 'POST', body: { targetRole } })
+}
+
+export function addRole(roleDetails) {
+  return apiRequest('/account/add-role', { method: 'POST', body: roleDetails })
+}
+
 export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' })
 }

@@ -157,6 +157,16 @@
                     <div class="role-btn-title">Donor</div>
                     <div class="role-btn-desc">I have surplus food to give</div>
                   </button>
+                  <button
+                    type="button"
+                    class="role-select-btn"
+                    :class="{ active: signupForm.role === 'both' }"
+                    @click="signupForm.role = 'both'"
+                  >
+                    <div class="role-icon">🔄</div>
+                    <div class="role-btn-title">Both</div>
+                    <div class="role-btn-desc">I want to donate and collect food</div>
+                  </button>
                 </div>
               </div>
 
@@ -170,7 +180,8 @@
               </button>
 
               <div class="form-note">
-                Select whether you are donating or receiving food. You will configure your profile details on the next step.
+                Select whether you want to donate food, receive food, or use both roles.
+                You will configure your profile details on the next step.
               </div>
             </div>
 
@@ -182,7 +193,10 @@
               </div>
 
               <!-- Donor specific fields -->
-              <div v-if="signupForm.role === 'donor'" class="role-fields">
+              <div
+                v-if="signupForm.role === 'donor' || signupForm.role === 'both'"
+                class="role-fields"
+              >
                 <div class="rf-title">Donor Organisation Details</div>
                 <div class="field">
                   <label class="field-label">Organisation name</label>
@@ -190,7 +204,12 @@
                 </div>
                 <div class="field">
                   <label class="field-label">Contact phone number</label>
-                  <input v-model="signupForm.phone" type="text" placeholder="04xx xxx xxx">
+                  <input
+                    v-model="signupForm.phone"
+                    type="text"
+                    placeholder="04xx xxx xxx"
+                    :required="signupForm.role === 'both'"
+                  >
                 </div>
 
                 <!-- 3-Part Address Breakdown -->
@@ -220,7 +239,10 @@
               </div>
 
               <!-- Recipient specific fields -->
-              <div v-if="signupForm.role === 'recipient'" class="role-fields">
+              <div
+                v-if="signupForm.role === 'recipient' || signupForm.role === 'both'"
+                class="role-fields"
+              >
                 <div class="rf-title">Recipient Organisation Details</div>
                 <div class="field">
                   <label class="field-label">Your name</label>
@@ -230,7 +252,7 @@
                   <label class="field-label">Organisation name <span class="opt-label">(optional)</span></label>
                   <input v-model="signupForm.recipientOrg" type="text" placeholder="e.g. Community Kitchen East">
                 </div>
-                <div class="field">
+                <div v-if="signupForm.role === 'recipient'" class="field">
                   <label class="field-label">Phone number</label>
                   <input v-model="signupForm.phone" type="text" placeholder="04xx xxx xxx" required>
                 </div>
@@ -302,6 +324,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   login,
+  registerBoth,
   registerDonor,
   registerRecipient,
   storeSession,
@@ -374,7 +397,7 @@ async function handleRegister() {
         suburb: signupForm.donorSuburb,
         region: signupForm.donorState,
       })
-    } else {
+    } else if (signupForm.role === 'recipient') {
       await registerRecipient({
         name: signupForm.recipientName,
         phone: signupForm.phone,
@@ -382,13 +405,26 @@ async function handleRegister() {
         email: signupForm.email,
         password: signupForm.password,
       })
+    } else {
+      await registerBoth({
+        email: signupForm.email,
+        password: signupForm.password,
+        phone: signupForm.phone,
+        donorOrgName: signupForm.donorOrg,
+        addressLine: signupForm.donorStreet,
+        suburb: signupForm.donorSuburb,
+        region: signupForm.donorState,
+        recipientName: signupForm.recipientName,
+        recipientOrgName: signupForm.recipientOrg,
+      })
     }
 
     // Sign in immediately using the same credentials before opening the portal.
+    const initialRole = signupForm.role === 'both' ? 'donor' : signupForm.role
     const session = await login({
       email: signupForm.email,
       password: signupForm.password,
-      role: signupForm.role,
+      role: initialRole,
     })
     completeLogin(session)
   } catch (error) {
