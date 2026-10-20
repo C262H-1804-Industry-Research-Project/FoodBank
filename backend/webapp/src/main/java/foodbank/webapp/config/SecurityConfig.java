@@ -146,6 +146,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/api/account/switch-role",
+                                "/api/account/link",
                                 "/api/account/add-role"
                         ).hasAnyRole(
                                 "DONOR",

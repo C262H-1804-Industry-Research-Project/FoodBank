@@ -4,6 +4,8 @@ import foodbank.webapp.dto.LoginResponse;
 import foodbank.webapp.dto.AddRoleRequest;
 import foodbank.webapp.dto.AddRoleResponse;
 import foodbank.webapp.dto.SwitchRoleRequest;
+import foodbank.webapp.dto.LinkAccountRequest;
+import foodbank.webapp.dto.LinkAccountResponse;
 import foodbank.webapp.service.AuthService;
 import foodbank.webapp.service.UserService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -19,6 +21,20 @@ public class AccountController {
 
     private final AuthService authService;
     private final UserService userService;
+
+    @PostMapping("/link")
+    @SecurityRequirement(name = "bearerAuth")
+    public LinkAccountResponse linkAccount(
+            @RequestBody LinkAccountRequest request,
+            Authentication authentication
+    ) {
+        String currentRole = authentication.getAuthorities().stream()
+                .map(authority -> authority.getAuthority())
+                .filter(role -> role.equals("ROLE_DONOR") || role.equals("ROLE_RECIPIENT"))
+                .map(role -> role.substring(5).toLowerCase())
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("Unsupported role"));
+        return authService.linkAccount(Integer.valueOf(authentication.getName()), currentRole, request);
+    }
 
     @PostMapping("/add-role")
     @SecurityRequirement(name = "bearerAuth")

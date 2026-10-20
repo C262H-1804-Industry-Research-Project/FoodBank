@@ -85,6 +85,10 @@ export function addRole(roleDetails) {
   return apiRequest('/account/add-role', { method: 'POST', body: roleDetails })
 }
 
+export function linkAccount(credentials) {
+  return apiRequest('/account/link', { method: 'POST', body: credentials })
+}
+
 export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' })
 }

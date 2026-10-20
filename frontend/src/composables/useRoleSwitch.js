@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { addRole, storeSession, switchRole } from '../api/client'
+import { addRole, linkAccount, storeSession, switchRole } from '../api/client'
 
 export function useRoleSwitch({ currentRole, targetRole, router }) {
   const switchingRole = ref(false)
@@ -60,7 +60,11 @@ export function useRoleSwitch({ currentRole, targetRole, router }) {
     addRoleError.value = ''
 
     try {
-      await addRole(details)
+      if (details.mode === 'link') {
+        await linkAccount({ targetRole, email: details.email, password: details.password })
+      } else {
+        await addRole(details)
+      }
       await completeSwitch()
       showAddRoleModal.value = false
     } catch (error) {

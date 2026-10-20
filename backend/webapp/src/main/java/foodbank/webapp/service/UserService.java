@@ -10,6 +10,7 @@ import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.User;
 import foodbank.webapp.repositories.DonorRepository;
 import foodbank.webapp.repositories.UserRepository;
+import foodbank.webapp.repositories.AccountLinkRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class UserService {
     private final DonorRepository donorRepository;
     private final PasswordEncoder passwordEncoder;
     private final RecipientRepository recipientRepository;
+    private final AccountLinkRepository accountLinkRepository;
 
     @Transactional
     public DonorResponse createDonor(CreateDonorRequest request) {
@@ -205,7 +207,7 @@ public class UserService {
     ) {
         requireText(request.targetRole(), "targetRole");
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.lockAccounts(java.util.List.of(userId)).stream().findFirst()
                 .orElseThrow(() ->
                         new NoSuchElementException(
                                 "User does not exist"
@@ -219,6 +221,11 @@ public class UserService {
         String targetRole = request.targetRole()
                 .trim()
                 .toLowerCase();
+
+        if (accountLinkRepository.findByDonorUserId(userId).isPresent()
+                || accountLinkRepository.findByRecipientUserId(userId).isPresent()) {
+            throw new ConflictException("An account is already linked; switch roles directly");
+        }
 
         if (targetRole.equals("donor")) {
             if (donorRepository.existsByUserId(userId)) {
