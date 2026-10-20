@@ -24,7 +24,10 @@
       <tbody>
         <tr v-for="item in listings" :key="item.id">
           <td>{{ item.name }}</td>
-          <td>{{ item.quantity }}</td>
+          <td>
+            <template v-if="item.available != null">{{ item.available }} / {{ item.quantity }} left</template>
+            <template v-else>{{ item.quantity }}</template>
+          </td>
           <td>{{ item.deadline }}</td>
           <td>{{ item.suburb }}, {{ item.stateRegion }}</td>
           <td>

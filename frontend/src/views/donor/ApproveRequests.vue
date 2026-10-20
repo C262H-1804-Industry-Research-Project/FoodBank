@@ -65,7 +65,7 @@
           <tr v-for="item in paginatedRequests" :key="item.id">
             <td>
               <div class="food-name">{{ item.foodName }}</div>
-              <div class="food-sub">Total available: {{ item.totalStock }}</div>
+              <div class="food-sub">Left: {{ item.totalStock }}</div>
             </td>
             <td>
               <div class="recipient-org">{{ item.recipientOrg }}</div>

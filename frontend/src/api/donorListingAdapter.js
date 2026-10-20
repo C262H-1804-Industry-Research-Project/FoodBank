@@ -11,6 +11,7 @@ export function toListingRow(listing) {
     name: listing.name,
     category: listing.category,
     quantity: listing.quantity,
+    available: listing.availableQuantity ?? null,
     deadline: listing.collectionDeadline || listing.expiryDate || '—',
     collectionDeadline: listing.collectionDeadline,
     expiryDate: listing.expiryDate,

@@ -12,6 +12,7 @@ import foodbank.webapp.entity.Timeslot;
 import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.CollectionHistoryRepository;
+import foodbank.webapp.repositories.ListingRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
@@ -41,6 +42,8 @@ public class RequestService {
     private final RecipientRepository recipientRepository;
     private final UserRepository userRepository;
     private final HandoverPolicy handoverPolicy;
+    private final ListingRepository listingRepository;
+    private final ListingStockService listingStockService;
 
     public List<RequestResponse> getDonorRequests(Integer donorId) {
         return requestRepository.findAllByDonor(donorId).stream()
@@ -161,7 +164,8 @@ public class RequestService {
         Recipient recipient = findRecipientForUser(userId);
         Integer recipientId = recipient.getRecipientId();
 
-        Listing listing = timeslot.getListing();
+        Listing listing = listingRepository.findByIdForUpdate(timeslot.getListing().getListingId())
+                .orElseThrow(() -> new NoSuchElementException("Listing not found"));
 
         if (!"LIVE".equals(listing.getStatus())) {
             throw new ConflictException("This listing is not currently available for requests");
@@ -202,6 +206,9 @@ public class RequestService {
                         "Exceeds your personal daily limit of " + personalLimit);
             }
         }
+
+        // A request holds its quantity as soon as it is made, even before approval
+        listingStockService.requireAvailable(listing, req.quantityRequested());
 
         boolean autoApproved = Boolean.TRUE.equals(listing.getIsAutoApproved());
         boolean needsPickupCode = Boolean.TRUE.equals(listing.getUsePickupCode());
@@ -301,6 +308,7 @@ public class RequestService {
                 recipient.getOrgName(),
                 userRepository.findById(recipient.getUserId()).map(user -> user.getPhone()).orElse(null),
                 listing.getQuantity(),
+                listingStockService.available(listing),
                 "APPROVED".equals(request.getStatus()) || "EXPIRED".equals(request.getStatus())
                         ? handoverPolicy.deadline(timeslot).toString() : null,
                 "REJECTED".equals(request.getStatus())

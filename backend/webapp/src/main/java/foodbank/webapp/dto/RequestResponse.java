@@ -15,6 +15,7 @@ public record RequestResponse(
         String recipientOrg,
         String recipientPhone,
         Float listingQuantity,
+        Float availableQuantity,
         String handoverDeadline,
         String rejectionReason
 ) {}

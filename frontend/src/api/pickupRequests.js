@@ -72,7 +72,9 @@ export function donorRequestRow(response) {
   return {
     id: r.requestId,
     foodName: r.listingName || '—',
-    totalStock: r.listingQuantity == null ? '—' : `${r.listingQuantity} units`,
+    totalStock: r.listingQuantity == null ? '—'
+      : r.availableQuantity == null ? `${r.listingQuantity} units`
+      : `${r.availableQuantity} of ${r.listingQuantity} units`,
     recipientOrg: r.recipientOrg || r.recipientName || '—',
     contactName: r.recipientName || '—',
     phone: r.recipientPhone || '—',

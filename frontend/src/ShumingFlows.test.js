@@ -405,6 +405,11 @@ describe('request display and time boundaries', () => {
     expect(donorRequestRow(declined).status).toBe('Declined')
   })
 
+  it('shows what is left of the listing on donor request rows', () => {
+    expect(donorRequestRow({ ...record('PENDING'), availableQuantity: 8 }).totalStock).toBe('8 of 10 units')
+    expect(donorRequestRow(record('PENDING')).totalStock).toBe('10 units')
+  })
+
   it('permits active cancellation strictly before pickup starts', () => {
     const start = new Date(slot.startTime).getTime()
     for (const status of ['PENDING', 'APPROVED']) {

@@ -2,7 +2,10 @@ package foodbank.webapp.api;
 
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.Listing;
+import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
+import foodbank.webapp.repositories.RequestRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
@@ -19,6 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ListingApiTest extends ApiTestSupport {
+    @Autowired RequestRepository requestRepository;
+
 
     @Test
     void browseIsPublicAndIncludesTimeslotIds() throws Exception {
@@ -102,6 +107,20 @@ class ListingApiTest extends ApiTestSupport {
 
     private static LocalDateTime[] times(Timeslot slot) {
         return new LocalDateTime[] {slot.getStartTime(), slot.getEndTime()};
+    }
+
+    @Test
+    void quantityCannotBeLoweredBelowReservedStock() throws Exception {
+        Donor donor = createDonor();
+        Listing listing = createLiveListing(donor, "Bread");
+        Timeslot booked = bookedSlot(listing);
+        requestRepository.save(Request.builder().timeslotId(booked.getTimeslotId())
+                .recipientId(createRecipient().getRecipientId()).quantityRequested(6f).status("PENDING").build());
+
+        updateTimeslots(donor, listing, times(booked))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Quantity cannot be below reserved stock (6)"));
+        assertThat(listingRepository.findById(listing.getListingId()).orElseThrow().getQuantity()).isEqualTo(10f);
     }
 
     @Test

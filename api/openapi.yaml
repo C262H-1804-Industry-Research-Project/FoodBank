@@ -60,7 +60,10 @@ paths:
           schema: { type: integer, default: 10, minimum: 1 }
       responses:
         '200':
-          description: A paged listing result
+          description: >-
+            A paged listing result. Each listing includes availableQuantity (quantity not held by
+            pending, approved, completed or expired requests); fully reserved listings are still
+            returned with availableQuantity 0.
   /api/listings/categories:
     get:
       tags: [listing-catalogue]
@@ -179,6 +182,8 @@ paths:
           description: Invalid listing data
         '404':
           description: Listing not found for donor
+        '409':
+          description: Booked timeslots removed, capacity below bookings, or quantity below reserved stock
     delete:
       tags: [donor]
       summary: Delete a donor listing
@@ -294,7 +299,9 @@ paths:
         '404':
           description: Timeslot not found
         '409':
-          description: Listing not live, timeslot fully booked or started, or recipient already requested this timeslot
+          description: >-
+            Listing not live or fully reserved, quantity above what is left, timeslot fully booked
+            or started, or recipient already requested this timeslot
     get:
       tags: [recipient-request]
       summary: Get the signed-in recipient's pickup requests
@@ -555,6 +562,10 @@ components:
             $ref: '#/components/schemas/TimeSlot'
         suburb: { type: string }
         region: { type: string }
+        availableQuantity:
+          type: number
+          format: float
+          description: Quantity not held by pending, approved, completed or expired requests
     TimeSlot:
       type: object
       properties:
@@ -667,6 +678,7 @@ components:
         recipientOrg: { type: string, nullable: true }
         recipientPhone: { type: string, nullable: true }
         listingQuantity: { type: number, format: float, nullable: true }
+        availableQuantity: { type: number, format: float, description: What is left of the listing }
         handoverDeadline:
           type: string
           nullable: true

@@ -52,9 +52,17 @@ class ShumingFlowsApiTest extends ApiTestSupport {
     private String path(Donor owner) { return "/api/donors/" + owner.getId() + "/requests"; }
     private String donorToken() { return bearer(donor.getUserId(), "donor"); }
     private ResultActions submit(Recipient owner) throws Exception {
+        return submit(owner, 2);
+    }
+    private ResultActions submit(Recipient owner, float quantity) throws Exception {
         return mockMvc.perform(post("/api/requests").header("Authorization", recipientToken(owner))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"timeslotId\":" + slot.getTimeslotId() + ",\"quantityRequested\":2,\"note\":\"  lunch  \"}"));
+                .content("{\"timeslotId\":" + slot.getTimeslotId() + ",\"quantityRequested\":" + quantity
+                        + ",\"note\":\"  lunch  \"}"));
+    }
+    private ResultActions browseThisListing() throws Exception {
+        return mockMvc.perform(get("/api/listings").param("foodName", "Test Food")
+                .header("Authorization", recipientToken(recipient)));
     }
     private int savedRequest() throws Exception {
         submit(recipient).andExpect(status().isCreated());
@@ -217,6 +225,42 @@ class ShumingFlowsApiTest extends ApiTestSupport {
                     .andExpect(status().isConflict());
         }
         assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void requestHoldsStockFromSubmissionUntilRejected() throws Exception {
+        int id = savedRequest();
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(8.0));
+        mockMvc.perform(get(path(donor)).header("Authorization", donorToken()))
+                .andExpect(jsonPath("$[0].listingQuantity").value(10.0))
+                .andExpect(jsonPath("$[0].availableQuantity").value(8.0));
+        mockMvc.perform(patch(path(donor) + "/" + id + "/reject").header("Authorization", donorToken()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.availableQuantity").value(10.0));
+    }
+
+    @Test
+    void cancellingGivesStockBackButCompletedAndExpiredKeepIt() throws Exception {
+        int id = savedRequest();
+        mockMvc.perform(delete("/api/requests/" + id).header("Authorization", recipientToken(recipient)))
+                .andExpect(status().isNoContent());
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(10.0));
+        for (String status : new String[]{"COMPLETED", "EXPIRED"}) {
+            requestRepository.save(foodbank.webapp.entity.Request.builder().timeslotId(slot.getTimeslotId())
+                    .recipientId(createRecipient().getRecipientId()).quantityRequested(3f).status(status).build());
+        }
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(4.0));
+    }
+
+    @Test
+    void cannotRequestMoreThanIsLeftAndFullyReservedListingStaysVisible() throws Exception {
+        submit(recipient, 11).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Only 10 left for this listing"));
+        submit(recipient, 10).andExpect(status().isCreated());
+        submit(createRecipient(), 1).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("This listing is fully reserved"));
+        browseThisListing().andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].availableQuantity").value(0.0));
+        assertThat(timeslotRepository.findById(slot.getTimeslotId()).orElseThrow().getRemainingSlot()).isEqualTo(1);
     }
 
     @Test
