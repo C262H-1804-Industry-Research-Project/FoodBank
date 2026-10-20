@@ -122,10 +122,19 @@
                 Handover by {{ item.handoverBy }}
               </div>
 
-              <!-- 3. Expired: not collected by the handover deadline -->
+              <!-- 3. Expired: not collected by the handover deadline; correctable until the stock is released -->
+              <div v-else-if="item.status === 'Expired' && !item.stockReleased" class="action-btns">
+                <button 
+                  class="btn-verify-code btn-sm" 
+                  :disabled="busy"
+                  @click="openVerifyModal(item)"
+                >
+                  Mark as collected
+                </button>
+              </div>
               <span v-else-if="item.status === 'Expired'" class="action-expired-text">
                 Not collected
-                <div v-if="item.stockReleased" class="stock-released">Stock released</div>
+                <div class="stock-released">Stock released</div>
               </span>
 
               <!-- 4. Completed / Collected / Declined -->

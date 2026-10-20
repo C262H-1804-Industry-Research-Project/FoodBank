@@ -171,16 +171,22 @@ describe('donor pickup review', () => {
     expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
   })
 
-  it('shows the handover deadline on approved rows and no handover action once expired', async () => {
-    await donorPanel([
-      { ...record('APPROVED'), handoverDeadline: '2026-10-21T11:15:00' },
-      { ...record('EXPIRED'), requestId: 124 },
-    ])
+  it('shows the handover deadline on approved rows', async () => {
+    await donorPanel([{ ...record('APPROVED'), handoverDeadline: '2026-10-21T11:15:00' }])
     await wrapper.findAll('.status-tabs button')[2].trigger('click')
     expect(wrapper.get('.handover-by').text()).toBe('Handover by 11:15')
+  })
+
+  it('lets the donor correct an expired request to collected until its stock is released', async () => {
+    const fetchMock = await donorPanel([{ ...record('EXPIRED'), stockReleased: false }])
     await wrapper.findAll('.status-tabs button')[3].trigger('click')
-    expect(wrapper.get('tbody').text()).toContain('Not collected')
-    expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
+    expect(wrapper.get('.btn-verify-code').text()).toBe('Mark as collected')
+    await wrapper.get('.btn-verify-code').trigger('click')
+    await wrapper.get('.btn-confirm-handover').trigger('click')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledWith('/api/donors/5/requests/123/complete', expect.objectContaining({ method: 'PATCH' }))
+    await wrapper.findAll('.status-tabs button')[0].trigger('click')
+    expect(wrapper.get('tbody').text()).toContain('Completed')
   })
 
   it('marks expired rows whose stock the nightly release has freed', async () => {
@@ -192,6 +198,9 @@ describe('donor pickup review', () => {
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
     expect(wrapper.findAll('.stock-released')).toHaveLength(1)
     expect(wrapper.get('.stock-released').text()).toBe('Stock released')
+    // Only the unreleased row can still be corrected
+    expect(wrapper.findAll('.btn-verify-code')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Not collected')
   })
 
   it('shows the empty message instead of sample rows when the donor has no requests', async () => {

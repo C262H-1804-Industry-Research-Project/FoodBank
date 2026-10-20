@@ -390,7 +390,9 @@ paths:
   /api/donors/{donorId}/requests/{requestId}/complete:
     patch:
       tags: [donor-request]
-      summary: Confirm handover of an approved request belonging to your donor account, up to its handoverDeadline
+      summary: >-
+        Confirm handover of an approved request (up to its handoverDeadline), or correct an expired
+        request to COMPLETED before its stock is released
       parameters:
         - { name: donorId, in: path, required: true, schema: { type: integer } }
         - { name: requestId, in: path, required: true, schema: { type: integer } }
@@ -403,7 +405,10 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request is not approved, or the handover deadline has passed }
+        '409':
+          description: >-
+            Request is not approved or expired, an approved request is past its handover deadline,
+            or an expired request's stock has already been released
 
   /admin/listings:
     get:

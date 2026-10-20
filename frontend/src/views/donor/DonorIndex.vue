@@ -219,8 +219,8 @@ watch(currentPanel, panel => { if (panel === 'requests') loadRequestList() })
 
 async function processPickup(id, action) {
   if (requestBusy.value || requestLoading.value) return
-  const expected = action === 'complete' ? 'Approved' : 'Pending'
-  const index = requestsData.value.findIndex(row => row.id === id && row.status === expected)
+  const expected = action === 'complete' ? ['Approved', 'Expired'] : ['Pending']
+  const index = requestsData.value.findIndex(row => row.id === id && expected.includes(row.status))
   if (index < 0) return
   requestBusy.value = true
   try {

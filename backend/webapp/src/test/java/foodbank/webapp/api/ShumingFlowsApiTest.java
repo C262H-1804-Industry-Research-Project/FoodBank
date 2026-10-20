@@ -181,10 +181,38 @@ class ShumingFlowsApiTest extends ApiTestSupport {
             mockMvc.perform(patch(path(donor) + "/" + pending + "/" + action).header("Authorization", donorToken()))
                     .andExpect(status().isConflict());
         }
-        for (String action : new String[]{"approve", "reject", "complete"}) {
+        for (String action : new String[]{"approve", "reject"}) {
             mockMvc.perform(patch(path(donor) + "/" + approved + "/" + action).header("Authorization", donorToken()))
                     .andExpect(status().isConflict());
         }
+    }
+
+    @Test
+    void donorCanCorrectAnExpiredRequestToCompletedBeforeItsStockIsReleased() throws Exception {
+        int id = approvedRequest();
+        endSlot(20);
+        requestExpiryService.closeEndedRequests();
+        assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("EXPIRED");
+
+        mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+        assertThat(collectionHistoryRepository.findAll()).anyMatch(h -> h.getRequestId() == id);
+        // Completed keeps holding the stock the expired request held
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(8.0));
+        stockReleaseService.releaseExpiredStock();
+        assertThat(requestRepository.findById(id).orElseThrow().getStockReleasedAt()).isNull();
+    }
+
+    @Test
+    void expiredRequestCannotBeCorrectedOnceItsStockIsReleased() throws Exception {
+        int id = saveRequestWith(slotEndingAt(midnight().minusHours(1)), "EXPIRED", 2);
+        stockReleaseService.releaseExpiredStock();
+
+        mockMvc.perform(patch(path(donor) + "/" + id + "/complete").header("Authorization", donorToken()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("The stock for this request has already been released"));
+        assertThat(requestRepository.findById(id).orElseThrow().getStatus()).isEqualTo("EXPIRED");
+        assertThat(collectionHistoryRepository.findAll()).noneMatch(h -> h.getRequestId() == id);
     }
 
     @Test

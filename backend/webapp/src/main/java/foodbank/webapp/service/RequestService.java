@@ -92,15 +92,20 @@ public class RequestService {
         return toResponse(requestRepository.save(request));
     }
 
-    // Donor confirms the recipient collected the food, up to the handover deadline; the pickup place stays used
+    // Donor confirms the recipient collected the food, up to the handover deadline; the pickup place stays used.
+    // An EXPIRED request can still be corrected to COMPLETED until StockReleaseService releases its stock.
     @Transactional
     public RequestResponse completeRequest(Integer donorId, Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, List.of("APPROVED"));
-        if (LocalDateTime.now().isAfter(handoverPolicy.deadline(timeslot))) {
+        checkDonorRequest(donorId, request, timeslot, List.of("APPROVED", "EXPIRED"));
+        if ("EXPIRED".equals(request.getStatus())) {
+            if (request.getStockReleasedAt() != null) {
+                throw new ConflictException("The stock for this request has already been released");
+            }
+        } else if (LocalDateTime.now().isAfter(handoverPolicy.deadline(timeslot))) {
             throw new ConflictException("The handover window has ended");
         }
 
