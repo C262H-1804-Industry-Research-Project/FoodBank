@@ -137,6 +137,21 @@ async function donorPanel(records, fail = false) {
 }
 
 describe('donor pickup review', () => {
+  it('shows the number of pending requests on the sidebar item, updating after a review', async () => {
+    await donorPanel([record('PENDING'), { ...record('PENDING'), requestId: 124 }, { ...record('APPROVED'), requestId: 125 }])
+    const badge = () => wrapper.findAll('.sb-item')[2].find('.sb-badge')
+    expect(badge().text()).toBe('2')
+    expect(badge().attributes('aria-label')).toBe('2 pending requests')
+    await wrapper.get('.btn-approve').trigger('click')
+    await flushPromises()
+    expect(badge().text()).toBe('1')
+  })
+
+  it('hides the pending badge when nothing is pending', async () => {
+    await donorPanel([record('APPROVED')])
+    expect(wrapper.find('.sb-badge').exists()).toBe(false)
+  })
+
   it('loads real rows and supports all three filters', async () => {
     await donorPanel([record('PENDING'), { ...record('APPROVED'), requestId: 124 }])
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
