@@ -81,6 +81,7 @@ export function donorRequestRow(response) {
     quantity: `${r.quantityRequested} units`,
     slot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
     pickupCode: r.pickupCode || null,
+    stockReleased: r.stockReleased === true,
     handoverBy: r.handoverDeadline ? r.handoverDeadline.split('T')[1].slice(0, 5) : null,
     notes: r.note || '',
     status: autoRejected(r) ? 'Auto-rejected'

@@ -11,12 +11,13 @@ import java.util.List;
 
 /**
  * Available stock is worked out from requests rather than stored, so it cannot drift.
- * A request holds its quantity from the moment it is made until it is rejected or cancelled.
+ * A request holds its quantity from the moment it is made until it is rejected or cancelled,
+ * or, once EXPIRED, until StockReleaseService releases it.
  */
 @Service
 @RequiredArgsConstructor
 public class ListingStockService {
-    // EXPIRED keeps holding stock until the end-of-day release (not built yet) frees it
+    // EXPIRED holds stock only until it has a stockReleasedAt; see sumQuantityForListing
     public static final List<String> HOLDING_STATUSES = List.of("PENDING", "APPROVED", "COMPLETED", "EXPIRED");
 
     private final RequestRepository requestRepository;

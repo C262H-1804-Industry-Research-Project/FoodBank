@@ -17,5 +17,6 @@ public record RequestResponse(
         Float listingQuantity,
         Float availableQuantity,
         String handoverDeadline,
-        String rejectionReason
+        String rejectionReason,
+        boolean stockReleased
 ) {}

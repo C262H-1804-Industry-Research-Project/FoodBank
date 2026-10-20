@@ -313,7 +313,8 @@ public class RequestService {
                         ? handoverPolicy.deadline(timeslot).toString() : null,
                 "REJECTED".equals(request.getStatus())
                         ? (request.getRejectionReason() == null ? DECLINED_BY_DONOR : request.getRejectionReason())
-                        : null
+                        : null,
+                request.getStockReleasedAt() != null
         );
     }
 

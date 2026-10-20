@@ -9,6 +9,7 @@ import foodbank.webapp.repositories.AdminRepository;
 import foodbank.webapp.repositories.CollectionHistoryRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.service.RequestExpiryService;
+import foodbank.webapp.service.StockReleaseService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ class ShumingFlowsApiTest extends ApiTestSupport {
     @Autowired RequestRepository requestRepository;
     @Autowired AdminRepository adminRepository;
     @Autowired RequestExpiryService requestExpiryService;
+    @Autowired StockReleaseService stockReleaseService;
     @Autowired CollectionHistoryRepository collectionHistoryRepository;
     private Donor donor;
     private Recipient recipient;
@@ -261,6 +263,90 @@ class ShumingFlowsApiTest extends ApiTestSupport {
         browseThisListing().andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].availableQuantity").value(0.0));
         assertThat(timeslotRepository.findById(slot.getTimeslotId()).orElseThrow().getRemainingSlot()).isEqualTo(1);
+    }
+
+    private int saveRequestWith(String status, float quantity) {
+        return saveRequestWith(slot, status, quantity);
+    }
+    private int saveRequestWith(Timeslot on, String status, float quantity) {
+        return requestRepository.save(foodbank.webapp.entity.Request.builder().timeslotId(on.getTimeslotId())
+                .recipientId(createRecipient().getRecipientId()).quantityRequested(quantity).status(status)
+                .build()).getRequestId();
+    }
+    // The release cutoff: the most recent midnight in Adelaide time
+    private static LocalDateTime midnight() {
+        return java.time.LocalDate.now(java.time.ZoneId.of("Australia/Adelaide")).atStartOfDay();
+    }
+    private Timeslot slotEndingAt(LocalDateTime end) {
+        Timeslot ended = createTimeslot(listing, 1);
+        ended.setStartTime(end.minusHours(1));
+        ended.setEndTime(end);
+        return timeslotRepository.save(ended);
+    }
+    private java.time.LocalDateTime releasedAt(int id) {
+        return requestRepository.findById(id).orElseThrow().getStockReleasedAt();
+    }
+
+    @Test
+    void releaseFreesOnlyExpiredStockAndKeepsTheRequestExpired() throws Exception {
+        Timeslot yesterday = slotEndingAt(midnight());
+        int expired = saveRequestWith(yesterday, "EXPIRED", 3);
+        int completed = saveRequestWith(yesterday, "COMPLETED", 2);
+        int approved = saveRequestWith("APPROVED", 1);
+        int pending = saveRequestWith("PENDING", 1);
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(3.0));
+
+        stockReleaseService.releaseExpiredStock();
+
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(6.0));
+        assertThat(requestRepository.findById(expired).orElseThrow().getStatus()).isEqualTo("EXPIRED");
+        assertThat(releasedAt(expired)).isNotNull();
+        for (int id : new int[]{completed, approved, pending}) {
+            assertThat(releasedAt(id)).isNull();
+        }
+        mockMvc.perform(get(path(donor)).header("Authorization", donorToken()))
+                .andExpect(jsonPath("$[?(@.requestId == " + expired + ")].stockReleased").value(true))
+                .andExpect(jsonPath("$[?(@.requestId == " + completed + ")].stockReleased").value(false));
+
+        var firstRelease = releasedAt(expired);
+        stockReleaseService.releaseExpiredStock();
+        assertThat(releasedAt(expired)).isEqualTo(firstRelease);
+    }
+
+    @Test
+    void expiredRequestFromTodaysSlotWaitsForTheNextRelease() throws Exception {
+        int fromYesterday = saveRequestWith(slotEndingAt(midnight().minusHours(1)), "EXPIRED", 3);
+        int fromToday = saveRequestWith(slotEndingAt(midnight().plusMinutes(1)), "EXPIRED", 2);
+
+        stockReleaseService.releaseExpiredStock();
+
+        assertThat(releasedAt(fromYesterday)).isNotNull();
+        assertThat(releasedAt(fromToday)).isNull();
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(8.0));
+    }
+
+    @Test
+    void requestStillApprovedAtReleaseTimeIsReleasedByTheNextRun() throws Exception {
+        int id = saveRequestWith(slotEndingAt(midnight().minusMinutes(1)), "APPROVED", 2);
+        stockReleaseService.releaseExpiredStock();
+        assertThat(releasedAt(id)).isNull();
+
+        var late = requestRepository.findById(id).orElseThrow();
+        late.setStatus("EXPIRED");
+        requestRepository.save(late);
+        stockReleaseService.releaseExpiredStock();
+        assertThat(releasedAt(id)).isNotNull();
+    }
+
+    @Test
+    void startupCatchUpReleasesLeftoversFromAMissedNight() throws Exception {
+        int missed = saveRequestWith(slotEndingAt(midnight().minusDays(1)), "EXPIRED", 2);
+        int fromToday = saveRequestWith(slotEndingAt(midnight().plusMinutes(1)), "EXPIRED", 1);
+
+        stockReleaseService.releaseOnStartup();
+
+        assertThat(releasedAt(missed)).isNotNull();
+        assertThat(releasedAt(fromToday)).isNull();
     }
 
     @Test

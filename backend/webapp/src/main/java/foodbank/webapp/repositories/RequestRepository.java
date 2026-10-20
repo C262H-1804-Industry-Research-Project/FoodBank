@@ -32,10 +32,16 @@ public interface RequestRepository extends JpaRepository<Request, Integer> {
     List<Request> findSlotEndedByStatusIn(@Param("statuses") Collection<String> statuses,
                                           @Param("now") LocalDateTime now);
 
-    @Query("SELECT SUM(r.quantityRequested) FROM Request r WHERE r.status IN :statuses AND r.timeslotId IN " +
+    // Released EXPIRED requests no longer hold stock
+    @Query("SELECT SUM(r.quantityRequested) FROM Request r WHERE r.status IN :statuses " +
+           "AND NOT (r.status = 'EXPIRED' AND r.stockReleasedAt IS NOT NULL) AND r.timeslotId IN " +
            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.listingId = :listingId)")
     Double sumQuantityForListing(@Param("listingId") Integer listingId,
                                  @Param("statuses") Collection<String> statuses);
+
+    @Query("SELECT r FROM Request r WHERE r.status = 'EXPIRED' AND r.stockReleasedAt IS NULL AND r.timeslotId IN " +
+           "(SELECT t.timeslotId FROM Timeslot t WHERE t.endTime <= :cutoff)")
+    List<Request> findUnreleasedExpiredWithSlotEndedBy(@Param("cutoff") LocalDateTime cutoff);
 
     @Query("SELECT r FROM Request r WHERE r.timeslotId IN " +
            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId)")

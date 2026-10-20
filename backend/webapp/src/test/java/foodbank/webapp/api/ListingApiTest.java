@@ -124,6 +124,19 @@ class ListingApiTest extends ApiTestSupport {
     }
 
     @Test
+    void quantityCanBeLoweredOnceExpiredStockIsReleased() throws Exception {
+        Donor donor = createDonor();
+        Listing listing = createLiveListing(donor, "Bread");
+        Timeslot booked = bookedSlot(listing);
+        requestRepository.save(Request.builder().timeslotId(booked.getTimeslotId())
+                .recipientId(createRecipient().getRecipientId()).quantityRequested(6f).status("EXPIRED")
+                .stockReleasedAt(LocalDateTime.now()).build());
+
+        updateTimeslots(donor, listing, times(booked)).andExpect(status().isOk());
+        assertThat(listingRepository.findById(listing.getListingId()).orElseThrow().getQuantity()).isEqualTo(5f);
+    }
+
+    @Test
     void addingATimeslotKeepsExistingBookedSlots() throws Exception {
         Donor donor = createDonor();
         Listing listing = createLiveListing(donor, "Bread");

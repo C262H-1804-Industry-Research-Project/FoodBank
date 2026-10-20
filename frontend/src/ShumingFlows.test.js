@@ -183,6 +183,17 @@ describe('donor pickup review', () => {
     expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
   })
 
+  it('marks expired rows whose stock the nightly release has freed', async () => {
+    await donorPanel([
+      { ...record('EXPIRED'), stockReleased: true },
+      { ...record('EXPIRED'), requestId: 124, stockReleased: false },
+    ])
+    await wrapper.findAll('.status-tabs button')[3].trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    expect(wrapper.findAll('.stock-released')).toHaveLength(1)
+    expect(wrapper.get('.stock-released').text()).toBe('Stock released')
+  })
+
   it('shows the empty message instead of sample rows when the donor has no requests', async () => {
     await donorPanel([])
     expect(wrapper.find('tbody').exists()).toBe(false)

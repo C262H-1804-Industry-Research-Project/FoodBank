@@ -688,6 +688,12 @@ components:
           nullable: true
           enum: [DECLINED_BY_DONOR, NOT_REVIEWED_IN_TIME]
           description: Set only when status is REJECTED
+        stockReleased:
+          type: boolean
+          description: >-
+            True once the daily release (00:20 Adelaide time, plus once on server startup) has
+            stopped this EXPIRED request holding listing stock. Only requests whose slot ended by
+            midnight are released; the request stays EXPIRED
     CatalogueItemResponse:
       type: object
       required: [id, name]

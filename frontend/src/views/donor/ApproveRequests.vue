@@ -125,6 +125,7 @@
               <!-- 3. Expired: not collected by the handover deadline -->
               <span v-else-if="item.status === 'Expired'" class="action-expired-text">
                 Not collected
+                <div v-if="item.stockReleased" class="stock-released">Stock released</div>
               </span>
 
               <!-- 4. Completed / Collected / Declined -->
@@ -477,6 +478,7 @@ code.pcode {
 
 .btn-sm { font-size: 12px; border-radius: 6px; }
 .action-expired-text { font-size: 12px; color: var(--danger); font-weight: 700; }
+.stock-released { font-size: 11px; color: var(--text-soft); font-weight: 600; margin-top: 2px; }
 .handover-by { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
 .action-done-text { font-size: 12px; color: #1F5D50; font-weight: 700; }
 
