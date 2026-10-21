@@ -6,10 +6,10 @@ import foodbank.webapp.dto.MyListingResponse;
 import foodbank.webapp.service.ListingService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
@@ -40,8 +40,18 @@ public class DonorListingController {
         listingService.deleteListing(donorId, listingId);
     }
 
+    private static final int MAX_PAGE_SIZE = 100;
+
+    // One page of the donor's own listings, newest first
     @GetMapping
-    public List<MyListingResponse> getMyListings(@PathVariable Integer donorId) {
-        return listingService.getMyListings(donorId);
+    public PagedModel<MyListingResponse> getMyListings(@PathVariable Integer donorId,
+                                                       @RequestParam(defaultValue = "0") int page,
+                                                       @RequestParam(defaultValue = "5") int size,
+                                                       java.security.Principal principal) {
+        listingService.requireDonorOwner(donorId, principal.getName());
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("page must be 0 or more and size between 1 and " + MAX_PAGE_SIZE);
+        }
+        return new PagedModel<>(listingService.getMyListings(donorId, PageRequest.of(page, size)));
     }
 }

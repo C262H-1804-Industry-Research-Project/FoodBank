@@ -48,3 +48,16 @@ describe('toListingCard distance', () => {
     expect(card.stateRegion).toBe('SA')
   })
 })
+
+describe('toListingCard stock', () => {
+  const row = availableQuantity => ({ listingId: 1, foodName: 'Bread', timeslots: [], availableQuantity })
+
+  it('shows what is left and marks a listing with nothing left as fully reserved', () => {
+    expect(toListingCard(row(8))).toMatchObject({ available: 8, fullyReserved: false })
+    expect(toListingCard(row(0))).toMatchObject({ available: 0, fullyReserved: true })
+  })
+
+  it('treats a missing amount as unknown rather than fully reserved', () => {
+    expect(toListingCard(row(undefined))).toMatchObject({ available: null, fullyReserved: false })
+  })
+})

@@ -33,11 +33,14 @@ export function canCancelPickup(row, now = Date.now()) {
 export function cancelBlockedReason(row, now = Date.now()) {
   if (canCancelPickup(row, now)) return null
   if (row.statusCode === 'CANCELLED') return 'Already cancelled'
-  if (row.statusCode === 'REJECTED') return 'Request was declined'
+  if (row.statusCode === 'REJECTED') return row.status === 'Not reviewed in time' ? 'Not reviewed before pickup' : 'Request was declined'
   if (row.statusCode === 'COMPLETED') return 'Already collected'
+  if (row.statusCode === 'EXPIRED') return 'Pickup window has ended'
   if (['PENDING', 'APPROVED'].includes(row.statusCode)) return 'Pickup time has passed'
   return 'This request can no longer be cancelled'
 }
+
+const autoRejected = r => r.status === 'REJECTED' && r.rejectionReason === 'NOT_REVIEWED_IN_TIME'
 
 function checked(request) {
   if (!Number.isInteger(request?.requestId) || typeof request.status !== 'string') {
@@ -56,7 +59,8 @@ export function recipientRequestRow(response) {
     pickupSlot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
     pickupStart: r.timeslotStart,
     statusCode: r.status,
-    status: { PENDING: 'Requested', APPROVED: 'Reserved', REJECTED: 'Declined', CANCELLED: 'Cancelled', COMPLETED: 'Collected' }[r.status] || r.status,
+    status: autoRejected(r) ? 'Not reviewed in time'
+      : { PENDING: 'Requested', APPROVED: 'Reserved', REJECTED: 'Declined', CANCELLED: 'Cancelled', COMPLETED: 'Collected', EXPIRED: 'Expired' }[r.status] || r.status,
     statusClass: approved || r.status === 'COMPLETED' ? 'status-reserved' : r.status === 'PENDING' ? 'status-requested' : 'status-expired',
     address: approved ? r.pickupAddress : null,
     code: approved ? r.pickupCode : null,
@@ -68,15 +72,20 @@ export function donorRequestRow(response) {
   return {
     id: r.requestId,
     foodName: r.listingName || '—',
-    totalStock: r.listingQuantity == null ? '—' : `${r.listingQuantity} units`,
+    totalStock: r.listingQuantity == null ? '—'
+      : r.availableQuantity == null ? `${r.listingQuantity} units`
+      : `${r.availableQuantity} of ${r.listingQuantity} units`,
     recipientOrg: r.recipientOrg || r.recipientName || '—',
     contactName: r.recipientName || '—',
     phone: r.recipientPhone || '—',
     quantity: `${r.quantityRequested} units`,
     slot: formatPickupSlot({ startTime: r.timeslotStart, endTime: r.timeslotEnd }),
     pickupCode: r.pickupCode || null,
+    stockReleased: r.stockReleased === true,
+    handoverBy: r.handoverDeadline ? r.handoverDeadline.split('T')[1].slice(0, 5) : null,
     notes: r.note || '',
-    status: { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Declined', CANCELLED: 'Cancelled', COMPLETED: 'Completed' }[r.status] || r.status,
-    statusClass: { PENDING: 'status-pending', APPROVED: 'status-approved', COMPLETED: 'status-completed' }[r.status] || 'status-declined',
+    status: autoRejected(r) ? 'Auto-rejected'
+      : { PENDING: 'Pending', APPROVED: 'Approved', REJECTED: 'Declined', CANCELLED: 'Cancelled', COMPLETED: 'Completed', EXPIRED: 'Expired' }[r.status] || r.status,
+    statusClass: { PENDING: 'status-pending', APPROVED: 'status-approved', COMPLETED: 'status-completed', EXPIRED: 'status-expired' }[r.status] || 'status-declined',
   }
 }

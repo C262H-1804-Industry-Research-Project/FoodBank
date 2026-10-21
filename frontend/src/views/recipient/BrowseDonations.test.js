@@ -161,3 +161,18 @@ describe('BrowseDonations suburb filter', () => {
     expect(wrapper.find('.btn-reset').exists()).toBe(false)
   })
 })
+
+describe('stock on listing cards', () => {
+  it('shows units left, and keeps fully reserved listings visible but not requestable', async () => {
+    const { wrapper } = await mountPage({ rows: [
+      { ...listingRow(1, 'Bread', null), availableQuantity: 4 },
+      { ...listingRow(2, 'Milk', null), availableQuantity: 0 },
+    ] })
+    const cards = wrapper.findAll('.lc-foot')
+    expect(cards).toHaveLength(2)
+    expect(wrapper.text()).toContain('4 units left')
+    expect(cards[0].get('button').element.disabled).toBe(false)
+    expect(cards[1].get('button').text()).toBe('Fully reserved')
+    expect(cards[1].get('button').element.disabled).toBe(true)
+  })
+})

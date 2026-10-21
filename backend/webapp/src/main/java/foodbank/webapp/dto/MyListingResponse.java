@@ -20,5 +20,6 @@ public record MyListingResponse(
         Boolean isAutoApproved,
         Boolean usePickupCode,
         Boolean hideContact,
-        Integer slotCapacity
+        Integer slotCapacity,
+        Float availableQuantity
 ) {}

@@ -2,7 +2,10 @@ package foodbank.webapp.api;
 
 import foodbank.webapp.entity.Donor;
 import foodbank.webapp.entity.Listing;
+import foodbank.webapp.entity.Request;
 import foodbank.webapp.entity.Timeslot;
+import foodbank.webapp.repositories.RequestRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
@@ -19,6 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ListingApiTest extends ApiTestSupport {
+    @Autowired RequestRepository requestRepository;
+
 
     @Test
     void browseIsPublicAndIncludesTimeslotIds() throws Exception {
@@ -66,7 +71,44 @@ class ListingApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
                         .header("Authorization", bearer(donor.getUserId(), "donor")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].timeslots[0].timeslotId").value(timeslot.getTimeslotId()));
+                .andExpect(jsonPath("$.content[0].timeslots[0].timeslotId").value(timeslot.getTimeslotId()));
+    }
+
+    @Test
+    void donorListingsArePagedNewestFirst() throws Exception {
+        Donor donor = createDonor();
+        for (int i = 1; i <= 7; i++) createLiveListing(donor, "Listing " + i);
+        createLiveListing(createDonor(), "Someone else's listing");
+
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId()).param("page", "0").param("size", "5")
+                        .header("Authorization", bearer(donor.getUserId(), "donor")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(5)))
+                .andExpect(jsonPath("$.content[0].name").value("Listing 7"))
+                .andExpect(jsonPath("$.page.totalElements").value(7))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId()).param("page", "1").param("size", "5")
+                        .header("Authorization", bearer(donor.getUserId(), "donor")))
+                .andExpect(jsonPath("$.content[*].name").value(org.hamcrest.Matchers.contains("Listing 2", "Listing 1")));
+    }
+
+    @Test
+    void donorCannotReadAnotherDonorsListings() throws Exception {
+        Donor donor = createDonor();
+        Donor other = createDonor();
+
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
+                        .header("Authorization", bearer(other.getUserId(), "donor")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void donorListingsRejectInvalidPageSize() throws Exception {
+        Donor donor = createDonor();
+
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId()).param("size", "0")
+                        .header("Authorization", bearer(donor.getUserId(), "donor")))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -102,6 +144,33 @@ class ListingApiTest extends ApiTestSupport {
 
     private static LocalDateTime[] times(Timeslot slot) {
         return new LocalDateTime[] {slot.getStartTime(), slot.getEndTime()};
+    }
+
+    @Test
+    void quantityCannotBeLoweredBelowReservedStock() throws Exception {
+        Donor donor = createDonor();
+        Listing listing = createLiveListing(donor, "Bread");
+        Timeslot booked = bookedSlot(listing);
+        requestRepository.save(Request.builder().timeslotId(booked.getTimeslotId())
+                .recipientId(createRecipient().getRecipientId()).quantityRequested(6f).status("PENDING").build());
+
+        updateTimeslots(donor, listing, times(booked))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Quantity cannot be below reserved stock (6)"));
+        assertThat(listingRepository.findById(listing.getListingId()).orElseThrow().getQuantity()).isEqualTo(10f);
+    }
+
+    @Test
+    void quantityCanBeLoweredOnceExpiredStockIsReleased() throws Exception {
+        Donor donor = createDonor();
+        Listing listing = createLiveListing(donor, "Bread");
+        Timeslot booked = bookedSlot(listing);
+        requestRepository.save(Request.builder().timeslotId(booked.getTimeslotId())
+                .recipientId(createRecipient().getRecipientId()).quantityRequested(6f).status("EXPIRED")
+                .stockReleasedAt(LocalDateTime.now()).build());
+
+        updateTimeslots(donor, listing, times(booked)).andExpect(status().isOk());
+        assertThat(listingRepository.findById(listing.getListingId()).orElseThrow().getQuantity()).isEqualTo(5f);
     }
 
     @Test
