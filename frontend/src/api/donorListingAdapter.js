@@ -1,6 +1,22 @@
 import { formatPickupSlot } from './listingAdapter'
 
-export function toListingRow(listing) {
+// Whole days from a YYYY-MM-DD date to today, in local time (positive once the date has passed)
+function daysSince(dateKey, now) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((today - new Date(year, month - 1, day)) / 86400000)
+}
+
+// Display only: a listing stays LIVE on the server after its collect-by date
+function expiryLabel(collectBy, now) {
+  const days = collectBy ? daysSince(collectBy, now) : 0
+  if (days <= 0) return { expired: false, expiredLabel: '' }
+  return { expired: true, expiredLabel: days === 1 ? 'Expired yesterday' : `Expired ${days} days ago` }
+}
+
+// `now` is an option, not a second argument, so `listings.map(toListingRow)` stays safe
+// (map passes the array index as the second argument)
+export function toListingRow(listing, { now = new Date() } = {}) {
   const timeslots = [...(listing.timeslots || [])]
     .sort((first, second) => first.startTime.localeCompare(second.startTime))
   const firstSlot = timeslots[0]
@@ -32,6 +48,8 @@ export function toListingRow(listing) {
     booked: firstSlot ? firstSlot.maxRecipients - firstSlot.remainingSlot : '—',
     status,
     statusClass: status.toLowerCase() === 'live' ? 'status-live' : 'status-draft',
+    // Same date the "Collect by" column shows
+    ...expiryLabel(listing.collectionDeadline || listing.expiryDate, now),
   }
 }
 

@@ -22,13 +22,16 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in listings" :key="item.id">
+        <tr v-for="item in listings" :key="item.id" :class="{ 'row-expired': item.expired }">
           <td>{{ item.name }}</td>
           <td>
             <template v-if="item.available != null">{{ item.available }} / {{ item.quantity }} left</template>
             <template v-else>{{ item.quantity }}</template>
           </td>
-          <td>{{ item.deadline }}</td>
+          <td>
+            <span :class="{ 'date-expired': item.expired }">{{ item.deadline }}</span>
+            <div v-if="item.expired" class="expired-ago">{{ item.expiredLabel }}</div>
+          </td>
           <td>{{ item.suburb }}, {{ item.stateRegion }}</td>
           <td>
             {{ item.slots }} <span class="text-soft">· {{ item.booked }} booked</span>
@@ -480,6 +483,12 @@ tbody tr:hover { background: #FBFAF6; }
 .badge-status { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px; }
 .status-live { background: var(--success-tint); color: var(--success); }
 .status-draft { background: var(--surface-2); color: var(--text-muted); }
+/* Expired rows are only highlighted; Edit and Cancel keep working */
+tbody tr.row-expired { background: #FDF5F4; }
+tbody tr.row-expired:hover { background: #FAEDEC; }
+tbody tr.row-expired td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.date-expired { color: var(--danger); font-weight: 700; }
+.expired-ago { font-size: 11.5px; color: var(--danger); margin-top: 2px; }
 
 .action-buttons { display: flex; gap: 8px; align-items: center; }
 .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: var(--r-sm); font-weight: 700; font-size: 12px; cursor: pointer; }
