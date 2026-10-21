@@ -20,6 +20,7 @@ import foodbank.webapp.repositories.ListingTagRepository;
 import foodbank.webapp.repositories.ListingRepository;
 import foodbank.webapp.repositories.TagRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
+import foodbank.webapp.repositories.RequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +44,7 @@ public class ListingService {
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
     private final GeocodingService geocodingService;
+    private final RequestRepository requestRepository;
 
     public Page<Listing> findAllListing(Pageable pageable){
         return listingRepository.findAll(pageable);
@@ -225,7 +227,9 @@ public class ListingService {
                 listing.getRegion(),
                 listing.getCategory() == null ? null : listing.getCategory().getCategoryId(),
                 listing.getDescription(), listing.getAddressLine(), listing.getIsAutoApproved(),
-                listing.getUsePickupCode(), listing.getHideContact(), listing.getSlotCapacity()
+                listing.getUsePickupCode(), listing.getHideContact(), listing.getSlotCapacity(),
+                requestRepository.countCompletedForListing(listing.getListingId()),
+                requestRepository.countApprovedForListing(listing.getListingId())
         );
     }
 

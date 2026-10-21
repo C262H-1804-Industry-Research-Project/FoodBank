@@ -41,7 +41,8 @@ function adminAccountRow(item) {
   const role = { DONOR: 'Donor', RECIPIENT: 'Recipient' }[item.role] || item.role
   return { userId: item.userId, name: item.name || `User #${item.userId}`, role, email: item.email || '',
     phone: item.phone || '', location: [item.suburb, item.region].filter(Boolean).join(', '), status,
-    reportsAgainst: item.reportsAgainst, banTimes: item.banTimes, banDaysRemaining: item.banDaysRemaining }
+    reportsAgainst: item.reportsAgainst, banTimes: item.banTimes, banDaysRemaining: item.banDaysRemaining,
+    collectionRate: `${item.completedCollections ?? 0}/${item.totalRequests ?? 0}` }
 }
 export function deactivateUser(userId, reason) {
   return apiRequest(`/admin/users/${userId}/ban`, { method: 'POST', body: { reason, banType: 'PERMANENT' } })

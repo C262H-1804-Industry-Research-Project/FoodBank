@@ -14,7 +14,7 @@
         <tr>
           <th>Food item</th>
           <th>Quantity</th>
-          <th>Collect by</th>
+          <th>Collection rate</th>
           <th>Location</th>
           <th>Pickup slots</th>
           <th>Status</th>
@@ -25,7 +25,7 @@
         <tr v-for="item in listings" :key="item.id">
           <td>{{ item.name }}</td>
           <td>{{ item.quantity }}</td>
-          <td>{{ item.deadline }}</td>
+          <td>{{ item.collectionRate || '0/0' }}</td>
           <td>{{ item.suburb }}, {{ item.stateRegion }}</td>
           <td>
             {{ item.slots }} <span class="text-soft">· {{ item.booked }} booked</span>

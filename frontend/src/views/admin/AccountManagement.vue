@@ -51,6 +51,7 @@
             <th>Role</th>
             <th>Email</th>
             <th>Phone</th>
+            <th>Collection rate</th>
             <th>Status</th>
             <th style="text-align:right;">Actions</th>
           </tr>
@@ -71,6 +72,7 @@
             </td>
             <td>{{ user.email }}</td>
             <td>{{ user.phone || '—' }}</td>
+            <td>{{ user.collectionRate }}</td>
             <td>
               <span class="badge-status" :class="statusClass(user.status)">
                 {{ user.status }}
