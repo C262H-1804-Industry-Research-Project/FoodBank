@@ -37,10 +37,7 @@
           v-if="currentPanel === 'listings'" 
           :donor-id="donorId"
           :donor-address="donorAddress"
-          :listings="listingsData"
           @create-new="currentPanel = 'newlisting'"
-          @update-listing="handleUpdateListing"
-          @delete-listing="handleDeleteListing"
         />
 
         <!-- 2. New Listing Form Panel -->
@@ -106,9 +103,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { clearSession, getDonorDonationHistory, getDonorListings, getDonorSettings, getStoredSession, logout } from '../../api/client'
+import { clearSession, getDonorDonationHistory, getDonorSettings, getStoredSession, logout } from '../../api/client'
 import { fetchDonorRequests, changePickupRequest, donorRequestRow } from '../../api/pickupRequests'
-import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
+import { toDonorAddress } from '../../api/donorListingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -147,21 +144,7 @@ async function handleLogout() {
 
 const session = getStoredSession()
 const donorId = Number(session?.user?.donorId)
-const listingsData = ref([])
 const listingsController = new AbortController()
-
-async function loadListings() {
-  try {
-    const listings = await getDonorListings(donorId, listingsController.signal)
-    if (!listingsController.signal.aborted) {
-      listingsData.value = listings.map(toListingRow)
-    }
-  } catch (error) {
-    if (!listingsController.signal.aborted) {
-      console.error('Unable to load donor listings.', error)
-    }
-  }
-}
 
 // The donor's own address, used by "same as my organisation's address" on listings
 const donorAddress = ref(null)
@@ -178,30 +161,15 @@ async function loadDonorAddress() {
 }
 
 onMounted(() => {
-  loadListings()
   loadDonorAddress()
   // Loaded up front so the sidebar can show the pending count before the panel is opened
   loadRequestList()
-  console.log("requests", requestsData.value)
 })
 onBeforeUnmount(() => listingsController.abort())
 
-function handleAddListing(newItem) {
-  listingsData.value.unshift(newItem)
+// My listings loads page 1 (newest first) when it opens, so the new listing is at the top
+function handleAddListing() {
   currentPanel.value = 'listings'
-  // Reload so fields the backend filled in (e.g. the donor's own pickup address) are shown
-  loadListings()
-}
-
-function handleUpdateListing(updatedItem) {
-  const index = listingsData.value.findIndex(item => item.id === updatedItem.id)
-  if (index !== -1) {
-    listingsData.value[index] = updatedItem
-  }
-}
-
-function handleDeleteListing(id) {
-  listingsData.value = listingsData.value.filter(item => item.id !== id)
 }
 
 // This panel uses the donor's persisted requests.

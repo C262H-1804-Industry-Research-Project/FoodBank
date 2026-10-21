@@ -71,7 +71,44 @@ class ListingApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
                         .header("Authorization", bearer(donor.getUserId(), "donor")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].timeslots[0].timeslotId").value(timeslot.getTimeslotId()));
+                .andExpect(jsonPath("$.content[0].timeslots[0].timeslotId").value(timeslot.getTimeslotId()));
+    }
+
+    @Test
+    void donorListingsArePagedNewestFirst() throws Exception {
+        Donor donor = createDonor();
+        for (int i = 1; i <= 7; i++) createLiveListing(donor, "Listing " + i);
+        createLiveListing(createDonor(), "Someone else's listing");
+
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId()).param("page", "0").param("size", "5")
+                        .header("Authorization", bearer(donor.getUserId(), "donor")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(5)))
+                .andExpect(jsonPath("$.content[0].name").value("Listing 7"))
+                .andExpect(jsonPath("$.page.totalElements").value(7))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId()).param("page", "1").param("size", "5")
+                        .header("Authorization", bearer(donor.getUserId(), "donor")))
+                .andExpect(jsonPath("$.content[*].name").value(org.hamcrest.Matchers.contains("Listing 2", "Listing 1")));
+    }
+
+    @Test
+    void donorCannotReadAnotherDonorsListings() throws Exception {
+        Donor donor = createDonor();
+        Donor other = createDonor();
+
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
+                        .header("Authorization", bearer(other.getUserId(), "donor")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void donorListingsRejectInvalidPageSize() throws Exception {
+        Donor donor = createDonor();
+
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId()).param("size", "0")
+                        .header("Authorization", bearer(donor.getUserId(), "donor")))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

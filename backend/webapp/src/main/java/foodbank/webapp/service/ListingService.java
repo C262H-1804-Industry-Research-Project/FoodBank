@@ -194,10 +194,9 @@ public class ListingService {
         );
     }
 
-    public List<MyListingResponse> getMyListings(Integer donorId) {
-        return listingRepository.findByDonorId(donorId).stream()
-                .map(this::toMyListingResponse)
-                .toList();
+    public Page<MyListingResponse> getMyListings(Integer donorId, Pageable pageable) {
+        return listingRepository.findByDonorIdOrderByListingIdDesc(donorId, pageable)
+                .map(this::toMyListingResponse);
     }
 
     private MyListingResponse toMyListingResponse(Listing listing) {

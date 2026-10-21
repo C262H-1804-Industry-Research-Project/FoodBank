@@ -112,21 +112,42 @@ paths:
   /api/donors/{donorId}/listings:
     get:
       tags: [donor]
-      summary: Get a donor's listings
+      summary: Get one page of your own listings, newest first
       parameters:
         - name: donorId
           in: path
           required: true
           schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 5, minimum: 1, maximum: 100 }
       responses:
         '200':
-          description: Donor listings
+          description: >-
+            A page of the donor's listings: content holds MyListingResponse items and
+            page holds size, number, totalElements and totalPages
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MyListingResponse'
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MyListingResponse'
+                  page:
+                    type: object
+                    properties:
+                      size: { type: integer }
+                      number: { type: integer }
+                      totalElements: { type: integer }
+                      totalPages: { type: integer }
+        '400': { description: Invalid page or size }
+        '401': { description: Authentication required }
+        '403': { description: Not your donor account }
     post:
       tags: [donor]
       summary: Create a listing for a donor

@@ -1,6 +1,8 @@
 package foodbank.webapp.repositories;
 
 import foodbank.webapp.entity.Listing;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -15,6 +17,8 @@ import java.util.Optional;
 @Repository
 public interface ListingRepository extends JpaRepository<Listing, Integer>, JpaSpecificationExecutor<Listing> {
     List<Listing> findByDonorId(Integer donorId);
+
+    Page<Listing> findByDonorIdOrderByListingIdDesc(Integer donorId, Pageable pageable);
 
     // Row lock held until the transaction ends; used wherever stock is checked and then changed
     @Lock(LockModeType.PESSIMISTIC_WRITE)
