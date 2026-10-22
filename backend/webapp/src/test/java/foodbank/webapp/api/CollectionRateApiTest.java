@@ -10,11 +10,21 @@ import org.springframework.test.context.TestPropertySource;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.contains;
 
 @TestPropertySource(properties = "JWT_SECRET=dGVzdC1vbmx5LWp3dC1zZWNyZXQta2V5LWZvci1mb29kYmFuay0xMjM0NTY3OA==")
 class CollectionRateApiTest extends ApiTestSupport {
     @Autowired private RequestRepository requestRepository;
     @Autowired private CollectionHistoryRepository historyRepository;
+
+    private void assertAdminRate(Integer userId, Integer listingId, int completed, int approved) throws Exception {
+        String row = "$.content[?(@.listing.listingId == " + listingId + ")]";
+        mockMvc.perform(get("/api/admin/listings").param("size", "100")
+                        .header("Authorization", bearer(userId, "admin")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(row + ".completedRequests", contains(completed)))
+                .andExpect(jsonPath(row + ".approvedRequests", contains(approved)));
+    }
 
     @Test
     void threeApprovedRequestsWithOneCompletedHistoryReturnOneOutOfThree() throws Exception {
@@ -38,6 +48,7 @@ class CollectionRateApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].completedRequests").value(1))
                 .andExpect(jsonPath("$[0].approvedRequests").value(3));
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 1, 3);
     }
 
     @Test
@@ -55,16 +66,18 @@ class CollectionRateApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].completedRequests").value(1))
                 .andExpect(jsonPath("$[0].approvedRequests").value(3));
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 1, 3);
     }
 
     @Test
     void listingWithoutRequestsReturnsZeroCounts() throws Exception {
         var donor = createDonor();
-        createLiveListing(donor, "Milk");
+        var listing = createLiveListing(donor, "Milk");
         mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
                         .header("Authorization", bearer(donor.getUserId(), "donor")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].completedRequests").value(0))
                 .andExpect(jsonPath("$[0].approvedRequests").value(0));
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 0, 0);
     }
 }

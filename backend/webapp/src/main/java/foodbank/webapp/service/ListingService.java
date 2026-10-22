@@ -52,7 +52,9 @@ public class ListingService {
 
     public Page<foodbank.webapp.dto.AdminListingResponse> findAdminListings(Pageable pageable) {
         return findAllListing(pageable).map(listing -> new foodbank.webapp.dto.AdminListingResponse(
-                toListingResponse(listing, null), listing.getStatus(), listing.getQuantity()));
+                toListingResponse(listing, null), listing.getStatus(), listing.getQuantity(),
+                requestRepository.countCompletedForListing(listing.getListingId()),
+                requestRepository.countApprovedForListing(listing.getListingId())));
     }
 
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
