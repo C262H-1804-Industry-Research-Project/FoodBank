@@ -7,7 +7,7 @@ import RecipientIndex from './views/recipient/RecipientIndex.vue'
 import AdminIndex from './views/admin/AdminIndex.vue'
 import router from './router'
 import { storeSession, getStoredSession } from './api/client'
-import { recipientRequestRow, donorRequestRow, canCancelPickup, isPickupOpen } from './api/pickupRequests'
+import { recipientRequestRow, donorRequestRow, canCancelPickup, cancelBlockedReason, isPickupOpen } from './api/pickupRequests'
 
 const { push, reloadBrowse } = vi.hoisted(() => ({ push: vi.fn(), reloadBrowse: vi.fn() }))
 vi.mock('vue-router', async original => ({ ...(await original()), useRouter: () => ({ push }) }))
@@ -137,6 +137,21 @@ async function donorPanel(records, fail = false) {
 }
 
 describe('donor pickup review', () => {
+  it('shows the number of pending requests on the sidebar item, updating after a review', async () => {
+    await donorPanel([record('PENDING'), { ...record('PENDING'), requestId: 124 }, { ...record('APPROVED'), requestId: 125 }])
+    const badge = () => wrapper.findAll('.sb-item')[2].find('.sb-badge')
+    expect(badge().text()).toBe('2')
+    expect(badge().attributes('aria-label')).toBe('2 pending requests')
+    await wrapper.get('.btn-approve').trigger('click')
+    await flushPromises()
+    expect(badge().text()).toBe('1')
+  })
+
+  it('hides the pending badge when nothing is pending', async () => {
+    await donorPanel([record('APPROVED')])
+    expect(wrapper.find('.sb-badge').exists()).toBe(false)
+  })
+
   it('loads real rows and supports all three filters', async () => {
     await donorPanel([record('PENDING'), { ...record('APPROVED'), requestId: 124 }])
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
@@ -169,6 +184,44 @@ describe('donor pickup review', () => {
     await wrapper.findAll('.status-tabs button')[0].trigger('click')
     expect(wrapper.get('tbody').text()).toContain('Completed')
     expect(wrapper.find('.btn-verify-code').exists()).toBe(false)
+  })
+
+  it('shows the handover deadline on approved rows', async () => {
+    await donorPanel([{ ...record('APPROVED'), handoverDeadline: '2026-10-21T11:15:00' }])
+    await wrapper.findAll('.status-tabs button')[2].trigger('click')
+    expect(wrapper.get('.handover-by').text()).toBe('Handover by 11:15')
+  })
+
+  it('lets the donor correct an expired request to collected until its stock is released', async () => {
+    const fetchMock = await donorPanel([{ ...record('EXPIRED'), stockReleased: false }])
+    await wrapper.findAll('.status-tabs button')[3].trigger('click')
+    expect(wrapper.get('.btn-verify-code').text()).toBe('Mark as collected')
+    await wrapper.get('.btn-verify-code').trigger('click')
+    await wrapper.get('.btn-confirm-handover').trigger('click')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledWith('/api/donors/5/requests/123/complete', expect.objectContaining({ method: 'PATCH' }))
+    await wrapper.findAll('.status-tabs button')[0].trigger('click')
+    expect(wrapper.get('tbody').text()).toContain('Completed')
+  })
+
+  it('marks expired rows whose stock the nightly release has freed', async () => {
+    await donorPanel([
+      { ...record('EXPIRED'), stockReleased: true },
+      { ...record('EXPIRED'), requestId: 124, stockReleased: false },
+    ])
+    await wrapper.findAll('.status-tabs button')[3].trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    expect(wrapper.findAll('.stock-released')).toHaveLength(1)
+    expect(wrapper.get('.stock-released').text()).toBe('Stock released')
+    // Only the unreleased row can still be corrected
+    expect(wrapper.findAll('.btn-verify-code')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Not collected')
+  })
+
+  it('shows the empty message instead of sample rows when the donor has no requests', async () => {
+    await donorPanel([])
+    expect(wrapper.find('tbody').exists()).toBe(false)
+    expect(wrapper.text()).toContain('No requests found for this filter tab.')
   })
 
   it('preserves the pending row if PATCH fails', async () => {
@@ -371,6 +424,27 @@ describe('request display and time boundaries', () => {
     expect(row.address).toBe(status === 'APPROVED' ? '1 Test Street' : null)
     expect(donorRequestRow(record(status)).phone).toBe('0400000000')
   })
+  it('labels expired requests and tells donor declines apart from automatic rejections', () => {
+    const expired = recipientRequestRow(record('EXPIRED'))
+    expect([expired.status, expired.code, expired.address]).toEqual(['Expired', null, null])
+    expect(cancelBlockedReason(expired)).toBe('Pickup window has ended')
+    expect(donorRequestRow(record('EXPIRED'))).toMatchObject({ status: 'Expired', statusClass: 'status-expired' })
+
+    const auto = { ...record('REJECTED'), rejectionReason: 'NOT_REVIEWED_IN_TIME' }
+    expect(recipientRequestRow(auto).status).toBe('Not reviewed in time')
+    expect(cancelBlockedReason(recipientRequestRow(auto))).toBe('Not reviewed before pickup')
+    expect(donorRequestRow(auto).status).toBe('Auto-rejected')
+
+    const declined = { ...record('REJECTED'), rejectionReason: 'DECLINED_BY_DONOR' }
+    expect(recipientRequestRow(declined).status).toBe('Declined')
+    expect(donorRequestRow(declined).status).toBe('Declined')
+  })
+
+  it('shows what is left of the listing on donor request rows', () => {
+    expect(donorRequestRow({ ...record('PENDING'), availableQuantity: 8 }).totalStock).toBe('8 of 10 units')
+    expect(donorRequestRow(record('PENDING')).totalStock).toBe('10 units')
+  })
+
   it('permits active cancellation strictly before pickup starts', () => {
     const start = new Date(slot.startTime).getTime()
     for (const status of ['PENDING', 'APPROVED']) {

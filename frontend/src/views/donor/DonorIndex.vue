@@ -11,6 +11,11 @@
         @click="currentPanel = item.key"
       >
         <span class="dot-ic"></span>{{ item.name }}
+        <span
+          v-if="item.key === 'requests' && pendingCount > 0"
+          class="sb-badge"
+          :aria-label="`${pendingCount} pending ${pendingCount === 1 ? 'request' : 'requests'}`"
+        >{{ pendingCount > 99 ? '99+' : pendingCount }}</span>
       </div>
       <div class="sb-logout" @click="handleLogout">
         <span class="dot-ic"></span>Log out
@@ -40,10 +45,7 @@
           v-if="currentPanel === 'listings'" 
           :donor-id="donorId"
           :donor-address="donorAddress"
-          :listings="listingsData"
           @create-new="currentPanel = 'newlisting'"
-          @update-listing="handleUpdateListing"
-          @delete-listing="handleDeleteListing"
         />
 
         <!-- 2. New Listing Form Panel -->
@@ -121,13 +123,12 @@ import { useRouter } from 'vue-router'
 import {
   clearSession,
   getDonorDonationHistory,
-  getDonorListings,
   getDonorSettings,
   getStoredSession,
   logout,
 } from '../../api/client'
 import { fetchDonorRequests, changePickupRequest, donorRequestRow } from '../../api/pickupRequests'
-import { toDonorAddress, toListingRow } from '../../api/donorListingAdapter'
+import { toDonorAddress } from '../../api/donorListingAdapter'
 
 import MyListings from './MyListings.vue'
 import NewListing from './NewListing.vue'
@@ -182,21 +183,7 @@ async function handleLogout() {
 
 const session = getStoredSession()
 const donorId = Number(session?.user?.donorId)
-const listingsData = ref([])
 const listingsController = new AbortController()
-
-async function loadListings() {
-  try {
-    const listings = await getDonorListings(donorId, listingsController.signal)
-    if (!listingsController.signal.aborted) {
-      listingsData.value = listings.map(toListingRow)
-    }
-  } catch (error) {
-    if (!listingsController.signal.aborted) {
-      console.error('Unable to load donor listings.', error)
-    }
-  }
-}
 
 // The donor's own address, used by "same as my organisation's address" on listings
 const donorAddress = ref(null)
@@ -213,32 +200,21 @@ async function loadDonorAddress() {
 }
 
 onMounted(() => {
-  loadListings()
   loadDonorAddress()
+  // Loaded up front so the sidebar can show the pending count before the panel is opened
+  loadRequestList()
 })
 onBeforeUnmount(() => listingsController.abort())
 
-function handleAddListing(newItem) {
-  listingsData.value.unshift(newItem)
+// My listings loads page 1 (newest first) when it opens, so the new listing is at the top
+function handleAddListing() {
   currentPanel.value = 'listings'
-  // Reload so fields the backend filled in (e.g. the donor's own pickup address) are shown
-  loadListings()
-}
-
-function handleUpdateListing(updatedItem) {
-  const index = listingsData.value.findIndex(item => item.id === updatedItem.id)
-  if (index !== -1) {
-    listingsData.value[index] = updatedItem
-  }
-}
-
-function handleDeleteListing(id) {
-  listingsData.value = listingsData.value.filter(item => item.id !== id)
 }
 
 // This panel uses the donor's persisted requests.
 const requestsData = ref([])
 const requestLoading = ref(false)
+const pendingCount = computed(() => requestsData.value.filter(row => row.status === 'Pending').length)
 const requestError = ref('')
 const requestBusy = ref(false)
 
@@ -259,8 +235,8 @@ watch(currentPanel, panel => { if (panel === 'requests') loadRequestList() })
 
 async function processPickup(id, action) {
   if (requestBusy.value || requestLoading.value) return
-  const expected = action === 'complete' ? 'Approved' : 'Pending'
-  const index = requestsData.value.findIndex(row => row.id === id && row.status === expected)
+  const expected = action === 'complete' ? ['Approved', 'Expired'] : ['Pending']
+  const index = requestsData.value.findIndex(row => row.id === id && expected.includes(row.status))
   if (index < 0) return
   requestBusy.value = true
   try {
@@ -324,6 +300,8 @@ function handleReportSubmitted() {
 .sb-item:hover { background: rgba(255,255,255,.06); color: #fff; }
 .sb-item.active { background: #EADFBF; color: var(--primary-dark); }
 .sb-item.active .dot-ic { background: var(--primary-dark); }
+.sb-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #E29B9B; color: #2A1414; font-size: 11px; font-weight: 800; line-height: 20px; text-align: center; }
+.sb-item.active .sb-badge { background: var(--primary-dark); color: #fff; }
 .sb-logout { margin-top: auto; padding: 10px 12px; border-radius: 8px; font-size: 13.5px; font-weight: 600; color: #E29B9B; cursor: pointer; display: flex; align-items: center; gap: 10px; }
 .sb-logout .dot-ic { width: 6px; height: 6px; border-radius: 50%; background: #E29B9B; flex: 0 0 6px; }
 .sb-logout:hover { background: rgba(255,255,255,.06); }

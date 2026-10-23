@@ -43,6 +43,7 @@ public class ListingService {
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
     private final GeocodingService geocodingService;
+    private final ListingStockService listingStockService;
 
     public Page<Listing> findAllListing(Pageable pageable){
         return listingRepository.findAll(pageable);
@@ -188,14 +189,14 @@ public class ListingService {
                 listing.getDonor() == null ? null : listing.getDonor().getOrgName(),
                 listing.getSuburb(),
                 listing.getRegion(),
-                distanceKm
+                distanceKm,
+                listingStockService.available(listing)
         );
     }
 
-    public List<MyListingResponse> getMyListings(Integer donorId) {
-        return listingRepository.findByDonorId(donorId).stream()
-                .map(this::toMyListingResponse)
-                .toList();
+    public Page<MyListingResponse> getMyListings(Integer donorId, Pageable pageable) {
+        return listingRepository.findByDonorIdOrderByListingIdDesc(donorId, pageable)
+                .map(this::toMyListingResponse);
     }
 
     private MyListingResponse toMyListingResponse(Listing listing) {
@@ -225,7 +226,8 @@ public class ListingService {
                 listing.getRegion(),
                 listing.getCategory() == null ? null : listing.getCategory().getCategoryId(),
                 listing.getDescription(), listing.getAddressLine(), listing.getIsAutoApproved(),
-                listing.getUsePickupCode(), listing.getHideContact(), listing.getSlotCapacity()
+                listing.getUsePickupCode(), listing.getHideContact(), listing.getSlotCapacity(),
+                listingStockService.available(listing)
         );
     }
 
@@ -262,7 +264,7 @@ public class ListingService {
 
     @Transactional
     public MyListingResponse updateListing(Integer donorId, Integer listingId, foodbank.webapp.dto.UpdateListingRequest request) {
-        Listing listing = listingRepository.findById(listingId)
+        Listing listing = listingRepository.findByIdForUpdate(listingId)
                 .orElseThrow(() -> new java.util.NoSuchElementException("Listing not found"));
         if (!listing.getDonor().getId().equals(donorId)) {
             throw new java.util.NoSuchElementException("Listing not found for donor");
@@ -310,6 +312,11 @@ public class ListingService {
         }
         if (!"LIVE".equals(request.status()) && !"DRAFT".equals(request.status())) {
             throw new IllegalArgumentException("status must be LIVE or DRAFT");
+        }
+        float held = listingStockService.held(listing);
+        if (request.quantity() < held) {
+            throw new foodbank.webapp.exceptions.ConflictException(
+                    "Quantity cannot be below reserved stock (" + ListingStockService.format(held) + ")");
         }
         var slots = timeslotRepository.findByListing(listing);
         // Slots the edit removes; refuse before changing anything if any of them is booked

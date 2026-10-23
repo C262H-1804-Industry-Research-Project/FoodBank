@@ -40,6 +40,8 @@ export function toListingCard(item, now = new Date()) {
     stateRegion: item.region || '',
     distanceKm: Number.isFinite(item.distanceKm) ? item.distanceKm : null,
     capacity: item.maxDailyCapacity == null ? 'unlimited' : item.maxDailyCapacity,
+    available: Number.isFinite(item.availableQuantity) ? item.availableQuantity : null,
+    fullyReserved: Number.isFinite(item.availableQuantity) && item.availableQuantity <= 0,
     // tags: (item.tags || []).map(tag => labels[tag.trim().toLowerCase().replace(/\s+/g, '-')] || tag),
     tags: item.tags || [],
     emoji: { Bakery: '🥖', Produce: '🥗', Pantry: '🥫', Dairy: '🥛' }[item.category] || '🍲',

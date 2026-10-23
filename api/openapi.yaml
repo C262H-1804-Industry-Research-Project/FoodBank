@@ -60,7 +60,10 @@ paths:
           schema: { type: integer, default: 10, minimum: 1 }
       responses:
         '200':
-          description: A paged listing result
+          description: >-
+            A paged listing result. Each listing includes availableQuantity (quantity not held by
+            pending, approved, completed or expired requests); fully reserved listings are still
+            returned with availableQuantity 0.
   /api/listings/categories:
     get:
       tags: [listing-catalogue]
@@ -109,21 +112,42 @@ paths:
   /api/donors/{donorId}/listings:
     get:
       tags: [donor]
-      summary: Get a donor's listings
+      summary: Get one page of your own listings, newest first
       parameters:
         - name: donorId
           in: path
           required: true
           schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 5, minimum: 1, maximum: 100 }
       responses:
         '200':
-          description: Donor listings
+          description: >-
+            A page of the donor's listings: content holds MyListingResponse items and
+            page holds size, number, totalElements and totalPages
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MyListingResponse'
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MyListingResponse'
+                  page:
+                    type: object
+                    properties:
+                      size: { type: integer }
+                      number: { type: integer }
+                      totalElements: { type: integer }
+                      totalPages: { type: integer }
+        '400': { description: Invalid page or size }
+        '401': { description: Authentication required }
+        '403': { description: Not your donor account }
     post:
       tags: [donor]
       summary: Create a listing for a donor
@@ -179,6 +203,8 @@ paths:
           description: Invalid listing data
         '404':
           description: Listing not found for donor
+        '409':
+          description: Booked timeslots removed, capacity below bookings, or quantity below reserved stock
     delete:
       tags: [donor]
       summary: Delete a donor listing
@@ -294,7 +320,9 @@ paths:
         '404':
           description: Timeslot not found
         '409':
-          description: Listing not live, timeslot fully booked or started, or recipient already requested this timeslot
+          description: >-
+            Listing not live or fully reserved, quantity above what is left, timeslot fully booked
+            or started, or recipient already requested this timeslot
     get:
       tags: [recipient-request]
       summary: Get the signed-in recipient's pickup requests
@@ -362,7 +390,7 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request has already been processed or cancelled }
+        '409': { description: Request has already been processed or cancelled, or the pickup slot has ended }
   /api/donors/{donorId}/requests/{requestId}/reject:
     patch:
       tags: [donor-request]
@@ -379,11 +407,13 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request has already been processed or cancelled }
+        '409': { description: Request has already been processed or cancelled, or the pickup slot has ended }
   /api/donors/{donorId}/requests/{requestId}/complete:
     patch:
       tags: [donor-request]
-      summary: Confirm handover of an approved request belonging to your donor account
+      summary: >-
+        Confirm handover of an approved request (up to its handoverDeadline), or correct an expired
+        request to COMPLETED before its stock is released
       parameters:
         - { name: donorId, in: path, required: true, schema: { type: integer } }
         - { name: requestId, in: path, required: true, schema: { type: integer } }
@@ -396,7 +426,10 @@ paths:
         '401': { description: Authentication required }
         '403': { description: Not your donor account or request }
         '404': { description: Donor or request not found }
-        '409': { description: Request is not approved }
+        '409':
+          description: >-
+            Request is not approved or expired, an approved request is past its handover deadline,
+            or an expired request's stock has already been released
 
   /admin/listings:
     get:
@@ -555,6 +588,10 @@ components:
             $ref: '#/components/schemas/TimeSlot'
         suburb: { type: string }
         region: { type: string }
+        availableQuantity:
+          type: number
+          format: float
+          description: Quantity not held by pending, approved, completed or expired requests
     TimeSlot:
       type: object
       properties:
@@ -656,7 +693,7 @@ components:
         timeslotStart: { type: string }
         timeslotEnd: { type: string }
         quantityRequested: { type: number, format: float }
-        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED] }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED, EXPIRED] }
         pickupCode: { type: string, nullable: true }
         note: { type: string, nullable: true }
         donorName: { type: string }
@@ -667,6 +704,22 @@ components:
         recipientOrg: { type: string, nullable: true }
         recipientPhone: { type: string, nullable: true }
         listingQuantity: { type: number, format: float, nullable: true }
+        availableQuantity: { type: number, format: float, description: What is left of the listing }
+        handoverDeadline:
+          type: string
+          nullable: true
+          description: Slot end plus the handover grace period (15 minutes by default); set only for APPROVED or EXPIRED requests
+        rejectionReason:
+          type: string
+          nullable: true
+          enum: [DECLINED_BY_DONOR, NOT_REVIEWED_IN_TIME]
+          description: Set only when status is REJECTED
+        stockReleased:
+          type: boolean
+          description: >-
+            True once the daily release (00:20 Adelaide time, plus once on server startup) has
+            stopped this EXPIRED request holding listing stock. Only requests whose slot ended by
+            midnight are released; the request stays EXPIRED
     CatalogueItemResponse:
       type: object
       required: [id, name]

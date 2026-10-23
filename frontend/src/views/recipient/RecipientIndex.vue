@@ -116,8 +116,8 @@
         </div>
         
         <div class="field">
-          <label class="field-label">Quantity <span style="font-weight:500;color:var(--text-soft);">(max {{ modalItem.capacity }} per recipient)</span></label>
-          <input type="number" min="0" step="any" v-model="modalForm.qty" :disabled="submissionPending" placeholder="e.g. 4">
+          <label class="field-label">Quantity <span style="font-weight:500;color:var(--text-soft);">(max {{ modalItem.capacity }} per recipient<template v-if="modalItem.available != null"> · {{ modalItem.available }} left</template>)</span></label>
+          <input type="number" min="0" :max="modalItem.available ?? undefined" step="any" v-model="modalForm.qty" :disabled="submissionPending" placeholder="e.g. 4">
         </div>
         
         <div class="field">
@@ -319,6 +319,10 @@ async function confirmRequest() {
   }
   if (!Number.isFinite(quantity) || quantity <= 0) {
     window.alert('Enter a quantity greater than zero.')
+    return
+  }
+  if (Number.isFinite(modalItem.value.available) && quantity > modalItem.value.available) {
+    window.alert(`Only ${modalItem.value.available} left for this listing.`)
     return
   }
   if (Number.isFinite(modalItem.value.capacity) && quantity > modalItem.value.capacity) {
