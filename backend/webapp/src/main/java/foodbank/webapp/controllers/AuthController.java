@@ -52,4 +52,11 @@ public class AuthController {
                 "Logout successful"
         );
     }
+    @PostMapping("/register-both")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DualRoleRegisterResponse registerBoth(
+            @RequestBody DualRoleRegisterRequest request
+    ) {
+        return userService.createDualRoleUser(request);
+    }
 }

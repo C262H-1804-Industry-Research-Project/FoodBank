@@ -78,7 +78,8 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/api/auth/login",
                                 "/api/auth/register-recipients",
-                                "/api/auth/register-donors"
+                                "/api/auth/register-donors",
+                                "/api/auth/register-both"
                         ).permitAll()
 
                         // Public listing browsing endpoints.
@@ -141,7 +142,16 @@ public class SecurityConfig {
                                 "/api/donors/*/reports",
                                 "/api/donors/*/collection-history"
                         ).hasRole("DONOR")
-
+                        // Donors and recipients can switch between their own profiles.
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/account/switch-role",
+                                "/api/account/link",
+                                "/api/account/add-role"
+                        ).hasAnyRole(
+                                "DONOR",
+                                "RECIPIENT"
+                        )
                         // Future APIs are protected by default.
                         .anyRequest().authenticated()
                 )
