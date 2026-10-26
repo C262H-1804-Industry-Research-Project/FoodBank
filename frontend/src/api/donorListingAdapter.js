@@ -27,6 +27,7 @@ export function toListingRow(listing, { now = new Date() } = {}) {
     name: listing.name,
     category: listing.category,
     quantity: listing.quantity,
+    collectionRate: `${listing.completedRequests ?? 0}/${listing.approvedRequests ?? 0}`,
     available: listing.availableQuantity ?? null,
     deadline: listing.collectionDeadline || listing.expiryDate || '—',
     collectionDeadline: listing.collectionDeadline,

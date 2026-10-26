@@ -16,6 +16,7 @@
         <tr>
           <th>Food item</th>
           <th>Quantity</th>
+          <th>Collection rate</th>
           <th>Collect by</th>
           <th>Location</th>
           <th>Pickup slots</th>
@@ -30,6 +31,7 @@
             <template v-if="item.available != null">{{ item.available }} / {{ item.quantity }} left</template>
             <template v-else>{{ item.quantity }}</template>
           </td>
+          <td>{{ item.collectionRate || '0/0' }}</td>
           <td>
             <span :class="{ 'date-expired': item.expired }">{{ item.deadline }}</span>
             <div v-if="item.expired" class="expired-ago">{{ item.expiredLabel }}</div>

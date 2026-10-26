@@ -159,10 +159,16 @@ public class AdminAccountService {
         User user = row.user();
         long activityCount;
         long successfulCollections;
+        long totalRequests;
+        long completedCollections;
         if (row.donor() != null) {
+            totalRequests = requestRepository.countTotalByDonorId(row.donor().getId());
+            completedCollections = requestRepository.countCollectedByDonorId(row.donor().getId());
             activityCount = listingRepository.countByDonor_Id(row.donor().getId());
             successfulCollections = collectionHistoryRepository.countSuccessfulByDonorId(row.donor().getId());
         } else {
+            totalRequests = requestRepository.countByRecipientId(row.recipient().getRecipientId());
+            completedCollections = requestRepository.countCollectedByRecipientId(row.recipient().getRecipientId());
             activityCount = requestRepository.countByRecipientId(row.recipient().getRecipientId());
             successfulCollections = collectionHistoryRepository.countSuccessfulByRecipientId(row.recipient().getRecipientId());
         }
@@ -179,7 +185,9 @@ public class AdminAccountService {
                 activityCount,
                 successfulCollections,
                 banRecordRepository.countByUserId(user.getUserId()),
-                banDaysRemaining(user.getUserId())
+                banDaysRemaining(user.getUserId()),
+                totalRequests,
+                completedCollections
         );
     }
 

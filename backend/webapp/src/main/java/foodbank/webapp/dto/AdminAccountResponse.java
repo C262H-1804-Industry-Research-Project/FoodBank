@@ -15,6 +15,8 @@ public record AdminAccountResponse(
         long activityCount,
         long successfulCollections,
         long banTimes,
-        Long banDaysRemaining
+        Long banDaysRemaining,
+        long totalRequests,
+        long completedCollections
 ) {
 }

@@ -11,6 +11,34 @@ import java.util.List;
 
 public interface RequestRepository extends JpaRepository<Request, Integer> {
 
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.timeslotId IN " +
+            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId)")
+    long countTotalByDonorId(@Param("donorId") Integer donorId);
+
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.timeslotId IN " +
+            "(SELECT t.timeslotId FROM Timeslot t WHERE t.listing.donor.id = :donorId) " +
+            "AND (r.status = 'COMPLETED' OR EXISTS (SELECT h.historyId FROM CollectionHistory h " +
+            "WHERE h.requestId = r.requestId AND h.donorId = :donorId " +
+            "AND (h.status IS NULL OR TRIM(h.status) = '' OR UPPER(h.status) = 'COMPLETED')))")
+    long countCollectedByDonorId(@Param("donorId") Integer donorId);
+
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.recipientId = :recipientId " +
+            "AND (r.status = 'COMPLETED' OR EXISTS (SELECT h.historyId FROM CollectionHistory h " +
+            "WHERE h.requestId = r.requestId AND h.recipientId = :recipientId " +
+            "AND (h.status IS NULL OR TRIM(h.status) = '' OR UPPER(h.status) = 'COMPLETED')))")
+    long countCollectedByRecipientId(@Param("recipientId") Integer recipientId);
+
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.status IN ('APPROVED', 'COMPLETED', 'FAILED') " +
+            "AND r.timeslotId IN (SELECT t.timeslotId FROM Timeslot t WHERE t.listing.listingId = :listingId)")
+    long countApprovedForListing(@Param("listingId") Integer listingId);
+
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.status IN ('APPROVED', 'COMPLETED', 'FAILED') " +
+            "AND r.timeslotId IN (SELECT t.timeslotId FROM Timeslot t WHERE t.listing.listingId = :listingId) " +
+            "AND (r.status = 'COMPLETED' OR EXISTS (SELECT h.historyId FROM CollectionHistory h " +
+            "WHERE h.requestId = r.requestId AND h.listingId = :listingId " +
+            "AND (h.status IS NULL OR TRIM(h.status) = '' OR UPPER(h.status) = 'COMPLETED')))")
+    long countCompletedForListing(@Param("listingId") Integer listingId);
+
     List<Request> findByTimeslotId(Integer timeslotId);
 
     List<Request> findByRecipientId(Integer recipientId);

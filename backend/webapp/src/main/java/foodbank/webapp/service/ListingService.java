@@ -20,6 +20,7 @@ import foodbank.webapp.repositories.ListingTagRepository;
 import foodbank.webapp.repositories.ListingRepository;
 import foodbank.webapp.repositories.TagRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
+import foodbank.webapp.repositories.RequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +44,7 @@ public class ListingService {
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
     private final GeocodingService geocodingService;
+    private final RequestRepository requestRepository;
     private final ListingStockService listingStockService;
 
     public Page<Listing> findAllListing(Pageable pageable){
@@ -51,7 +53,9 @@ public class ListingService {
 
     public Page<foodbank.webapp.dto.AdminListingResponse> findAdminListings(Pageable pageable) {
         return findAllListing(pageable).map(listing -> new foodbank.webapp.dto.AdminListingResponse(
-                toListingResponse(listing, null), listing.getStatus(), listing.getQuantity()));
+                toListingResponse(listing, null), listing.getStatus(), listing.getQuantity(),
+                requestRepository.countCompletedForListing(listing.getListingId()),
+                requestRepository.countApprovedForListing(listing.getListingId())));
     }
 
     public Page<ListingResponse> findAllListingResponse(Pageable pageable){
@@ -227,6 +231,8 @@ public class ListingService {
                 listing.getCategory() == null ? null : listing.getCategory().getCategoryId(),
                 listing.getDescription(), listing.getAddressLine(), listing.getIsAutoApproved(),
                 listing.getUsePickupCode(), listing.getHideContact(), listing.getSlotCapacity(),
+                requestRepository.countCompletedForListing(listing.getListingId()),
+                requestRepository.countApprovedForListing(listing.getListingId()),
                 listingStockService.available(listing)
         );
     }

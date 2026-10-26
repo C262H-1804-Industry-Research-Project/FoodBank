@@ -21,5 +21,7 @@ public record MyListingResponse(
         Boolean usePickupCode,
         Boolean hideContact,
         Integer slotCapacity,
+        long completedRequests,
+        long approvedRequests,
         Float availableQuantity
 ) {}

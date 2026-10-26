@@ -6,11 +6,12 @@ export async function fetchAdminListings() {
   while (true) {
     const result = await apiRequest(`/admin/listings?page=${page}&size=100`)
     if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)) throw new Error('Invalid listing response')
-    rows.push(...result.content.map(({ listing: item, status, quantity }) => ({
+    rows.push(...result.content.map(({ listing: item, status, quantity, completedRequests, approvedRequests }) => ({
       id: item.listingId, name: item.foodName, donor: item.donorName || 'Unknown donor', category: item.category,
       quantity: `${quantity ?? 0} units`, suburb: item.suburb, stateRegion: item.region, tags: item.tags || [],
       status, photoUrl: item.photoUrl, emoji: '🍽️', timeslots: item.timeslots || [], description: item.description,
       timeType: pickupDay(item.timeslots || []),
+      collectionRate: `${completedRequests ?? 0}/${approvedRequests ?? 0}`,
     })))
     page++
     if (page >= result.page.totalPages) return rows
@@ -41,7 +42,8 @@ function adminAccountRow(item) {
   const role = { DONOR: 'Donor', RECIPIENT: 'Recipient' }[item.role] || item.role
   return { userId: item.userId, name: item.name || `User #${item.userId}`, role, email: item.email || '',
     phone: item.phone || '', location: [item.suburb, item.region].filter(Boolean).join(', '), status,
-    reportsAgainst: item.reportsAgainst, banTimes: item.banTimes, banDaysRemaining: item.banDaysRemaining }
+    reportsAgainst: item.reportsAgainst, banTimes: item.banTimes, banDaysRemaining: item.banDaysRemaining,
+    collectionRate: `${item.completedCollections ?? 0}/${item.totalRequests ?? 0}` }
 }
 export function deactivateUser(userId, reason) {
   return apiRequest(`/admin/users/${userId}/ban`, { method: 'POST', body: { reason, banType: 'PERMANENT' } })

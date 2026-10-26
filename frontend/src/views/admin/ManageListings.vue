@@ -68,6 +68,7 @@
             <th>Food name</th>
             <th>Donor</th>
             <th>Quantity</th>
+            <th>Collection rate</th>
             <th>Location</th>
             <th>Status</th>
             <th style="text-align:right;">Actions</th>
@@ -87,6 +88,7 @@
             <td>
               <strong>{{ item.quantity }}</strong>
             </td>
+            <td>{{ item.collectionRate || '0/0' }}</td>
             <td>
               📍 {{ item.suburb }}, {{ item.stateRegion }}
             </td>
