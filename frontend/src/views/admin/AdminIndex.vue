@@ -78,9 +78,8 @@ const router = useRouter()
 const navItems = [
   { key: 'listings', name: 'Food listings' },
   { key: 'users', name: 'User management' },
-  { key: 'approvals', name: 'Pending approvals' },
-  { key: 'reports', name: 'Reports & disputes' },
-  { key: 'settings', name: 'System settings' }
+  { key: 'reports', name: 'Reports & disputes' }
+  // Hidden until built: { key: 'approvals', name: 'Pending approvals' }, { key: 'settings', name: 'System settings' }
 ]
 
 const currentPanel = ref('listings')
