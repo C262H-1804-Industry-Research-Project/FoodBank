@@ -91,7 +91,9 @@
 
             <div class="lc-meta">
               📍 {{ item.suburb }}, {{ item.stateRegion }}<span v-if="item.distanceKm != null" class="lc-distance"> · ~ {{ formatDistance(item.distanceKm) }}</span><br>
-              🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}
+              🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}<br>
+              <span v-if="item.fullyReserved" class="lc-reserved">Fully reserved</span>
+              <span v-else-if="item.available != null">📦 {{ item.available }} units left</span>
             </div>
 
             <!-- Dietary tags -->
@@ -102,7 +104,9 @@
 
           <div class="lc-foot">
             <span class="lc-donor">{{ item.donor || 'Community Donor' }}</span>
-            <button class="btn-accent btn-sm" @click="emit('request', item)">Request</button>
+            <button class="btn-accent btn-sm" :disabled="item.fullyReserved" @click="emit('request', item)">
+              {{ item.fullyReserved ? 'Fully reserved' : 'Request' }}
+            </button>
           </div>
         </div>
       </div>
@@ -596,4 +600,6 @@ defineExpose({ reload: loadListings })
 @media (max-width: 980px) {
   .card-grid { grid-template-columns: 1fr 1fr; }
 }
+.lc-reserved { color: var(--danger); font-weight: 700; }
+.lc-foot .btn-accent:disabled { opacity: .5; cursor: not-allowed; }
 </style>

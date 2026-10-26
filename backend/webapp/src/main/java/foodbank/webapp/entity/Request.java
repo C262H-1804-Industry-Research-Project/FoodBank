@@ -8,6 +8,8 @@ import jakarta.persistence.Id;
 import foodbank.webapp.service.RequestService;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Setter
 @Getter
 @Builder
@@ -27,4 +29,10 @@ public class Request {
     // Optional message from the recipient to the donor.
     @Column(length = RequestService.MAX_NOTE_LENGTH)
     private String note;
+
+    // Why a REJECTED request was rejected: DECLINED_BY_DONOR or NOT_REVIEWED_IN_TIME
+    private String rejectionReason;
+
+    // When StockReleaseService stopped this EXPIRED request holding listing stock; null while it still holds it
+    private LocalDateTime stockReleasedAt;
 }

@@ -46,8 +46,8 @@ class CollectionRateApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
                         .header("Authorization", bearer(donor.getUserId(), "donor")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].completedRequests").value(1))
-                .andExpect(jsonPath("$[0].approvedRequests").value(3));
+                .andExpect(jsonPath("$.content[0].completedRequests").value(1))
+                .andExpect(jsonPath("$.content[0].approvedRequests").value(3));
         assertAdminRate(donor.getUserId(), listing.getListingId(), 1, 3);
     }
 
@@ -64,8 +64,8 @@ class CollectionRateApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
                         .header("Authorization", bearer(donor.getUserId(), "donor")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].completedRequests").value(1))
-                .andExpect(jsonPath("$[0].approvedRequests").value(3));
+                .andExpect(jsonPath("$.content[0].completedRequests").value(1))
+                .andExpect(jsonPath("$.content[0].approvedRequests").value(3));
         assertAdminRate(donor.getUserId(), listing.getListingId(), 1, 3);
     }
 
@@ -76,8 +76,8 @@ class CollectionRateApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/donors/{donorId}/listings", donor.getId())
                         .header("Authorization", bearer(donor.getUserId(), "donor")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].completedRequests").value(0))
-                .andExpect(jsonPath("$[0].approvedRequests").value(0));
+                .andExpect(jsonPath("$.content[0].completedRequests").value(0))
+                .andExpect(jsonPath("$.content[0].approvedRequests").value(0));
         assertAdminRate(donor.getUserId(), listing.getListingId(), 0, 0);
     }
 }

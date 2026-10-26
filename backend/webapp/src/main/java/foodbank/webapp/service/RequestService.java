@@ -12,6 +12,7 @@ import foodbank.webapp.entity.Timeslot;
 import foodbank.webapp.exceptions.ConflictException;
 import foodbank.webapp.exceptions.ForbiddenException;
 import foodbank.webapp.repositories.CollectionHistoryRepository;
+import foodbank.webapp.repositories.ListingRepository;
 import foodbank.webapp.repositories.RecipientRepository;
 import foodbank.webapp.repositories.RequestRepository;
 import foodbank.webapp.repositories.TimeslotRepository;
@@ -31,13 +32,18 @@ import java.util.Random;
 public class RequestService {
     public static final int MAX_NOTE_LENGTH = 500;
     // Statuses a donor or recipient can file a report against
-    public static final List<String> REPORTABLE_STATUSES = List.of("APPROVED", "COMPLETED");
+    public static final List<String> REPORTABLE_STATUSES = List.of("APPROVED", "COMPLETED", "EXPIRED");
+    public static final String DECLINED_BY_DONOR = "DECLINED_BY_DONOR";
+    public static final String NOT_REVIEWED_IN_TIME = "NOT_REVIEWED_IN_TIME";
 
     private final RequestRepository requestRepository;
     private final TimeslotRepository timeslotRepository;
     private final CollectionHistoryRepository collectionHistoryRepository;
     private final RecipientRepository recipientRepository;
     private final UserRepository userRepository;
+    private final HandoverPolicy handoverPolicy;
+    private final ListingRepository listingRepository;
+    private final ListingStockService listingStockService;
 
     public List<RequestResponse> getDonorRequests(Integer donorId) {
         return requestRepository.findAllByDonor(donorId).stream()
@@ -58,7 +64,8 @@ public class RequestService {
 
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, "PENDING");
+        checkDonorRequest(donorId, request, timeslot, List.of("PENDING"));
+        checkSlotNotEnded(timeslot);
         Listing listing = timeslot.getListing();
 
         request.setStatus("APPROVED");
@@ -76,21 +83,31 @@ public class RequestService {
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, "PENDING");
+        checkDonorRequest(donorId, request, timeslot, List.of("PENDING"));
+        checkSlotNotEnded(timeslot);
         request.setStatus("REJECTED");
+        request.setRejectionReason(DECLINED_BY_DONOR);
         timeslot.setRemainingSlot(timeslot.getRemainingSlot() + 1);
         timeslotRepository.save(timeslot);
         return toResponse(requestRepository.save(request));
     }
 
-    // Donor confirms the recipient collected the food; the pickup place stays used
+    // Donor confirms the recipient collected the food, up to the handover deadline; the pickup place stays used.
+    // An EXPIRED request can still be corrected to COMPLETED until StockReleaseService releases its stock.
     @Transactional
     public RequestResponse completeRequest(Integer donorId, Integer requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NoSuchElementException("Request not found"));
         Timeslot timeslot = timeslotRepository.findById(request.getTimeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
-        checkDonorRequest(donorId, request, timeslot, "APPROVED");
+        checkDonorRequest(donorId, request, timeslot, List.of("APPROVED", "EXPIRED"));
+        if ("EXPIRED".equals(request.getStatus())) {
+            if (request.getStockReleasedAt() != null) {
+                throw new ConflictException("The stock for this request has already been released");
+            }
+        } else if (LocalDateTime.now().isAfter(handoverPolicy.deadline(timeslot))) {
+            throw new ConflictException("The handover window has ended");
+        }
 
         Listing listing = timeslot.getListing();
         request.setStatus("COMPLETED");
@@ -113,12 +130,19 @@ public class RequestService {
         return toResponse(request);
     }
 
-    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot, String expectedStatus) {
+    private void checkDonorRequest(Integer donorId, Request request, Timeslot timeslot, List<String> expectedStatuses) {
         if (!donorId.equals(timeslot.getListing().getDonor().getId())) {
             throw new ForbiddenException("The pickup request belongs to a different donor");
         }
-        if (!expectedStatus.equals(request.getStatus())) {
+        if (!expectedStatuses.contains(request.getStatus())) {
             throw new ConflictException("The pickup request has already been processed or cancelled");
+        }
+    }
+
+    // Covers the gap before RequestExpiryService picks up a request whose slot has ended
+    private void checkSlotNotEnded(Timeslot timeslot) {
+        if (!timeslot.getEndTime().isAfter(LocalDateTime.now())) {
+            throw new ConflictException("The pickup timeslot has already ended");
         }
     }
 
@@ -145,7 +169,8 @@ public class RequestService {
         Recipient recipient = findRecipientForUser(userId);
         Integer recipientId = recipient.getRecipientId();
 
-        Listing listing = timeslot.getListing();
+        Listing listing = listingRepository.findByIdForUpdate(timeslot.getListing().getListingId())
+                .orElseThrow(() -> new NoSuchElementException("Listing not found"));
 
         if (!"LIVE".equals(listing.getStatus())) {
             throw new ConflictException("This listing is not currently available for requests");
@@ -186,6 +211,9 @@ public class RequestService {
                         "Exceeds your personal daily limit of " + personalLimit);
             }
         }
+
+        // A request holds its quantity as soon as it is made, even before approval
+        listingStockService.requireAvailable(listing, req.quantityRequested());
 
         boolean autoApproved = Boolean.TRUE.equals(listing.getIsAutoApproved());
         boolean needsPickupCode = Boolean.TRUE.equals(listing.getUsePickupCode());
@@ -284,7 +312,14 @@ public class RequestService {
                 "APPROVED".equals(request.getStatus()) ? formatAddress(listing) : null,
                 recipient.getOrgName(),
                 userRepository.findById(recipient.getUserId()).map(user -> user.getPhone()).orElse(null),
-                listing.getQuantity()
+                listing.getQuantity(),
+                listingStockService.available(listing),
+                "APPROVED".equals(request.getStatus()) || "EXPIRED".equals(request.getStatus())
+                        ? handoverPolicy.deadline(timeslot).toString() : null,
+                "REJECTED".equals(request.getStatus())
+                        ? (request.getRejectionReason() == null ? DECLINED_BY_DONOR : request.getRejectionReason())
+                        : null,
+                request.getStockReleasedAt() != null
         );
     }
 

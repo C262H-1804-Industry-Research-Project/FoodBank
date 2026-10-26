@@ -73,6 +73,22 @@ export function registerRecipient(recipient) {
   return apiRequest('/auth/register-recipients', { method: 'POST', body: recipient })
 }
 
+export function registerBoth(account) {
+  return apiRequest('/auth/register-both', { method: 'POST', body: account })
+}
+
+export function switchRole(targetRole) {
+  return apiRequest('/account/switch-role', { method: 'POST', body: { targetRole } })
+}
+
+export function addRole(roleDetails) {
+  return apiRequest('/account/add-role', { method: 'POST', body: roleDetails })
+}
+
+export function linkAccount(credentials) {
+  return apiRequest('/account/link', { method: 'POST', body: credentials })
+}
+
 export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' })
 }
@@ -119,14 +135,17 @@ export async function getDonorSettings(donorId, signal) {
   return settings
 }
 
-export async function getDonorListings(donorId, signal) {
+// One page of the donor's own listings, newest first. page is 0-based.
+export async function getDonorListingsPage(donorId, { page = 0, size = 5 } = {}, signal) {
   if (!Number.isInteger(donorId) || donorId <= 0) {
     throw new Error('The signed-in donor is missing an ID.')
   }
 
-  const listings = await apiRequest(`/donors/${donorId}/listings`, { signal })
-  if (!Array.isArray(listings)) throw new Error('Invalid donor listings response from the API.')
-  return listings
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  const result = await apiRequest(`/donors/${donorId}/listings?${params}`, { signal })
+  if (!Array.isArray(result?.content) || !Number.isInteger(result?.page?.totalPages)
+      || !Number.isInteger(result?.page?.totalElements)) throw new Error('Invalid donor listings response from the API.')
+  return { items: result.content, totalElements: result.page.totalElements, totalPages: result.page.totalPages }
 }
 
 export async function getListingCatalogue(signal) {

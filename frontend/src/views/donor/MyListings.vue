@@ -9,12 +9,15 @@
     </div>
 
     <p v-if="actionError && !showEditModal" class="action-error" role="alert">{{ actionError }}</p>
-    <table>
+    <p v-if="loadError" class="action-error" role="alert">{{ loadError }} <button class="btn-outline btn-sm" @click="loadListings">Retry</button></p>
+    <p v-else-if="isLoading && listings.length === 0" role="status">Loading listings…</p>
+    <table v-if="listings.length > 0">
       <thead>
         <tr>
           <th>Food item</th>
           <th>Quantity</th>
           <th>Collection rate</th>
+          <th>Collect by</th>
           <th>Location</th>
           <th>Pickup slots</th>
           <th>Status</th>
@@ -22,10 +25,17 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in listings" :key="item.id">
+        <tr v-for="item in listings" :key="item.id" :class="{ 'row-expired': item.expired }">
           <td>{{ item.name }}</td>
-          <td>{{ item.quantity }}</td>
+          <td>
+            <template v-if="item.available != null">{{ item.available }} / {{ item.quantity }} left</template>
+            <template v-else>{{ item.quantity }}</template>
+          </td>
           <td>{{ item.collectionRate || '0/0' }}</td>
+          <td>
+            <span :class="{ 'date-expired': item.expired }">{{ item.deadline }}</span>
+            <div v-if="item.expired" class="expired-ago">{{ item.expiredLabel }}</div>
+          </td>
           <td>{{ item.suburb }}, {{ item.stateRegion }}</td>
           <td>
             {{ item.slots }} <span class="text-soft">· {{ item.booked }} booked</span>
@@ -41,7 +51,27 @@
       </tbody>
     </table>
 
-    <div v-if="listings.length === 0" class="empty-note">
+    <div v-if="listings.length > 0" class="pagination-bar">
+      <div class="pagination-info">
+        Showing <strong>{{ paginationStart }}</strong>–<strong>{{ paginationEnd }}</strong> of <strong>{{ totalElements }}</strong> listings
+      </div>
+      <div class="pagination-controls">
+        <button class="page-btn" :disabled="currentPage === 1 || isLoading" @click="currentPage--">‹ Prev</button>
+        <button
+          v-for="page in totalPages"
+          :key="page"
+          class="page-number-btn"
+          :class="{ active: currentPage === page }"
+          :disabled="isLoading"
+          @click="currentPage = page"
+        >
+          {{ page }}
+        </button>
+        <button class="page-btn" :disabled="currentPage === totalPages || isLoading" @click="currentPage++">Next ›</button>
+      </div>
+    </div>
+
+    <div v-if="!isLoading && !loadError && listings.length === 0" class="empty-note">
       No active or pending listings found. Click "+ New listing" to add one.
     </div>
 
@@ -240,21 +270,58 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
-import { getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { getDonorListingsPage, getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
 import { formatAddress, isSameAddress, toListingRow } from '../../api/donorListingAdapter'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
   donorId: { type: Number, required: true },
   donorAddress: { type: Object, default: null },
-  listings: {
-    type: Array,
-    required: true
-  }
 })
 
-const emit = defineEmits(['create-new', 'update-listing', 'delete-listing']) 
+// Server-side pagination: the current page of this donor's listings, newest first
+const PAGE_SIZE = 5
+const listings = ref([])
+const currentPage = ref(1)
+const totalElements = ref(0)
+const totalPages = ref(1)
+const isLoading = ref(true)
+const loadError = ref('')
+let loadController = null
+
+async function loadListings() {
+  // Abort an older request so a slow response cannot overwrite newer results
+  loadController?.abort()
+  const controller = new AbortController()
+  loadController = controller
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const result = await getDonorListingsPage(props.donorId, { page: currentPage.value - 1, size: PAGE_SIZE }, controller.signal)
+    // The page can fall off the end, e.g. after cancelling the only listing on the last page
+    if (!result.items.length && result.totalPages > 0 && currentPage.value > result.totalPages) {
+      currentPage.value = result.totalPages
+      return
+    }
+    listings.value = result.items.map(listing => toListingRow(listing))
+    totalElements.value = result.totalElements
+    totalPages.value = Math.max(result.totalPages, 1)
+  } catch (error) {
+    if (!controller.signal.aborted) loadError.value = error.message || 'Unable to load your listings.'
+  } finally {
+    if (!controller.signal.aborted && loadController === controller) isLoading.value = false
+  }
+}
+
+watch(currentPage, loadListings)
+onMounted(loadListings)
+onBeforeUnmount(() => loadController?.abort())
+
+const paginationStart = computed(() => totalElements.value === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1)
+const paginationEnd = computed(() => (currentPage.value - 1) * PAGE_SIZE + listings.value.length)
+
+const emit = defineEmits(['create-new'])
 
 const showEditModal = ref(false)
 const editForm = ref(null)
@@ -427,7 +494,9 @@ async function saveListing(status) {
       slotCapacity: form.slotCapacity, isAutoApproved: form.autoApproval,
       usePickupCode: form.requirePickupCode, hideContact: form.hideContact, photoUrl, status,
     })
-    emit('update-listing', toListingRow({ ...saved, photoUrl: saved.photoUrl || photoUrl }))
+    // Editing keeps the listing's place in the newest-first order, so it can be updated in place
+    const updated = toListingRow({ ...saved, photoUrl: saved.photoUrl || photoUrl })
+    listings.value = listings.value.map(item => item.id === updated.id ? updated : item)
     showEditModal.value = false
     editForm.value = null
     selectedPhoto.value = null
@@ -445,7 +514,8 @@ async function handleCancelListing(item) {
   busy.value = true
   try {
     await deleteDonorListing(props.donorId, item.id)
-    emit('delete-listing', item.id)
+    // Reload so the next listing moves up onto this page
+    await loadListings()
   } catch (error) {
     actionError.value = error.message || 'Unable to cancel the listing.'
   } finally {
@@ -477,6 +547,12 @@ tbody tr:hover { background: #FBFAF6; }
 .badge-status { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px; }
 .status-live { background: var(--success-tint); color: var(--success); }
 .status-draft { background: var(--surface-2); color: var(--text-muted); }
+/* Expired rows are only highlighted; Edit and Cancel keep working */
+tbody tr.row-expired { background: #FDF5F4; }
+tbody tr.row-expired:hover { background: #FAEDEC; }
+tbody tr.row-expired td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.date-expired { color: var(--danger); font-weight: 700; }
+.expired-ago { font-size: 11.5px; color: var(--danger); margin-top: 2px; }
 
 .action-buttons { display: flex; gap: 8px; align-items: center; }
 .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: var(--r-sm); font-weight: 700; font-size: 12px; cursor: pointer; }
@@ -550,4 +626,35 @@ tbody tr:hover { background: #FBFAF6; }
 @media (max-width: 680px) {
   .form-grid, .fields-row { grid-template-columns: 1fr; }
 }
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.pagination-info { font-size: 12.5px; color: var(--text-muted); }
+.pagination-controls { display: flex; gap: 6px; align-items: center; }
+.page-btn, .page-number-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s ease;
+}
+.page-btn:hover:not(:disabled), .page-number-btn:hover:not(.active) {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+.page-number-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 </style>

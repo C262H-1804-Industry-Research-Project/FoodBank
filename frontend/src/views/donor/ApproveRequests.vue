@@ -65,7 +65,7 @@
           <tr v-for="item in paginatedRequests" :key="item.id">
             <td>
               <div class="food-name">{{ item.foodName }}</div>
-              <div class="food-sub">Total available: {{ item.totalStock }}</div>
+              <div class="food-sub">Left: {{ item.totalStock }}</div>
             </td>
             <td>
               <div class="recipient-org">{{ item.recipientOrg }}</div>
@@ -118,10 +118,23 @@
                   View Code & Handover
                 </button>
               </div>
+              <div v-if="item.status === 'Approved' && item.handoverBy" class="handover-by">
+                Handover by {{ item.handoverBy }}
+              </div>
 
-              <!-- 3. Expired -->
+              <!-- 3. Expired: not collected by the handover deadline; correctable until the stock is released -->
+              <div v-else-if="item.status === 'Expired' && !item.stockReleased" class="action-btns">
+                <button 
+                  class="btn-verify-code btn-sm" 
+                  :disabled="busy"
+                  @click="openVerifyModal(item)"
+                >
+                  Mark as collected
+                </button>
+              </div>
               <span v-else-if="item.status === 'Expired'" class="action-expired-text">
-                Timed out
+                Not collected
+                <div class="stock-released">Stock released</div>
               </span>
 
               <!-- 4. Completed / Collected / Declined -->
@@ -236,73 +249,7 @@ const props = defineProps({
 
 const emit = defineEmits(['approve-request', 'decline-request', 'confirm-handover', 'reload'])
 
-// Default mock records for standalone preview when parent does not supply live rows
-const fallbackMockRequests = [
-  {
-    id: 101,
-    foodName: 'Sourdough loaves (12)',
-    totalStock: '12 units',
-    recipientOrg: 'Community Kitchen East',
-    contactName: 'Priya Nair',
-    phone: '0412 345 678',
-    quantity: '4 units',
-    slot: 'Today, 5:30–6:00pm',
-    pickupCode: null,
-    notes: 'Please keep two loaves sliced if possible.',
-    status: 'Pending',
-    statusClass: 'status-pending'
-  },
-  {
-    id: 102,
-    foodName: 'Mixed vegetable crates (5)',
-    totalStock: '5 crates',
-    recipientOrg: 'Norwood Youth Refuge',
-    contactName: 'Elena Rostova',
-    phone: '0455 667 889',
-    quantity: '2 crates',
-    slot: 'Today, 6:00–6:30pm',
-    pickupCode: 'PK-8921',
-    notes: 'Arriving with a refrigerated van.',
-    status: 'Approved',
-    statusClass: 'status-approved'
-  },
-  {
-    id: 103,
-    foodName: 'Whole milk cartons (15)',
-    totalStock: '15 cartons',
-    recipientOrg: 'St. Vincent de Paul Adelaide',
-    contactName: 'Mark Higgins',
-    phone: '0423 789 012',
-    quantity: '5 cartons',
-    slot: 'Yesterday, 4:00–4:30pm',
-    pickupCode: 'PK-4102',
-    notes: 'Pickup window closed. Recipient did not arrive.',
-    status: 'Expired',
-    statusClass: 'status-expired'
-  },
-  {
-    id: 104,
-    foodName: 'Croissant bundles (20)',
-    totalStock: '20 units',
-    recipientOrg: 'Salvation Army Care Centre',
-    contactName: 'David Lee',
-    phone: '0433 221 445',
-    quantity: '6 units',
-    slot: '2 days ago, 5:00–5:30pm',
-    pickupCode: null,
-    notes: 'Request remained unapproved past collection start window.',
-    status: 'Expired',
-    statusClass: 'status-expired'
-  }
-]
-
-// Prefer parent props when provided (important for passing automated CI tests)
-const displayRequests = computed(() => {
-  if (Array.isArray(props.requestsList) && props.requestsList.length > 0) {
-    return props.requestsList
-  }
-  return fallbackMockRequests
-})
+const displayRequests = computed(() => Array.isArray(props.requestsList) ? props.requestsList : [])
 
 const currentTab = ref('pending')
 const searchKeyword = ref('')
@@ -540,6 +487,8 @@ code.pcode {
 
 .btn-sm { font-size: 12px; border-radius: 6px; }
 .action-expired-text { font-size: 12px; color: var(--danger); font-weight: 700; }
+.stock-released { font-size: 11px; color: var(--text-soft); font-weight: 600; margin-top: 2px; }
+.handover-by { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
 .action-done-text { font-size: 12px; color: #1F5D50; font-weight: 700; }
 
 .pagination-bar {

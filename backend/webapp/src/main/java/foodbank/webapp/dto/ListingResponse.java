@@ -19,5 +19,7 @@ public record ListingResponse(
         String suburb,
         String region,
         // Kilometres from the recipient's location; null when no location was given or the address has no coordinates
-        Double distanceKm
+        Double distanceKm,
+        // Quantity not yet held by pending, approved, completed or expired requests
+        Float availableQuantity
 ){ }
