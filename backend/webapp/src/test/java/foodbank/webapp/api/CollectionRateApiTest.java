@@ -26,6 +26,49 @@ class CollectionRateApiTest extends ApiTestSupport {
                 .andExpect(jsonPath(row + ".approvedRequests", contains(approved)));
     }
 
+    private void assertDonorRate(Integer donorId, Integer userId, int completed, int approved) throws Exception {
+        mockMvc.perform(get("/api/donors/{donorId}/listings", donorId)
+                        .header("Authorization", bearer(userId, "donor")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].completedRequests").value(completed))
+                .andExpect(jsonPath("$.content[0].approvedRequests").value(approved));
+    }
+
+    @Test
+    void expiryKeepsDenominatorAndLaterCompletionOnlyChangesNumerator() throws Exception {
+        var donor = createDonor();
+        var listing = createLiveListing(donor, "Milk");
+        var slot = createTimeslot(listing, 3);
+        requestRepository.save(Request.builder().timeslotId(slot.getTimeslotId()).status("COMPLETED").build());
+        var first = requestRepository.save(Request.builder().timeslotId(slot.getTimeslotId()).status("APPROVED").build());
+        var second = requestRepository.save(Request.builder().timeslotId(slot.getTimeslotId()).status("APPROVED").build());
+        assertDonorRate(donor.getId(), donor.getUserId(), 1, 3);
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 1, 3);
+
+        first.setStatus("EXPIRED");
+        second.setStatus("EXPIRED");
+        requestRepository.saveAllAndFlush(java.util.List.of(first, second));
+        assertDonorRate(donor.getId(), donor.getUserId(), 1, 3);
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 1, 3);
+
+        first.setStatus("COMPLETED");
+        requestRepository.saveAndFlush(first);
+        assertDonorRate(donor.getId(), donor.getUserId(), 2, 3);
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 2, 3);
+    }
+
+    @Test
+    void expiredRequestsWithoutCompletionDoNotIncreaseNumerator() throws Exception {
+        var donor = createDonor();
+        var listing = createLiveListing(donor, "Milk");
+        var slot = createTimeslot(listing, 2);
+        for (int i = 0; i < 2; i++) {
+            requestRepository.save(Request.builder().timeslotId(slot.getTimeslotId()).status("EXPIRED").build());
+        }
+        assertDonorRate(donor.getId(), donor.getUserId(), 0, 2);
+        assertAdminRate(donor.getUserId(), listing.getListingId(), 0, 2);
+    }
+
     @Test
     void threeApprovedRequestsWithOneCompletedHistoryReturnOneOutOfThree() throws Exception {
         var donor = createDonor();
