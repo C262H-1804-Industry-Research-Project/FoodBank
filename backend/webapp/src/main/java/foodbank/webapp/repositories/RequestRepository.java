@@ -28,11 +28,12 @@ public interface RequestRepository extends JpaRepository<Request, Integer> {
             "AND (h.status IS NULL OR TRIM(h.status) = '' OR UPPER(h.status) = 'COMPLETED')))")
     long countCollectedByRecipientId(@Param("recipientId") Integer recipientId);
 
-    @Query("SELECT COUNT(r) FROM Request r WHERE r.status IN ('APPROVED', 'COMPLETED', 'FAILED') " +
+    // Approved applications remain in the denominator after collection or expiry.
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.status IN ('APPROVED', 'COMPLETED', 'EXPIRED', 'FAILED') " +
             "AND r.timeslotId IN (SELECT t.timeslotId FROM Timeslot t WHERE t.listing.listingId = :listingId)")
     long countApprovedForListing(@Param("listingId") Integer listingId);
 
-    @Query("SELECT COUNT(r) FROM Request r WHERE r.status IN ('APPROVED', 'COMPLETED', 'FAILED') " +
+    @Query("SELECT COUNT(r) FROM Request r WHERE r.status IN ('APPROVED', 'COMPLETED', 'EXPIRED', 'FAILED') " +
             "AND r.timeslotId IN (SELECT t.timeslotId FROM Timeslot t WHERE t.listing.listingId = :listingId) " +
             "AND (r.status = 'COMPLETED' OR EXISTS (SELECT h.historyId FROM CollectionHistory h " +
             "WHERE h.requestId = r.requestId AND h.listingId = :listingId " +
