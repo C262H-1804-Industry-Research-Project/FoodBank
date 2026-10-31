@@ -307,13 +307,8 @@ public class ListingService {
         if (request.slotCapacity() == null || request.slotCapacity() < 1 || request.slotCapacity() > 20) {
             throw new IllegalArgumentException("Recipients per slot must be between 1 and 20");
         }
-        if (request.collectionDeadline() != null && request.expiryDate() != null
-                && request.collectionDeadline().isAfter(request.expiryDate())) {
-            throw new IllegalArgumentException("collectionDeadline cannot be after expiryDate");
-        }
-        if (request.maxDailyCapacity() != null && request.maxDailyCapacity() < 1) {
-            throw new IllegalArgumentException("maxDailyCapacity must be greater than zero");
-        }
+        validateListingDates(request.expiryDate(), request.collectionDeadline());
+        validateDailyCapacity(request.quantity(), request.maxDailyCapacity());
         if (!"LIVE".equals(request.status()) && !"DRAFT".equals(request.status())) {
             throw new IllegalArgumentException("status must be LIVE or DRAFT");
         }
@@ -496,8 +491,33 @@ public class ListingService {
             throw new IllegalArgumentException("usePickupCode is required");
         }
         validateQuantity(request.quantity());
-        if (request.expiryDate() != null && request.collectionDeadline() != null
-                && request.collectionDeadline().isAfter(request.expiryDate())) {
+        validateListingDates(request.expiryDate(), request.collectionDeadline());
+        validateDailyCapacity(request.quantity(), request.maxDailyCapacity());
+    }
+
+    private static void validateDailyCapacity(Float quantity, Integer maxDailyCapacity) {
+        if (maxDailyCapacity == null) return;
+        if (maxDailyCapacity < 1) {
+            throw new IllegalArgumentException("maxDailyCapacity must be greater than zero");
+        }
+        if (maxDailyCapacity.doubleValue() > quantity.doubleValue()) {
+            throw new IllegalArgumentException("Max quantity per recipient / day cannot exceed total quantity.");
+        }
+    }
+
+    private static void validateListingDates(
+            java.time.LocalDate expiryDate,
+            java.time.LocalDate collectionDeadline
+    ) {
+        java.time.LocalDate today = java.time.LocalDate.now();
+        if (expiryDate != null && !expiryDate.isAfter(today)) {
+            throw new IllegalArgumentException("Expiry date must be later than today.");
+        }
+        if (collectionDeadline != null && !collectionDeadline.isAfter(today)) {
+            throw new IllegalArgumentException("Latest collection deadline must be later than today.");
+        }
+        if (expiryDate != null && collectionDeadline != null
+                && collectionDeadline.isAfter(expiryDate)) {
             throw new IllegalArgumentException("collectionDeadline cannot be after expiryDate");
         }
     }
