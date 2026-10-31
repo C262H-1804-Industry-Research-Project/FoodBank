@@ -153,7 +153,9 @@
           <!-- Storage instructions / notes (Optional) -->
           <div class="field span-2">
             <label class="field-label">* Storage instructions / description <span class="text-soft">(optional - shown on request card)</span></label>
-            <textarea v-model="form.notes" rows="3" placeholder="e.g. Keep refrigerated below 4°C; best collected same day"></textarea>
+            <textarea v-model="form.notes" rows="3" aria-describedby="new-description-limit" :aria-invalid="form.notes.length > MAX_LISTING_DESCRIPTION_LENGTH" placeholder="e.g. Keep refrigerated below 4°C; best collected same day"></textarea>
+            <p id="new-description-limit" class="text-soft">{{ form.notes.length }} / {{ MAX_LISTING_DESCRIPTION_LENGTH }} characters</p>
+            <p v-if="form.notes.length > MAX_LISTING_DESCRIPTION_LENGTH" class="submit-message error" role="alert">Storage instructions / description must be {{ MAX_LISTING_DESCRIPTION_LENGTH }} characters or fewer.</p>
           </div>
 
           <!-- Privacy toggle
@@ -245,6 +247,7 @@
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
 import { formatAddress, toListingRow } from '../../api/donorListingAdapter'
+import { MAX_LISTING_DESCRIPTION_LENGTH, validateListingDescription } from '../../api/listingValidation'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
@@ -416,6 +419,7 @@ function quantityValue(value) {
 }
 
 function buildRequest() {
+  validateListingDescription(form.notes)
   const quantity = Number(form.quantity)
   if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('Quantity must be a whole number greater than zero.')
   if (!form.category) throw new Error('Select a category before publishing.')

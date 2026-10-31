@@ -16,6 +16,8 @@ import java.util.Set;
 @Entity
 public class Listing {
 
+    public static final int MAX_DESCRIPTION_LENGTH = 2000;
+
     @Id
     @GeneratedValue
     private Integer listingId;
@@ -25,6 +27,7 @@ public class Listing {
 
 
     private String name;
+    @Column(length = MAX_DESCRIPTION_LENGTH)
     private String description;
     @ManyToOne
     private Category category;
