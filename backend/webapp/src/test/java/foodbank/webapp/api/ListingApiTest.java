@@ -18,11 +18,34 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ListingApiTest extends ApiTestSupport {
     @Autowired RequestRepository requestRepository;
+
+    @Test
+    void publishingAndEditingRejectFractionalQuantity() throws Exception {
+        Donor donor = createDonor();
+        Listing listing = createLiveListing(donor, "Bread");
+        String body = """
+                {"name":"Bread","categoryId":%d,"quantity":1.5,
+                 "addressLine":"1 King William St","suburb":"Adelaide","region":"SA",
+                 "isAutoApproved":false,"usePickupCode":false,"hideContact":false,
+                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots":[]}
+                """.formatted(listing.getCategory().getCategoryId());
+        String token = bearer(donor.getUserId(), "donor");
+        mockMvc.perform(post("/api/donors/{donorId}/listings", donor.getId())
+                        .header("Authorization", token).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("quantity must be a whole number greater than zero"));
+        mockMvc.perform(put("/api/donors/{donorId}/listings/{listingId}", donor.getId(), listing.getListingId())
+                        .header("Authorization", token).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("quantity must be a whole number greater than zero"));
+        assertThat(listingRepository.findById(listing.getListingId()).orElseThrow().getQuantity()).isEqualTo(10f);
+    }
 
 
     @Test

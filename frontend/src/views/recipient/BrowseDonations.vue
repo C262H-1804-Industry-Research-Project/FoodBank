@@ -92,7 +92,7 @@
             <div class="lc-meta">
               📍 {{ item.suburb }}, {{ item.stateRegion }}<span v-if="item.distanceKm != null" class="lc-distance"> · ~ {{ formatDistance(item.distanceKm) }}</span><br>
               🕐 {{ item.pickupWindow || item.slots || 'Pickup scheduled with donor' }}<br>
-              <span v-if="item.fullyReserved" class="lc-reserved">Fully reserved</span>
+              <span v-if="item.fullyReserved" class="lc-reserved">Unavailable</span>
               <span v-else-if="item.available != null">📦 {{ item.available }} units left</span>
             </div>
 
@@ -105,7 +105,7 @@
           <div class="lc-foot">
             <span class="lc-donor">{{ item.donor || 'Community Donor' }}</span>
             <button class="btn-accent btn-sm" :disabled="item.fullyReserved" @click="emit('request', item)">
-              {{ item.fullyReserved ? 'Fully reserved' : 'Request' }}
+              {{ item.fullyReserved ? 'Unavailable' : 'Request' }}
             </button>
           </div>
         </div>
