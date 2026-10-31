@@ -12,6 +12,8 @@ Yes. Select **Both** during registration. You can also add the other role to an 
 
 Click **Switch to Recipient** or **Switch to Donor**. If you have two separate accounts, choose the option to link an existing account and enter its email and password. Once linked, you can switch within the website.
 
+Account links remain saved after logout, so you do not need to link the accounts again. Switching is unavailable if the current or target account is banned or the target profile is not available.
+
 ### 4. How can a donor publish a listing?
 
 Log in as a donor and open **New listing**. Enter the food details, quantity, category, pickup address and timeslots, then click **Publish listing**. **Save as draft** keeps the listing unpublished.
@@ -39,6 +41,8 @@ Yes. Open **My requests** and click **Cancel**. Cancellation is available for pe
 ### 10. Where can I view previous donations or collections?
 
 Donors can open **Donation history**, while recipients can open **Collection history**. These pages display recorded collection details.
+
+An approved request does not appear as a completed collection until the donor confirms the handover.
 
 ### 11. How do I report a problem?
 
@@ -130,6 +134,8 @@ spring.jpa.hibernate.ddl-auto=update
 ```
 
 With this configuration, existing MySQL records normally remain across restarts. Check any environment or profile overrides, which can change this behaviour.
+
+Uploaded images are stored in the backend's local `uploads` directory, not inside MySQL. Back up both the database and this directory.
 
 Backend tests use a separate temporary H2 database with:
 
