@@ -285,6 +285,7 @@ public class ListingService {
 
         if (request == null) throw new IllegalArgumentException("request body is required");
         requireText(request.name(), "name");
+        validateDescription(request.description());
         // A blank address means "use the donor's own address", as when creating a listing
         String addressLine = request.addressLine();
         String suburb = request.suburb();
@@ -481,6 +482,7 @@ public class ListingService {
             throw new IllegalArgumentException("request body is required");
         }
         requireText(request.name(), "name");
+        validateDescription(request.description());
         if (request.categoryId() == null) {
             throw new IllegalArgumentException("categoryId is required");
         }
@@ -493,6 +495,13 @@ public class ListingService {
         validateQuantity(request.quantity());
         validateListingDates(request.expiryDate(), request.collectionDeadline());
         validateDailyCapacity(request.quantity(), request.maxDailyCapacity());
+    }
+
+    private static void validateDescription(String description) {
+        if (description != null && description.length() > Listing.MAX_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException("Storage instructions / description must be "
+                    + Listing.MAX_DESCRIPTION_LENGTH + " characters or fewer.");
+        }
     }
 
     private static void validateDailyCapacity(Float quantity, Integer maxDailyCapacity) {

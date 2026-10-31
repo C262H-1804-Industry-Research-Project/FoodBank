@@ -209,7 +209,9 @@
           <!-- Storage instructions / notes -->
           <div class="field span-2">
             <label class="field-label">Storage instructions / additional notes <span class="text-soft">(displayed on food card)</span></label>
-            <textarea v-model="editForm.notes" rows="3" placeholder="e.g. Keep refrigerated below 4°C; best collected same day"></textarea>
+            <textarea v-model="editForm.notes" rows="3" aria-describedby="edit-description-limit" :aria-invalid="editForm.notes.length > MAX_LISTING_DESCRIPTION_LENGTH" placeholder="e.g. Keep refrigerated below 4°C; best collected same day"></textarea>
+            <p id="edit-description-limit" class="text-soft">{{ editForm.notes.length }} / {{ MAX_LISTING_DESCRIPTION_LENGTH }} characters</p>
+            <p v-if="editForm.notes.length > MAX_LISTING_DESCRIPTION_LENGTH" class="action-error" role="alert">Storage instructions / description must be {{ MAX_LISTING_DESCRIPTION_LENGTH }} characters or fewer.</p>
           </div>
 
           <!-- Pickup timeslot management -->
@@ -273,6 +275,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { getDonorListingsPage, getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
 import { formatAddress, isSameAddress, toListingRow } from '../../api/donorListingAdapter'
+import { MAX_LISTING_DESCRIPTION_LENGTH, validateListingDescription } from '../../api/listingValidation'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
@@ -461,6 +464,7 @@ async function saveListing(status) {
   busy.value = true
   try {
     const form = editForm.value
+    validateListingDescription(form.notes)
     const quantity = Number(form.quantity)
     const requiredFields = form.useDonorAddress ? [form.name] : [form.name, form.addressLine, form.suburb, form.stateRegion]
     if (!requiredFields.every(value => value?.trim())) {
