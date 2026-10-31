@@ -112,7 +112,7 @@
 
             <div class="field">
               <label class="field-label">Quantity</label>
-              <input v-model="editForm.quantity" type="text" required>
+              <input v-model="editForm.quantity" type="number" min="1" step="1" required>
             </div>
 
             <div class="field">
@@ -466,7 +466,7 @@ async function saveListing(status) {
     if (!requiredFields.every(value => value?.trim())) {
       throw new Error('Complete all required fields before publishing.')
     }
-    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity must be greater than zero.')
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('Quantity must be a whole number greater than zero.')
     if (!Number.isInteger(form.slotCapacity) || form.slotCapacity < 1 || form.slotCapacity > 20) {
       throw new Error('Recipients per slot must be between 1 and 20.')
     }

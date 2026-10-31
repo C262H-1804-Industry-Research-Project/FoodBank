@@ -293,6 +293,23 @@ class ShumingFlowsApiTest extends ApiTestSupport {
         assertThat(timeslotRepository.findById(slot.getTimeslotId()).orElseThrow().getRemainingSlot()).isEqualTo(1);
     }
 
+    @Test
+    void differentRecipientsCannotOrderMoreThanFourAcrossTimeslots() throws Exception {
+        listing.setQuantity(4f);
+        listingRepository.save(listing);
+        submit(recipient, 2).andExpect(status().isCreated());
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(2.0));
+
+        slot = createTimeslot(listing, 3);
+        Recipient other = createRecipient();
+        submit(other, 4).andExpect(status().isConflict());
+        submit(other, 2).andExpect(status().isCreated());
+        browseThisListing().andExpect(jsonPath("$.content[0].availableQuantity").value(0.0));
+        submit(createRecipient(), 1).andExpect(status().isConflict());
+        assertThat(timeslotRepository.findById(slot.getTimeslotId()).orElseThrow().getRemainingSlot())
+                .isEqualTo(2);
+    }
+
     private int saveRequestWith(String status, float quantity) {
         return saveRequestWith(slot, status, quantity);
     }

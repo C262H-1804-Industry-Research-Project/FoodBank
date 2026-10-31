@@ -20,6 +20,8 @@ import foodbank.webapp.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
+import jakarta.persistence.EntityManager;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +46,7 @@ public class RequestService {
     private final HandoverPolicy handoverPolicy;
     private final ListingRepository listingRepository;
     private final ListingStockService listingStockService;
+    private final EntityManager entityManager;
 
     public List<RequestResponse> getDonorRequests(Integer donorId) {
         return requestRepository.findAllByDonor(donorId).stream()
@@ -146,7 +149,8 @@ public class RequestService {
         }
     }
 
-    @Transactional
+    // After waiting for the listing lock, stock sums must see the preceding order's commit.
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public RequestResponse createRequest(RequestSubmission req, Integer userId) {
         if (req.timeslotId() == null) {
             throw new IllegalArgumentException("timeslotId is required");
@@ -171,6 +175,9 @@ public class RequestService {
 
         Listing listing = listingRepository.findByIdForUpdate(timeslot.getListing().getListingId())
                 .orElseThrow(() -> new NoSuchElementException("Listing not found"));
+
+        // The slot was loaded before acquiring the listing lock; refresh its capacity too.
+        entityManager.refresh(timeslot);
 
         if (!"LIVE".equals(listing.getStatus())) {
             throw new ConflictException("This listing is not currently available for requests");

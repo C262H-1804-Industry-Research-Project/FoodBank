@@ -300,9 +300,7 @@ public class ListingService {
         if (request.categoryId() == null) throw new IllegalArgumentException("categoryId is required");
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Selected category does not exist"));
-        if (request.quantity() == null || !Float.isFinite(request.quantity()) || request.quantity() <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than zero");
-        }
+        validateQuantity(request.quantity());
         if (request.isAutoApproved() == null || request.usePickupCode() == null || request.hideContact() == null) {
             throw new IllegalArgumentException("Approval, pickup code and contact preferences are required");
         }
@@ -497,12 +495,16 @@ public class ListingService {
         if (request.usePickupCode() == null) {
             throw new IllegalArgumentException("usePickupCode is required");
         }
-        if (request.quantity() == null || request.quantity() <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than zero");
-        }
+        validateQuantity(request.quantity());
         if (request.expiryDate() != null && request.collectionDeadline() != null
                 && request.collectionDeadline().isAfter(request.expiryDate())) {
             throw new IllegalArgumentException("collectionDeadline cannot be after expiryDate");
+        }
+    }
+
+    private static void validateQuantity(Float quantity) {
+        if (quantity == null || !Float.isFinite(quantity) || quantity <= 0 || quantity != Math.floor(quantity)) {
+            throw new IllegalArgumentException("quantity must be a whole number greater than zero");
         }
     }
 

@@ -57,7 +57,7 @@
 
             <div class="field">
               <label class="field-label">Quantity</label>
-              <input v-model="form.quantity" type="text" placeholder="e.g. 12 units" required>
+              <input v-model="form.quantity" type="number" min="1" step="1" placeholder="e.g. 12" required>
             </div>
 
             <div class="field">
@@ -416,8 +416,8 @@ function quantityValue(value) {
 }
 
 function buildRequest() {
-  const quantity = quantityValue(form.quantity)
-  if (!quantity) throw new Error('Quantity must be a number greater than zero.')
+  const quantity = Number(form.quantity)
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('Quantity must be a whole number greater than zero.')
   if (!form.category) throw new Error('Select a category before publishing.')
 
   return {
