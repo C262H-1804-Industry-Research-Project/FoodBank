@@ -181,7 +181,7 @@
           </div>
 
 
-          <div class="field span-2 timeslot-section">
+          <div ref="timeslotSectionRef" class="field span-2 timeslot-section">
             <label class="field-label">Pickup timeslots</label>
 
             <div class="timeslot-form">
@@ -247,7 +247,7 @@
 import { onMounted, ref, reactive } from 'vue'
 import { createDonorListing, getListingCatalogue, uploadPhoto } from '../../api/client'
 import { formatAddress, toListingRow } from '../../api/donorListingAdapter'
-import { MAX_LISTING_DESCRIPTION_LENGTH, validateListingDescription } from '../../api/listingValidation'
+import { MAX_LISTING_DESCRIPTION_LENGTH, publishTimeslotError, validateListingDescription } from '../../api/listingValidation'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
@@ -277,6 +277,7 @@ const submitStatus = ref('LIVE')
 const today = new Date().toISOString().slice(0, 10)
 const timeslots = ref([])
 const timeslotError = ref('')
+const timeslotSectionRef = ref(null)
 const slotDraft = reactive({
   date: '',
   startTime: '',
@@ -455,6 +456,15 @@ async function submitListing() {
     && (!form.addressLine.trim() || !form.suburb.trim() || !form.stateRegion.trim())
   if (!form.name.trim() || addressMissing) {
     submitError.value = 'Complete all required fields before publishing.'
+    return
+  }
+
+  // Drafts aren't shown to recipients, so only publishing needs a pickup timeslot
+  const missingTimeslot = submitStatus.value === 'LIVE' ? publishTimeslotError(timeslots.value, slotDraft) : ''
+  if (missingTimeslot) {
+    submitError.value = missingTimeslot
+    timeslotError.value = missingTimeslot
+    timeslotSectionRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
     return
   }
 

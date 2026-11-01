@@ -33,7 +33,7 @@ class ListingApiTest extends ApiTestSupport {
                 {"name":"Bread","categoryId":%d,"quantity":1.5,
                  "addressLine":"1 King William St","suburb":"Adelaide","region":"SA",
                  "isAutoApproved":false,"usePickupCode":false,"hideContact":false,
-                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots":[]}
+                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots": [{"startTime": "2099-01-01T10:00:00", "endTime": "2099-01-01T11:00:00", "maxRecipients": 1}]}
                 """.formatted(listing.getCategory().getCategoryId());
         String token = bearer(donor.getUserId(), "donor");
         mockMvc.perform(post("/api/donors/{donorId}/listings", donor.getId())
@@ -47,6 +47,34 @@ class ListingApiTest extends ApiTestSupport {
         assertThat(listingRepository.findById(listing.getListingId()).orElseThrow().getQuantity()).isEqualTo(10f);
     }
 
+
+    @Test
+    void publishingRequiresAPickupTimeslotButDraftsDoNot() throws Exception {
+        Donor donor = createDonor();
+        Listing listing = createLiveListing(donor, "Bread");
+        String body = """
+                {"name":"Bread","categoryId":%d,"quantity":5,
+                 "addressLine":"1 King William St","suburb":"Adelaide","region":"SA",
+                 "isAutoApproved":false,"usePickupCode":false,"hideContact":false,
+                 "slotCapacity":1,"status":"%s","tagIds":[],"timeslots":[]}
+                """;
+        Integer categoryId = listing.getCategory().getCategoryId();
+        String token = bearer(donor.getUserId(), "donor");
+        mockMvc.perform(post("/api/donors/{donorId}/listings", donor.getId())
+                        .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content(body.formatted(categoryId, "LIVE")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("At least one pickup timeslot is required to publish."));
+        mockMvc.perform(put("/api/donors/{donorId}/listings/{listingId}", donor.getId(), listing.getListingId())
+                        .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content(body.formatted(categoryId, "LIVE")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("At least one pickup timeslot is required to publish."));
+        mockMvc.perform(post("/api/donors/{donorId}/listings", donor.getId())
+                        .header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content(body.formatted(categoryId, "DRAFT")))
+                .andExpect(status().isCreated());
+    }
 
     @Test
     void browseIsPublicAndIncludesTimeslotIds() throws Exception {

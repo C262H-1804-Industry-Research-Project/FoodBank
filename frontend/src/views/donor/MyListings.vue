@@ -225,7 +225,7 @@
             </div>
           </div>
 
-          <div class="field span-2 timeslot-section">
+          <div ref="timeslotSectionRef" class="field span-2 timeslot-section">
             <label class="field-label">Pickup timeslots</label>
             <div class="timeslot-form">
               <input v-model="slotDraft.date" type="date" :min="today">
@@ -275,7 +275,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { getDonorListingsPage, getListingCatalogue, updateDonorListing, deleteDonorListing, uploadPhoto } from '../../api/client'
 import { formatAddress, isSameAddress, toListingRow } from '../../api/donorListingAdapter'
-import { MAX_LISTING_DESCRIPTION_LENGTH, validateListingDescription } from '../../api/listingValidation'
+import { MAX_LISTING_DESCRIPTION_LENGTH, publishTimeslotError, validateListingDescription } from '../../api/listingValidation'
 import AddressAutocomplete from '../../components/AddressAutocomplete.vue'
 
 const props = defineProps({
@@ -337,6 +337,7 @@ const categories = ref([])
 const tags = ref([])
 const today = new Date().toISOString().slice(0, 10)
 const timeslotError = ref('')
+const timeslotSectionRef = ref(null)
 const slotDraft = reactive({ date: '', startTime: '', endTime: '' })
 
 async function openEditModal(item) {
@@ -482,6 +483,13 @@ async function saveListing(status) {
       throw new Error('Max quantity per recipient / day must be a whole number greater than zero.')
     }
     if (!form.categoryId) throw new Error('Select a category before publishing.')
+    // Drafts aren't shown to recipients, so only publishing needs a pickup timeslot
+    const missingTimeslot = status === 'LIVE' ? publishTimeslotError(form.timeslots, slotDraft) : ''
+    if (missingTimeslot) {
+      timeslotError.value = missingTimeslot
+      timeslotSectionRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      throw new Error(missingTimeslot)
+    }
 
     const photoUrl = selectedPhoto.value
       ? await uploadPhoto(selectedPhoto.value.file)

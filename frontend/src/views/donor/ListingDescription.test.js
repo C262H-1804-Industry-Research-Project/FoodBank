@@ -18,7 +18,8 @@ const listing = {
   quantity: 10, maxDailyCapacity: 4, description: '', status: 'LIVE',
   addressLine: '1 Test Street', suburb: 'Adelaide', region: 'SA',
   slotCapacity: 1, isAutoApproved: false, usePickupCode: false,
-  hideContact: false, tags: [], timeslots: [],
+  hideContact: false, tags: [],
+  timeslots: [{ startTime: '2099-01-01T10:00', endTime: '2099-01-01T11:00', maxRecipients: 1, remainingSlot: 1 }],
 }
 let wrapper
 
@@ -42,6 +43,12 @@ async function openForm(editing) {
   } else {
     await wrapper.get('input[placeholder="e.g. Sourdough loaves"]').setValue('Bread')
     await wrapper.get('input[placeholder="e.g. 12"]').setValue('10')
+    // Publishing needs a pickup timeslot
+    const [startTime, endTime] = wrapper.findAll('.timeslot-form input[type="time"]')
+    await wrapper.get('.timeslot-form input[type="date"]').setValue('2099-01-01')
+    await startTime.setValue('10:00')
+    await endTime.setValue('11:00')
+    await button('Add timeslot').trigger('click')
   }
 }
 
