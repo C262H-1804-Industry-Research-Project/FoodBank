@@ -454,7 +454,15 @@ describe('request display and time boundaries', () => {
     }
     expect(canCancelPickup(recipientRequestRow(record('CANCELLED')), start - 1)).toBe(false)
     expect(canCancelPickup(recipientRequestRow(record('COMPLETED')), start - 1)).toBe(false)
-    expect(isPickupOpen(slot, start)).toBe(false)
     expect(isPickupOpen({ ...slot, remainingSlot: 0 }, start - 1)).toBe(false)
+  })
+
+  it('keeps a slot bookable after it starts, until 30 minutes before it ends', () => {
+    const start = new Date(slot.startTime).getTime()
+    const cutoff = new Date(slot.endTime).getTime() - 30 * 60 * 1000
+    expect(isPickupOpen(slot, start)).toBe(true)
+    expect(isPickupOpen(slot, cutoff - 1)).toBe(true)
+    expect(isPickupOpen(slot, cutoff)).toBe(false)
+    expect(isPickupOpen(slot, cutoff + 1)).toBe(false)
   })
 })
