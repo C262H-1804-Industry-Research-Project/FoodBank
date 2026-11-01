@@ -79,7 +79,7 @@ class ListingDailyCapacityApiTest extends ApiTestSupport {
                 {"name":"Updated bread","categoryId":%d,"quantity":3,"maxDailyCapacity":%s,
                  "addressLine":"1 King William St","suburb":"Adelaide","region":"SA",
                  "isAutoApproved":false,"usePickupCode":false,"hideContact":false,
-                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots":[]}
+                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots": [{"startTime": "2099-01-01T10:00:00", "endTime": "2099-01-01T11:00:00", "maxRecipients": 1}]}
                 """.formatted(listing.getCategory().getCategoryId(), dailyLimit);
     }
 

@@ -90,7 +90,7 @@ class ListingDatesApiTest extends ApiTestSupport {
                  "expiryDate":%s,"collectionDeadline":%s,
                  "addressLine":"1 King William St","suburb":"Adelaide","region":"SA",
                  "isAutoApproved":false,"usePickupCode":false,"hideContact":false,
-                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots":[]}
+                 "slotCapacity":1,"status":"LIVE","tagIds":[],"timeslots": [{"startTime": "2099-01-01T10:00:00", "endTime": "2099-01-01T11:00:00", "maxRecipients": 1}]}
                 """.formatted(listing.getCategory().getCategoryId(), jsonDate(expiryDate), jsonDate(collectionDeadline));
     }
 

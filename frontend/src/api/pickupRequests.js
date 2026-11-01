@@ -19,9 +19,12 @@ export function changePickupRequest(donorId, id, action) {
   return apiRequest(`/donors/${donorId}/requests/${id}/${action}`, { method: 'PATCH' })
 }
 
+// Matches RequestService.BOOKING_CUTOFF: a slot, even one under way, can be booked until 30 minutes before it ends
+export const BOOKING_CUTOFF_MS = 30 * 60 * 1000
+
 export function isPickupOpen(slot, now = Date.now()) {
   return Number.isInteger(slot?.timeslotId) && slot.timeslotId > 0
-    && slot.remainingSlot > 0 && new Date(slot.startTime).getTime() > now
+    && slot.remainingSlot > 0 && new Date(slot.endTime).getTime() - BOOKING_CUTOFF_MS > now
 }
 
 export function canCancelPickup(row, now = Date.now()) {

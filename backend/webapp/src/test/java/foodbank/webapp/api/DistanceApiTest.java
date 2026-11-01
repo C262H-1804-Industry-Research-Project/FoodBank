@@ -211,7 +211,7 @@ class DistanceApiTest extends ApiTestSupport {
                 {"name": "Geocoded bread", "categoryId": %d, "quantity": 5,
                  "addressLine": %s, "suburb": %s, "region": %s,
                  "isAutoApproved": false, "usePickupCode": false, "status": "LIVE",
-                 "tagIds": [], "timeslots": []}
+                 "tagIds": [], "timeslots": [{"startTime": "2099-01-01T10:00:00", "endTime": "2099-01-01T11:00:00", "maxRecipients": 1}]}
                 """.formatted(produceCategoryId(), json(addressLine), json(suburb), json(region));
     }
 
@@ -270,7 +270,7 @@ class DistanceApiTest extends ApiTestSupport {
                 {"name": "Geocoded bread", "categoryId": %d, "quantity": 5,
                  "addressLine": %s, "suburb": %s, "region": %s,
                  "isAutoApproved": false, "usePickupCode": false, "hideContact": false,
-                 "slotCapacity": 1, "status": "LIVE", "tagIds": [], "timeslots": []}
+                 "slotCapacity": 1, "status": "LIVE", "tagIds": [], "timeslots": [{"startTime": "2099-01-01T10:00:00", "endTime": "2099-01-01T11:00:00", "maxRecipients": 1}]}
                 """.formatted(produceCategoryId(), json(addressLine), json(suburb), json(region));
     }
 

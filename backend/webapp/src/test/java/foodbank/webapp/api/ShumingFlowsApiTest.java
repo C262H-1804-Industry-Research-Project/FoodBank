@@ -433,13 +433,15 @@ class ShumingFlowsApiTest extends ApiTestSupport {
     }
 
     @Test
-    void pickupStartPreventsCancellationAndNewSubmission() throws Exception {
+    void pickupStartPreventsCancellationButStillAcceptsNewSubmissions() throws Exception {
         int id = savedRequest();
         slot.setStartTime(LocalDateTime.now().minusMinutes(1));
+        slot.setEndTime(LocalDateTime.now().plusHours(1));
         timeslotRepository.save(slot);
         mockMvc.perform(delete("/api/requests/" + id).header("Authorization", recipientToken(recipient)))
                 .andExpect(status().isConflict());
-        submit(createRecipient()).andExpect(status().isConflict());
+        // Bookings stay open until 30 minutes before the slot ends
+        submit(createRecipient()).andExpect(status().isCreated());
     }
 
     @Test

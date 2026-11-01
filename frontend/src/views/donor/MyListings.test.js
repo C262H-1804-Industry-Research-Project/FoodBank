@@ -78,3 +78,39 @@ describe('My listings server pagination', () => {
     expect(wrapper.text()).not.toContain('No active or pending listings found')
   })
 })
+
+describe('Editing a listing', () => {
+  async function openEdit(timeslots) {
+    vi.resetModules()
+    stored = [{ listingId: 1, name: 'Bread', status: 'LIVE', quantity: 5, categoryId: 2, addressLine: '1 King William St',
+      suburb: 'Adelaide', region: 'SA', timeslots }]
+    api = {
+      getDonorListingsPage: vi.fn(async () => ({ items: stored, totalElements: 1, totalPages: 1 })),
+      getListingCatalogue: vi.fn(async () => ({ categories: [{ id: 2, name: 'Bakery' }], tags: [] })),
+      updateDonorListing: vi.fn(async (donorId, id, request) => ({ ...stored[0], ...request, listingId: id })),
+    }
+    vi.doMock('../../api/client', async importOriginal => ({ ...(await importOriginal()), ...api }))
+    const { default: MyListings } = await import('./MyListings.vue')
+    const wrapper = mount(MyListings, { props: { donorId: 5 } })
+    await flushPromises()
+    await wrapper.findAll('button').find(b => b.text() === 'Edit').trigger('click')
+    await flushPromises()
+    return wrapper
+  }
+
+  const modalButton = (wrapper, text) => wrapper.findAll('.modal-close-row button').find(b => b.text() === text)
+
+  it('blocks publishing once every timeslot is removed, but still saves a draft', async () => {
+    const wrapper = await openEdit([{ startTime: '2099-01-01T10:00', endTime: '2099-01-01T11:00', maxRecipients: 1, remainingSlot: 1 }])
+    await wrapper.findAll('.timeslot-item button').find(b => b.text() === 'Remove').trigger('click')
+
+    await modalButton(wrapper, 'Publish listing').trigger('click')
+    await flushPromises()
+    expect(api.updateDonorListing).not.toHaveBeenCalled()
+    expect(wrapper.get('.timeslot-error').text()).toContain('Add at least one pickup timeslot before publishing')
+
+    await modalButton(wrapper, 'Save as draft').trigger('click')
+    await flushPromises()
+    expect(api.updateDonorListing).toHaveBeenCalledWith(5, 1, expect.objectContaining({ status: 'DRAFT', timeslots: [] }))
+  })
+})

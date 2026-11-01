@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.time.LocalDateTime;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -117,6 +119,27 @@ class RequestApiTest extends ApiTestSupport {
     void rejectsUnknownTimeslot() throws Exception {
         submit(recipientToken(recipient), body(999_999, 1, "null"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void acceptsTimeslotUnderWayUntil30MinutesBeforeItEnds() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        timeslot.setStartTime(now.minusHours(1));
+        timeslot.setEndTime(now.plusMinutes(31));
+        timeslotRepository.save(timeslot);
+        submit(recipientToken(recipient), body(timeslot.getTimeslotId(), 1, "null"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void rejectsTimeslotWithin30MinutesOfItsEnd() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        timeslot.setStartTime(now.minusHours(1));
+        timeslot.setEndTime(now.plusMinutes(29));
+        timeslotRepository.save(timeslot);
+        submit(recipientToken(recipient), body(timeslot.getTimeslotId(), 1, "null"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Bookings for this pickup timeslot close 30 minutes before it ends"));
     }
 
     @Test

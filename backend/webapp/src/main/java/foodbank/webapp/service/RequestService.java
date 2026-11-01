@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Isolation;
 import jakarta.persistence.EntityManager;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,6 +34,8 @@ import java.util.Random;
 @RequiredArgsConstructor
 public class RequestService {
     public static final int MAX_NOTE_LENGTH = 500;
+    // Recipients can book a pickup timeslot, even one already under way, until this long before it ends
+    public static final Duration BOOKING_CUTOFF = Duration.ofMinutes(30);
     // Statuses a donor or recipient can file a report against
     public static final List<String> REPORTABLE_STATUSES = List.of("APPROVED", "COMPLETED", "EXPIRED");
     public static final String DECLINED_BY_DONOR = "DECLINED_BY_DONOR";
@@ -166,8 +169,8 @@ public class RequestService {
         Timeslot timeslot = timeslotRepository.findById(req.timeslotId())
                 .orElseThrow(() -> new NoSuchElementException("Timeslot not found"));
 
-        if (!timeslot.getStartTime().isAfter(LocalDateTime.now())) {
-            throw new ConflictException("The pickup timeslot has already started");
+        if (!timeslot.getEndTime().minus(BOOKING_CUTOFF).isAfter(LocalDateTime.now())) {
+            throw new ConflictException("Bookings for this pickup timeslot close 30 minutes before it ends");
         }
 
         Recipient recipient = findRecipientForUser(userId);

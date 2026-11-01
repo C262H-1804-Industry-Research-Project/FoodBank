@@ -327,6 +327,7 @@ public class ListingService {
         if (removedSlots.stream().anyMatch(slot -> slot.getRemainingSlot() < slot.getMaxRecipients())) {
             throw new foodbank.webapp.exceptions.ConflictException("Pickup timeslots with bookings cannot be removed");
         }
+        requireTimeslotsToPublish(request.status(), request.timeslots());
         Integer previousCapacity = listing.getSlotCapacity();
         if (previousCapacity == null && !slots.isEmpty()) {
             previousCapacity = slots.stream().min(java.util.Comparator.comparing(Timeslot::getStartTime)).orElseThrow().getMaxRecipients();
@@ -495,6 +496,14 @@ public class ListingService {
         validateQuantity(request.quantity());
         validateListingDates(request.expiryDate(), request.collectionDeadline());
         validateDailyCapacity(request.quantity(), request.maxDailyCapacity());
+        requireTimeslotsToPublish(request.status(), request.timeslots());
+    }
+
+    // Recipients can only request a listing through a pickup timeslot; drafts may have none yet
+    private static void requireTimeslotsToPublish(String status, List<CreateTimeslotRequest> timeslots) {
+        if ("LIVE".equals(status) && (timeslots == null || timeslots.stream().allMatch(Objects::isNull))) {
+            throw new IllegalArgumentException("At least one pickup timeslot is required to publish.");
+        }
     }
 
     private static void validateDescription(String description) {

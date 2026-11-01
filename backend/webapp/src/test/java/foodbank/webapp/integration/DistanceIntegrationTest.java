@@ -68,7 +68,7 @@ class DistanceIntegrationTest extends ApiTestSupport {
                                 {"name": "%s", "categoryId": %d, "quantity": 5,
                                  "addressLine": "%s", "suburb": "%s", "region": "SA",
                                  "isAutoApproved": false, "usePickupCode": false, "status": "LIVE",
-                                 "tagIds": [], "timeslots": []}
+                                 "tagIds": [], "timeslots": [{"startTime": "2099-01-01T10:00:00", "endTime": "2099-01-01T11:00:00", "maxRecipients": 1}]}
                                 """.formatted(name, categoryId, addressLine, suburb)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

@@ -314,7 +314,7 @@ async function confirmRequest() {
   const selected = modalItem.value.timeslots?.find(slot => slot.timeslotId === modalForm.slot)
   const quantity = Number(modalForm.qty)
   if (!isPickupOpen(selected)) {
-    window.alert('Choose a future pickup timeslot with available places.')
+    window.alert('Choose a pickup timeslot with places left. Bookings close 30 minutes before a timeslot ends.')
     return
   }
   if (!Number.isFinite(quantity) || quantity <= 0) {
