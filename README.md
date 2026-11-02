@@ -66,14 +66,25 @@ The project is split into a Vue 3 single-page application and a Spring Boot REST
 
 ## Prerequisites
 
-- Node.js and npm
-- Java 17+
+- Node.js 22.12+ (or 24+) and npm — pinned in `frontend/.nvmrc` and the `engines` field of `frontend/package.json`; with nvm, run `nvm use` in `frontend/`
+- Java 17+ — set as `java.version` in `backend/webapp/pom.xml`
 - Maven 3.9+ (or use the included `./mvnw` wrapper)
 - MySQL 8+
 
+Library dependencies are listed in `frontend/package.json` (installed with `npm install`) and `backend/webapp/pom.xml` (downloaded by Maven on the first build).
+
 ## Local setup
 
-### 1. Create the database
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/C262H-1804-Industry-Research-Project/FoodBank
+cd FoodBank
+```
+
+All later commands are run from this `FoodBank` folder unless a step says otherwise.
+
+### 2. Create the database
 
 Create a local MySQL database named `foodbankdb`:
 
@@ -91,20 +102,20 @@ export SPRING_DATASOURCE_PASSWORD='your-password'
 
 The schema is created and updated automatically from the entities on startup (`spring.jpa.hibernate.ddl-auto=update`); existing data is kept.
 
-### 2. Configure environment variables
+### 3. Configure environment variables
 
 | Variable | Used by | Required | Purpose |
 | --- | --- | --- | --- |
 | `JWT_SECRET` | Backend | **Yes** — the API will not start without it | Base64-encoded key (at least 32 bytes) for signing login tokens |
 | `MAPBOX_ACCESS_TOKEN` | Backend | For distances | Looks up coordinates for listing pickup addresses. Without it, listings are saved without coordinates and `distanceKm` is always `null` |
 | `JWT_EXPIRATION_MS` | Backend | No (default `3600000`, 1 hour) | Login token lifetime |
-| `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Backend | No | Override the MySQL connection (see step 1) |
+| `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Backend | No | Override the MySQL connection (see step 2) |
 | `DEFAULT_ADMIN_NAME`, `DEFAULT_ADMIN_EMAIL`, `DEFAULT_ADMIN_PASSWORD` | Backend | No (defaults `admin`, `admin@test.com`, `password`) | Admin account created on startup if it does not exist. **Change the password outside local development.** Set `DEFAULT_ADMIN_EMAIL` to blank to turn this off |
 | `HANDOVER_GRACE_MINUTES` | Backend | No (default `15`) | Minutes after a slot ends that a donor can still mark a pickup as collected |
 | `STOCK_RELEASE_CRON`, `STOCK_RELEASE_ZONE` | Backend | No (default `0 20 0 * * *`, `Australia/Adelaide`) | When the nightly job releases stock held by expired requests |
 | `REQUEST_EXPIRY_CHECK_MS`, `BAN_EXPIRY_CHECK_MS` | Backend | No (default `60000`) | How often to close ended requests and lift finished temporary bans |
 | `VITE_MAPBOX_TOKEN` | Frontend | For address autocomplete | Public Mapbox token (`pk.…`) for the address search boxes. Without it, the browse page hides the "Your location" box, and the suburb filter has no suggestions (type a suburb name and press Enter instead) |
-| `API_PROXY_TARGET`, `VITE_API_BASE_URL` | Frontend | No | Point the frontend at a different API server (see step 4) |
+| `API_PROXY_TARGET`, `VITE_API_BASE_URL` | Frontend | No | Point the frontend at a different API server (see step 5) |
 
 Backend variables must be set in the environment that starts the API:
 
@@ -127,7 +138,7 @@ The same public Mapbox token can be used for both `MAPBOX_ACCESS_TOKEN` and `VIT
 
 > **Distances not showing?** Check that the backend was started with `MAPBOX_ACCESS_TOKEN`. On startup without it, the log shows `mapbox.access-token is not set; listing distances are disabled.` Restart with the token set: listings saved without coordinates are filled in automatically at startup.
 
-### 3. Start the backend
+### 4. Start the backend
 
 ```bash
 cd backend/webapp
@@ -138,7 +149,7 @@ The API runs on `http://localhost:8080` by default. Swagger UI is available at `
 
 Uploaded listing photos are stored in an `uploads/` folder in the directory the backend is started from, and served at `/uploads/...`.
 
-### 4. Start the frontend
+### 5. Start the frontend
 
 In a second terminal:
 
@@ -150,10 +161,10 @@ npm run dev
 
 Vite proxies `/api` requests to `http://localhost:8080`. To use another API server, set `API_PROXY_TARGET`. To bypass the proxy altogether, set `VITE_API_BASE_URL` to that server's API base URL.
 
-### 5. Sign in
+### 6. Sign in
 
 - **Donors and recipients:** register from the sign-up page; you are signed in straight away.
-- **Admin:** use the default admin account from step 2 (`admin@test.com` / `password` unless overridden) on the admin login.
+- **Admin:** use the default admin account from step 3 (`admin@test.com` / `password` unless overridden) on the admin login.
 
 ## Development commands
 
