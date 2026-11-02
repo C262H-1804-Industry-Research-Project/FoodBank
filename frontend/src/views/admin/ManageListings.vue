@@ -68,7 +68,9 @@
             <th>Food name</th>
             <th>Donor</th>
             <th>Quantity</th>
-            <th>Collection rate</th>
+            <th>Collection rate
+              <small class="collection-rate-subtitle">Completed requests / Approved requests</small>
+            </th>
             <th>Location</th>
             <th>Status</th>
             <th style="text-align:right;">Actions</th>
@@ -325,6 +327,16 @@ function handleBanListing(item) {
 </script>
 
 <style scoped>
+.collection-rate-subtitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .content-head { margin-bottom: 20px; }
 .content-head h2 { font-size: 22px; }
 .content-head .sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }

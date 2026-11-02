@@ -16,7 +16,9 @@
         <tr>
           <th>Food item</th>
           <th>Quantity</th>
-          <th>Collection rate</th>
+          <th>Collection rate
+            <small class="collection-rate-subtitle">Completed requests / Approved requests</small>
+          </th>
           <th>Collect by</th>
           <th>Location</th>
           <th>Pickup slots</th>
@@ -538,6 +540,16 @@ async function handleCancelListing(item) {
 </script>
 
 <style scoped>
+.collection-rate-subtitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .action-error { color: var(--danger); margin: 12px 0; }
 .edit-photo-field { margin: 18px 0; }
 .edit-photo-preview { display: flex; align-items: center; gap: 14px; }
