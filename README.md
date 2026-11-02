@@ -188,7 +188,8 @@ Vite proxies `/api` requests to `http://localhost:8080`. To use another API serv
 | Browse listings | `GET /api/listings`, `/api/listings/categories`, `/api/listings/tags`, `GET /api/suggestions/foodnames` |
 | Recipient location | `GET`, `PUT`, `DELETE /api/recipients/me/location` |
 | Donor listings | `GET`, `POST /api/donors/{donorId}/listings`; `PUT`, `DELETE /api/donors/{donorId}/listings/{listingId}` |
-| Photo upload | `POST /api/uploads` |
+| Donor settings | `GET`, `PUT /api/donors/{donorId}/settings` |
+| Photo upload | `POST /api/uploads/photo` |
 | Pickup requests (recipient) | `GET`, `POST /api/requests`; `DELETE /api/requests/{requestId}` |
 | Pickup requests (donor) | `GET /api/donors/{donorId}/requests`; `PATCH .../{requestId}/approve`, `/reject`, `/complete` |
 | Collection history | `GET /api/donors/{donorId}/collection-history`, `GET /api/recipients/me/collection-history` |
