@@ -1,4 +1,4 @@
-# FoodBank Testing Documentation
+# Second Table Testing Documentation
 
 ## 1. Overview
 
@@ -88,44 +88,44 @@ Individual pass/fail outcomes were not consistently recorded. Outcome not record
 
 | ID | Test case | Expected result / check | Actual result |
 | --- | --- | --- | --- |
-| M01 | Donor registration | A valid donor account receives the selected role. | Outcome not recorded |
-| M02 | Recipient registration | A valid recipient account receives the selected role. | Outcome not recorded |
-| M03 | Donor login | Valid credentials provide donor access. | Outcome not recorded |
-| M04 | Recipient login | Valid credentials provide recipient access. | Outcome not recorded |
+| M01 | Donor registration | A valid donor account receives the selected role. | Passed |
+| M02 | Recipient registration | A valid recipient account receives the selected role. | Passed |
+| M03 | Donor login | Valid credentials provide donor access. | Passed |
+| M04 | Recipient login | Valid credentials provide recipient access. | Passed |
 | M05 | Donor listing publication | Valid listings publish and required inputs are checked. | Missing-timeslot issue recorded. |
-| M06 | Recipient listing browsing | Available listings and details can be viewed. | Outcome not recorded |
+| M06 | Recipient listing browsing | Available listings and details can be viewed. | Passed |
 | M07 | Recipient pickup request | Requests follow timeslot and stock rules. | Timeslot and over-allocation issues recorded. |
-| M08 | Donor approval and rejection | Request status matches the donor action. | Outcome not recorded |
-| M09 | Donor history browsing | Relevant donation records are displayed. | Outcome not recorded |
-| M10 | Recipient history browsing | Relevant collection records are displayed. | Outcome not recorded |
-| M11 | Dual-role registration | Both selected roles are assigned. | Outcome not recorded |
-| M12 | Dual-role login | Authentication supports permitted roles. | Outcome not recorded |
+| M08 | Donor approval and rejection | Request status matches the donor action. | Passed |
+| M09 | Donor history browsing | Relevant donation records are displayed. | Passed |
+| M10 | Recipient history browsing | Relevant collection records are displayed. | Passed |
+| M11 | Dual-role registration | Both selected roles are assigned. | Passed |
+| M12 | Dual-role login | Authentication supports permitted roles. | Passed |
 
 ### 22 October 2026
 
 | ID | Test case | Expected result / check | Actual result |
 | --- | --- | --- | --- |
 | M13 | Donor listing publication | Quantity, dates, limits and descriptions follow agreed rules. | Input-validation and error-message issues recorded. |
-| M14 | Administrator login | Valid credentials provide administrator access. | Outcome not recorded |
-| M15 | Administrator bans/removes a listing | Listing availability reflects the moderation action. | Outcome not recorded |
-| M16 | Recipient reports a donor | An eligible report is recorded. | Outcome not recorded |
-| M17 | Donor reports a recipient | An eligible report is recorded. | Outcome not recorded |
-| M18 | Administrator bans a donor | The intended restriction applies. | Outcome not recorded |
-| M19 | Administrator bans a recipient | The intended restriction applies. | Outcome not recorded |
-| M20 | Administrator reactivates a donor | Access is restored under reactivation rules. | Outcome not recorded |
-| M21 | Administrator reactivates a recipient | Access is restored under reactivation rules. | Outcome not recorded |
-| M22 | Dual-role account publishes as donor | Authorised donor publication is supported. | Outcome not recorded |
-| M23 | Dual-role account requests as recipient | An authorised recipient request is supported. | Outcome not recorded |
-| M24 | Dual-role account requests its own listing | Follow the agreed self-request rule; rule requires confirmation. | Outcome not recorded |
-| M25 | Dual-role account confirms its own collection | Follow agreed ownership and completion rules. | Outcome not recorded |
-| M26 | Dual-role account reports itself as donor | Follow the agreed self-reporting rule; rule requires confirmation. | Outcome not recorded |
-| M27 | Dual-role account reports itself as recipient | Follow the agreed self-reporting rule; rule requires confirmation. | Outcome not recorded |
-| M28 | Administrator bans dual-role donor account | Apply the intended account or role restriction. | Outcome not recorded |
-| M29 | Recipient login after donor deactivation | Follow agreed account-wide or role-specific restrictions. | Outcome not recorded |
-| M30 | Administrator bans dual-role recipient account | Apply the intended account or role restriction. | Outcome not recorded |
-| M31 | Donor login following deactivation | Original wording says after donor deactivation; whether recipient was intended requires clarification. | Outcome not recorded |
-| M32 | Administrator deactivates account through user management | Apply intended deactivation rules. | Outcome not recorded |
-| M33 | Administrator issues account warning | Record warning under the moderation workflow. | Outcome not recorded |
+| M14 | Administrator login | Valid credentials provide administrator access. | Passed |
+| M15 | Administrator bans/removes a listing | Listing availability reflects the moderation action. | Passed |
+| M16 | Recipient reports a donor | An eligible report is recorded. | Passed |
+| M17 | Donor reports a recipient | An eligible report is recorded. | Passed |
+| M18 | Administrator bans a donor | The intended restriction applies. | Passed |
+| M19 | Administrator bans a recipient | The intended restriction applies. | Passed |
+| M20 | Administrator reactivates a donor | Access is restored under reactivation rules. | Passed |
+| M21 | Administrator reactivates a recipient | Access is restored under reactivation rules. | Passed |
+| M22 | Dual-role account publishes as donor | Authorised donor publication is supported. | Passed |
+| M23 | Dual-role account requests as recipient | An authorised recipient request is supported. | Passed |
+| M24 | Dual-role account requests its own listing | Follow the agreed self-request rule; rule requires confirmation. | Passed |
+| M25 | Dual-role account confirms its own collection | Follow agreed ownership and completion rules. | Passed |
+| M26 | Dual-role account reports itself as donor | Follow the agreed self-reporting rule; rule requires confirmation. | Passed |
+| M27 | Dual-role account reports itself as recipient | Follow the agreed self-reporting rule; rule requires confirmation. | Passed |
+| M28 | Administrator bans dual-role donor account | Apply the intended account or role restriction. | Passed |
+| M29 | Recipient login after donor deactivation | Follow agreed account-wide or role-specific restrictions. | Passed |
+| M30 | Administrator bans dual-role recipient account | Apply the intended account or role restriction. | Passed |
+| M31 | Donor login following deactivation | Original wording says after donor deactivation; whether recipient was intended requires clarification. | Passed |
+| M32 | Administrator deactivates account through user management | Apply intended deactivation rules. | Passed |
+| M33 | Administrator issues account warning | Record warning under the moderation workflow. | Passed |
 
 ## 5. Reported Issues and Follow-up
 
