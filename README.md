@@ -210,3 +210,219 @@ From the repository root, validate frontend and backend changes with:
 ```
 
 GitHub Actions runs the same checks on every push and pull request: the backend workflow when `backend/**` changes, and the frontend workflow (tests and production build) when `frontend/**` changes.
+
+
+## Deployment Guide
+
+This guide documents the Docker Compose setup used for the FoodBank demonstration on DigitalOcean. Run server commands from `/opt/foodbank/FoodBank-main` unless stated otherwise. Replace every `<PLACEHOLDER>` before running a command.
+
+### Deployment environment and supporting files
+
+- Server OS observed during troubleshooting: Ubuntu 24.04.5 LTS, x86_64.
+- Docker Engine and Docker Compose v2.
+- Windows PowerShell with SSH and SCP for uploading source archives.
+- MySQL 8.4 in Docker; frontend served by Nginx; Java 17 backend.
+- Container builds provide Node.js/npm and Maven/Java, so these do not need separate host installations.
+- Check available memory, swap and disk space before building. Small-memory servers may fail during builds.
+
+The source archive does not include the deployment files. Add the accompanying deployment-files.zip contents at the repository root and commit them alongside this README:
+
+```text
+compose.yaml
+backend/webapp/Dockerfile
+backend/webapp/.dockerignore
+frontend/Dockerfile
+frontend/.dockerignore
+frontend/deploy.nginx.conf
+deploy/init-env.sh
+```
+
+Keep the repository root `.env` out of version control by adding `.env` to the root `.gitignore`. Do not overwrite existing ignore rules.
+
+The deployment publishes port 80 only. Permit HTTP TCP 80 in the cloud firewall and restrict SSH TCP 22 to trusted client addresses. MySQL and the backend are accessed over the Compose network.
+
+### Configuration
+
+Create a root-level `.env`. For a FIRST deployment only, the supporting script generates database passwords and a JWT key:
+
+```bash
+sh deploy/init-env.sh
+nano .env
+chmod 600 .env
+```
+
+Example format only; these values are placeholders, not working credentials:
+
+```dotenv
+DB_PASSWORD=<DATABASE_PASSWORD>
+DB_ROOT_PASSWORD=<MYSQL_ROOT_PASSWORD>
+JWT_SECRET=<BASE64_ENCODED_KEY_AT_LEAST_32_BYTES>
+DEFAULT_ADMIN_EMAIL=<ADMIN_EMAIL>
+DEFAULT_ADMIN_PASSWORD='<ADMIN_PASSWORD>'
+MAPBOX_ACCESS_TOKEN=<SERVER_MAPBOX_PUBLIC_TOKEN>
+VITE_MAPBOX_TOKEN=<FRONTEND_MAPBOX_PUBLIC_TOKEN>
+```
+
+| Variable | Purpose |
+| --- | --- |
+| DB_PASSWORD | Password for the application's MySQL user |
+| DB_ROOT_PASSWORD | MySQL root password; separate from the server SSH root password |
+| JWT_SECRET | Backend token-signing key; keep the existing value during redeployment |
+| DEFAULT_ADMIN_EMAIL / DEFAULT_ADMIN_PASSWORD | Creates an administrator only if that email does not already exist; leave email blank to disable |
+| MAPBOX_ACCESS_TOKEN | Backend address-coordinate lookup |
+| VITE_MAPBOX_TOKEN | Frontend address autocomplete; public pk. token, embedded at build time |
+
+Do not put a secret sk. token in the frontend. A URL-restricted frontend token should be separate from the backend token, which must support server-originated requests.
+
+Changing the frontend token requires rebuilding web. Changing administrator initialization variables does not reset an existing account's password.
+
+### Database preparation and persistence
+
+Compose creates `foodbankdb` and the `foodbank` MySQL user when its database volume is first initialized. A separate manual CREATE DATABASE step is not required for this Docker setup.
+
+The backend connects to `jdbc:mysql://db:3306/foodbankdb`. Hibernate uses `ddl-auto=update`; schema changes may occur at startup and must be backed up before updates.
+
+Named volumes preserve MySQL data and `/app/uploads`. Keep the same project directory and Compose project identity during updates so the existing volumes remain attached.
+
+MySQL initialization variables do not change passwords in an already initialized volume. Never regenerate DB_PASSWORD during an update without a coordinated database password change. Do not use `docker compose down -v` or prune volumes containing application data.
+
+### Upload and first deployment
+
+From Windows PowerShell:
+
+```powershell
+scp "C:\Users\<WINDOWS_USER>\Downloads\FoodBank-deploy.zip" root@<SERVER_IP>:/root/FoodBank-deploy.zip
+ssh root@<SERVER_IP>
+```
+
+For an Ubuntu host missing the required tools:
+
+```bash
+apt-get update
+apt-get install -y docker.io docker-compose-v2 unzip openssl curl rsync
+systemctl enable --now docker
+```
+
+On the server, using the prepared archive that contains source and deployment files:
+
+```bash
+mkdir -p /opt/foodbank
+unzip /root/FoodBank-deploy.zip -d /opt/foodbank
+cd /opt/foodbank/FoodBank-main
+sh deploy/init-env.sh
+nano .env
+docker compose config --quiet
+docker compose build backend
+docker compose build web
+docker compose up -d
+```
+
+Build services sequentially. The supplied Dockerfiles run backend verification and frontend tests before packaging. Stop and investigate a failed build rather than deploying unverified output.
+
+### Redeploy an existing installation
+
+Upload the new source archive from Windows:
+
+```powershell
+scp "C:\Users\<WINDOWS_USER>\Downloads\FoodBank-main.zip" root@<SERVER_IP>:/root/FoodBank-latest.zip
+ssh root@<SERVER_IP>
+```
+
+In one server shell, first validate configuration and create a private backup directory:
+
+```bash
+cd /opt/foodbank/FoodBank-main
+docker compose config --quiet
+docker compose ps -a
+backup_dir="/root/foodbank-backups/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$backup_dir"
+chmod 700 "$backup_dir"
+tar --exclude='FoodBank-main/frontend/node_modules' --exclude='FoodBank-main/frontend/dist' --exclude='FoodBank-main/backend/webapp/target' -czf "$backup_dir/project.tar.gz" -C /opt/foodbank FoodBank-main
+backend_id=$(docker compose ps -aq backend)
+test -n "$backend_id"
+```
+
+Stop application writes for a consistent backup; the website is unavailable during this maintenance window:
+
+```bash
+docker compose stop web backend
+docker compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump --single-transaction --no-tablespaces -u foodbank foodbankdb' > "$backup_dir/database.sql"
+docker cp "${backend_id}:/app/uploads" "$backup_dir/uploads"
+test -s "$backup_dir/database.sql"
+```
+
+Check each command succeeds before continuing. Backups contain private configuration and user data; keep them outside the web root. If a backup fails, leave source unchanged and restart the existing services with `docker compose up -d`.
+
+Extract to staging and update source while retaining deployment files:
+
+```bash
+release_dir=$(mktemp -d /root/foodbank-release-XXXXXX)
+unzip /root/FoodBank-latest.zip -d "$release_dir"
+ls "$release_dir/FoodBank-main"
+
+rsync -av --delete --exclude='.env*' --exclude='node_modules/' --exclude='dist/' --exclude='Dockerfile' --exclude='.dockerignore' --exclude='deploy.nginx.conf' "$release_dir/FoodBank-main/frontend/" /opt/foodbank/FoodBank-main/frontend/
+
+rsync -av --delete --exclude='.env*' --exclude='target/' --exclude='uploads/' --exclude='Dockerfile' --exclude='.dockerignore' "$release_dir/FoodBank-main/backend/webapp/" /opt/foodbank/FoodBank-main/backend/webapp/
+
+docker compose config --quiet
+docker compose build backend
+docker compose build web
+docker compose up -d --no-deps backend web
+```
+
+Run these commands individually, stopping on errors. The rsync deletion applies only to the two specified application directories, with the listed exclusions. It leaves the root .env and compose.yaml unchanged.
+
+Rebuilding is required after code changes; restarting alone uses the existing image. Do not blindly restore a database backup if the new application has already changed the schema or accepted new data.
+
+### Start, restart, stop and inspect
+
+```bash
+cd /opt/foodbank/FoodBank-main
+docker compose up -d                         # Start configured services
+docker compose restart backend web          # Restart existing application containers
+docker compose stop web backend             # Maintenance: stop application, keep database
+docker compose up -d --no-deps backend web   # Apply rebuilt application images/configuration
+docker compose ps -a
+docker compose logs --tail=100 backend web
+```
+
+A restart does not apply changed environment settings; use `up -d` to recreate affected services. These commands do not intentionally delete named volumes.
+
+### Post-deployment checks
+
+```bash
+systemctl is-active docker
+docker compose ps -a
+curl -f http://localhost/
+curl -f http://localhost/api/listings/categories
+docker compose logs --tail=100 backend
+```
+
+Expected results: Docker active; db healthy; backend and web running; root returns HTML; categories endpoint returns JSON. A web HTTP 200 alone does not prove the backend works.
+
+Open `http://<SERVER_IP>` and force-refresh with Ctrl+Shift+R. Verify existing-account login, donation creation, image upload, recipient requests, administrator actions and previously stored records/images.
+
+For address autocomplete, enter an Australian address and inspect browser Network requests: /suggest should return 200 with suggestions and /retrieve should return 200 when selecting one. Configuration being non-empty does not establish token validity.
+
+This demonstration configuration provides HTTP only. HTTPS requires additional configuration before collecting real user information.
+
+### Troubleshooting and observed deployment issues
+
+| Symptom | Diagnosis or action |
+| --- | --- |
+| PowerShell says root@... is not recognized | A destination address was entered as a command; use the complete scp command including the local file path |
+| DB_PASSWORD missing during Compose interpolation | Correct the root .env variable name; a mistyped prefix was observed during setup. Preserve its existing value |
+| Incorrect administrator email/password | Check initialization values and backend logs. Existing admin passwords are not overwritten by initialization |
+| ERR_CONNECTION_REFUSED | Use http://, inspect Docker and container state, then check port 80/firewall if needed |
+| db healthy but backend/web Exited | This state was observed after the services were stopped for maintenance; start them with up -d --no-deps backend web |
+| Mapbox suggestions absent | Check VITE_MAPBOX_TOKEN, rebuild web, recreate services and force-refresh; inspect API response codes |
+| Mapbox 401 / 403 / 429 | Check token validity / account access and URL restrictions / rate limits respectively |
+| Build killed or exit 137 | Inspect free -h, swapon --show and available disk; build sequentially and address resource limits |
+| Website returns 502 | Inspect backend logs and wait for successful backend startup |
+| Database login fails after editing .env | Existing MySQL volume passwords do not change automatically; recover the matching configuration rather than deleting the volume |
+
+### Verification record
+
+Server screenshots confirm Ubuntu 24.04.5 LTS, Docker active, MySQL 8.4 healthy, and backend/web stopped after a maintenance stop. The application-start command above was supplied to restore those services; final startup and latest-version acceptance results were not provided in this record.
+
+Earlier local validation recorded 150 passing frontend tests and 154 passing backend tests with successful builds. Those counts apply to the earlier source version, not automatically to the latest upload. Record the latest build results and actual post-deployment checks before marking this release verified.
