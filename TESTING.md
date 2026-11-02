@@ -130,8 +130,8 @@ Individual pass/fail outcomes were not consistently recorded. Outcome not record
 ## 5. Reported Issues and Follow-up
 
 Seven issues were recorded: missing pickup timeslots, same-day timeslot availability, over-allocation, decimal quantities, invalid dates, daily limits exceeding listing quantity, and long descriptions displaying an Unauthorised error.
+The development team subsequently confirmed that the reported bugs had been fixed. The passing automated suite includes related regression checks, supporting evidence of the fixes is documented in the Bug Reports.
 
-The development team subsequently confirmed that the reported bugs had been fixed. The passing automated suite includes related regression checks, but separate post-fix manual retest results were not supplied. Developer confirmation and automated checks are not presented as documented manual closure of every original issue.
 
 ## 6. Execution Commands
 
