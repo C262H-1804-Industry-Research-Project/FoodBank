@@ -19,7 +19,7 @@ it('renders listing collection rates from all API pages and preserves them when 
   const wrapper = mount(ManageListings, { props: { listings } })
   try {
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(wrapper.findAll('th').map(th => th.text())).toContain('Collection rate')
+    expect(wrapper.find('.collection-rate-subtitle').text()).toBe('Completed requests / Approved requests')
     expect(wrapper.findAll('tbody tr')[0].text()).toContain('1/3')
     expect(wrapper.findAll('tbody tr')[1].text()).toContain('0/0')
     await wrapper.find('select').setValue('Dairy')

@@ -13,7 +13,7 @@ it('renders donor and recipient collection rates from the accounts API', async (
   const wrapper = mount(AccountManagement)
   try {
     await flushPromises()
-    expect(wrapper.findAll('th').map(cell => cell.text())).toContain('Collection rate')
+    expect(wrapper.find('.collection-rate-subtitle').text()).toBe('Completed requests / Total requests made')
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0].text()).toContain('2/6')
     expect(rows[1].text()).toContain('3/7')
