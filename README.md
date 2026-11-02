@@ -78,7 +78,7 @@ Library dependencies are listed in `frontend/package.json` (installed with `npm 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/C262H-1804-Industry-Research-Project/FoodBank
+git clone git@github.com:C262H-1804-Industry-Research-Project/FoodBank.git
 cd FoodBank
 ```
 
